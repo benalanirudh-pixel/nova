@@ -158,3 +158,19 @@ Observed data-availability flags from that run (not changed by this fix):
 
 Not run: GUI launch (interactive desktop only), forced `--refresh` scan,
 Ollama AI analysis path.
+
+## 2026-10-09 - Live GUI Test (market_lab_ui.py)
+
+- Launched the real GUI window; stdout/stderr grepped for
+  `ERROR|Traceback|WARNING|failed` after the session: no matches.
+- Normal launch used the cached scan ("Using fresh cached market scan,
+  1,999 stocks, 3.5 hours old") and displayed the previously saved report.
+- Worker auto-save verified live twice without CLI involvement:
+  reports written at 23:51:01 (cache-first path) and 23:53:32
+  (user-triggered Refresh).
+- The user-triggered Refresh completed the full 2,333-stock NSE scan in
+  about 2 minutes; new scan `market_scan_20261009_235322.csv` saved and the
+  resulting report has `mode: FORCED_REFRESH`.
+- Newest-report loader confirmed intact: `generated` 2026-10-09T23:53:32,
+  scanner file points at the fresh scan.
+
