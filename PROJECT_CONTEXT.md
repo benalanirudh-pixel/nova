@@ -12,7 +12,9 @@ needing the old chats.
 ## Current Repository State
 
 - Path: `C:\Users\Anirudh\nova`
-- Git status: no `.git` repository was found during inspection.
+- Git status: local Git repository on branch `main`; private GitHub remote
+  `origin` = `https://github.com/benalanirudh-pixel/nova.git`. Initial commit
+  `e6ff588` pushed on 2026-10-09.
 - Runtime: local Windows Python project.
 - Package manifest: no `requirements.txt`, `pyproject.toml`, or similar
   manifest was found during the audit.
@@ -86,7 +88,8 @@ invariants:
 
 ## Known Project Risks
 
-- No Git repository means there is no built-in rollback or diff history.
+- Git history exists now, but the only off-machine copy is the private GitHub
+  repo; keep commits small so rollback stays usable.
 - No dependency manifest means environment reproduction currently depends on
   the existing `venv/`.
 - Market-data code touches live public endpoints and local caches. Network

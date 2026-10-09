@@ -10,9 +10,10 @@ It has two primary user-facing surfaces:
 - `main.py` launches the main Nova desktop assistant UI.
 - `market_lab_ui.py` launches Nova Market Lab.
 
-The project is currently a local folder, not a Git repository. Treat all edits
-as direct edits to the user's working copy unless the user asks to initialize
-Git or create a separate copy.
+The project is a local Git repository on branch `main` with a private GitHub
+remote (`origin`: https://github.com/benalanirudh-pixel/nova.git). Make small
+commits as part of completed work; do not push to the remote unless the user
+asks.
 
 ## Required Reading Order
 

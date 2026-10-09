@@ -111,4 +111,21 @@ data for lightweight index refreshes.
 - No live trade/broker behavior exists to validate, and none should be added.
 - No automated test suite is currently configured.
 - Existing `test_nse_*` scripts are manual smoke scripts, not a formal test
+
+## 2026-10-09 - Git/GitHub Initialization Session
+
+No source code was changed. Only context docs were updated to replace stale
+"not a Git repository" statements.
+
+Checks run:
+
+- `git init -b main` - repository created in `C:\Users\Anirudh\nova`.
+- `git add -A` then `git ls-files` - 55 files, about 1.1 MB staged; confirmed
+  no `venv/`, `.venv/`, `stt_models/`, `voices/`, cache, `*.wav`, `*.zip`, or
+  `*.log` files staged.
+- `git commit` - root commit `e6ff588`, 55 files, 52,779 insertions.
+- `git ls-remote --heads origin main` - remote hash matches local `e6ff588`.
+- `git status` - clean tree; `main` tracks `origin/main`.
+
+Not run: no Python runtime checks were needed because no source code changed.
   suite.

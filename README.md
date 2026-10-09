@@ -83,7 +83,8 @@ cached scan is available.
 
 ## Current Caveats
 
-- This folder is not currently a Git repository.
+- This folder is a Git repository (branch `main`) with a private GitHub remote
+  (`benalanirudh-pixel/nova`). Generated state is excluded via `.gitignore`.
 - There is no `requirements.txt` or `pyproject.toml` yet.
 - There are two virtual environments: `venv/` and `.venv/`. The populated one
   used during inspection was `venv/`.

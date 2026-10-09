@@ -21,7 +21,8 @@ Then give the specific task.
 
 - This is a Windows local Python app.
 - Use `.\venv\Scripts\python.exe`.
-- The app is not currently in Git.
+- The app is in Git: branch `main`, private GitHub remote `origin`
+  (`benalanirudh-pixel/nova`).
 - There are large generated folders that should be ignored unless relevant.
 - The main assistant starts with `main.py`.
 - Market Lab starts with `market_lab_ui.py`.
