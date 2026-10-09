@@ -1,0 +1,1210 @@
+"""
+Nova tools: actions the LLM is allowed to trigger.
+Evidence-grounded market-analysis layer.
+
+Safety rules:
+- Apps: whitelist only.
+- Websites: http/https only.
+- Web research: local SearXNG only.
+- Market data: read-only.
+- Market analysis: read-only NSE scanner.
+- No broker connection.
+- No order placement.
+- No BUY/SELL execution.
+- Market claims must be grounded in returned tool data.
+"""
+
+from __future__ import annotations
+
+import datetime
+import json
+import math
+import subprocess
+import sys
+import webbrowser
+
+from urllib.parse import urlparse, quote
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
+
+from analysis.data.market_data import get_instrument
+from analysis.data.market_scanner import scan_market
+
+
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+
+DEBUG = True
+SEARXNG_URL = "http://localhost:8080"
+
+
+# ============================================================================
+# APP WHITELIST
+# ============================================================================
+
+APPS = {
+    "notepad": "notepad",
+    "calculator": "calc",
+    "chrome": "chrome",
+    "vscode": "code",
+    "explorer": "explorer",
+    "paint": "mspaint",
+}
+
+ALIASES = {
+    "calc": "calculator",
+    "googlechrome": "chrome",
+    "browser": "chrome",
+    "code": "vscode",
+    "visualstudiocode": "vscode",
+    "fileexplorer": "explorer",
+    "files": "explorer",
+    "mspaint": "paint",
+}
+
+
+# ============================================================================
+# GENERIC HELPERS
+# ============================================================================
+
+def _safe_float(value, default=None):
+    """Convert a value to a finite float."""
+    try:
+        result = float(value)
+        if not math.isfinite(result):
+            return default
+        return result
+    except (TypeError, ValueError):
+        return default
+
+
+def _fmt_number(value, decimals=2, default="N/A"):
+    """Safely format numeric values."""
+    number = _safe_float(value)
+    if number is None:
+        return default
+    return f"{number:.{decimals}f}"
+
+
+def _fmt_percent(value, decimals=2, default="N/A"):
+    """Safely format percentage values."""
+    number = _safe_float(value)
+    if number is None:
+        return default
+    return f"{number:.{decimals}f}%"
+
+
+# ============================================================================
+# TIME
+# ============================================================================
+
+def get_time() -> str:
+    """Return the current local date and time."""
+    now = datetime.datetime.now().astimezone()
+
+    return (
+        now.strftime("%A, %d %B %Y, %I:%M %p")
+        + f" ({now.tzname()})"
+    )
+
+
+# ============================================================================
+# DIRECT MARKET DATA
+# ============================================================================
+
+def get_market_data() -> str:
+    """
+    Get the latest available NIFTY 50 market data.
+
+    READ-ONLY.
+
+    Intended for direct questions about:
+    - NIFTY price
+    - NIFTY close
+    - NIFTY high
+    - NIFTY low
+    """
+
+    try:
+        data = get_instrument(
+            "NIFTY",
+            period="5d",
+            interval="1d",
+        )
+
+        if data is None or data.empty:
+            return (
+                "MARKET DATA ERROR | "
+                "NIFTY 50 data is unavailable."
+            )
+
+        latest = data.iloc[-1]
+        timestamp = data.index[-1].isoformat()
+
+        open_price = _safe_float(latest.get("Open"))
+        high_price = _safe_float(latest.get("High"))
+        low_price = _safe_float(latest.get("Low"))
+        close_price = _safe_float(latest.get("Close"))
+        volume = _safe_float(latest.get("Volume"), 0.0)
+
+        if close_price is None:
+            return (
+                "MARKET DATA ERROR | "
+                "NIFTY close price is unavailable."
+            )
+
+        return (
+            "VERIFIED NIFTY 50 MARKET DATA | "
+            "SOURCE=Yahoo Finance | "
+            f"Open={_fmt_number(open_price)} | "
+            f"High={_fmt_number(high_price)} | "
+            f"Low={_fmt_number(low_price)} | "
+            f"Close={_fmt_number(close_price)} | "
+            f"Volume={volume:,.0f} | "
+            f"DATA_TIMESTAMP={timestamp}"
+        )
+
+    except Exception as e:
+        return (
+            "MARKET DATA ERROR | "
+            f"Unable to retrieve NIFTY 50 data: {e}"
+        )
+
+
+# ============================================================================
+# EVIDENCE-GROUNDED MARKET ANALYSIS
+# ============================================================================
+
+def get_market_analysis() -> str:
+    """
+    Run the NSE market scanner and return an evidence-grounded
+    market-intelligence snapshot.
+
+    READ-ONLY.
+
+    This tool does NOT:
+    - Place trades.
+    - Connect to a broker.
+    - Generate orders.
+    - Prove institutional activity.
+    - Provide derivatives positioning unless explicitly available.
+    - Invent sector or volatility data.
+
+    The output separates verified data, calculated data,
+    inference boundaries and unavailable data.
+    """
+
+    try:
+        # --------------------------------------------------------------------
+        # RUN EXISTING SCANNER
+        # --------------------------------------------------------------------
+
+        dataframe, summary = scan_market()
+
+        if dataframe is None or dataframe.empty:
+            return (
+                "MARKET ANALYSIS ERROR | "
+                "The NSE scanner returned no usable stock data."
+            )
+
+        # --------------------------------------------------------------------
+        # SUMMARY
+        # --------------------------------------------------------------------
+
+        market_regime = summary.get(
+            "market_regime",
+            "UNKNOWN",
+        )
+
+        nifty_returns = summary.get(
+            "nifty_returns",
+            {},
+        )
+
+        breadth = summary.get(
+            "breadth",
+            {},
+        )
+
+        stocks_in_universe = summary.get(
+            "stocks_in_universe",
+            0,
+        )
+
+        stocks_analyzed = summary.get(
+            "stocks_analyzed",
+            len(dataframe),
+        )
+
+        timestamp = summary.get(
+            "timestamp",
+            "UNKNOWN",
+        )
+
+        output = []
+
+        output.append("=" * 60)
+        output.append("NOVA EVIDENCE-GROUNDED NSE MARKET ANALYSIS")
+        output.append("=" * 60)
+        output.append("ANALYSIS_STATUS=SUCCESS")
+        output.append(
+            "DATA_TYPE=READ_ONLY_QUANTITATIVE_MARKET_ANALYSIS"
+        )
+        output.append(f"DATA_TIMESTAMP={timestamp}")
+        output.append(
+            f"STOCKS_IN_UNIVERSE={stocks_in_universe}"
+        )
+        output.append(
+            f"STOCKS_ANALYZED={stocks_analyzed}"
+        )
+
+        # --------------------------------------------------------------------
+        # EVIDENCE CONTRACT
+        # --------------------------------------------------------------------
+
+        output.append("")
+        output.append("EVIDENCE CONTRACT")
+        output.append("[VERIFIED DATA]")
+        output.append(
+            "Values obtained directly from the NSE scanner output."
+        )
+
+        output.append("[CALCULATED DATA]")
+        output.append(
+            "The scanner calculates technical scores, returns, "
+            "breadth, momentum rankings, relative strength, "
+            "volume metrics and trend classifications."
+        )
+
+        output.append("[INFERENCE BOUNDARY]")
+        output.append(
+            "Interpretations must be distinguished from "
+            "measured and calculated values."
+        )
+
+        output.append("[NOT AVAILABLE]")
+        output.append(
+            "This scanner alone does not provide verified India "
+            "VIX, sector breadth, derivatives/OI, institutional "
+            "flow, event risk, transaction-cost modeling or "
+            "portfolio covariance analysis."
+        )
+
+        output.append(
+            "Unavailable fields must not be inferred or invented."
+        )
+
+        # --------------------------------------------------------------------
+        # MARKET REGIME
+        # --------------------------------------------------------------------
+
+        output.append("")
+        output.append("MARKET REGIME")
+        output.append(
+            f"[CALCULATED DATA] MARKET_REGIME={market_regime}"
+        )
+        output.append(
+            "Regime is generated using the scanner's existing "
+            "NIFTY-return and breadth methodology."
+        )
+
+        # --------------------------------------------------------------------
+        # NIFTY BENCHMARK
+        # --------------------------------------------------------------------
+
+        output.append("")
+        output.append("NIFTY BENCHMARK")
+        output.append("[VERIFIED/CALCULATED DATA]")
+
+        output.append(
+            "NIFTY_RETURN_1D="
+            + _fmt_percent(nifty_returns.get("return_1d"))
+        )
+        output.append(
+            "NIFTY_RETURN_5D="
+            + _fmt_percent(nifty_returns.get("return_5d"))
+        )
+        output.append(
+            "NIFTY_RETURN_20D="
+            + _fmt_percent(nifty_returns.get("return_20d"))
+        )
+        output.append(
+            "NIFTY_RETURN_60D="
+            + _fmt_percent(nifty_returns.get("return_60d"))
+        )
+
+        # --------------------------------------------------------------------
+        # MARKET BREADTH
+        # --------------------------------------------------------------------
+
+        output.append("")
+        output.append("MARKET BREADTH")
+        output.append("[CALCULATED DATA]")
+
+        output.append(
+            f"TOTAL_STOCKS={breadth.get('total', 'N/A')}"
+        )
+        output.append(
+            f"ADVANCING={breadth.get('advancing', 'N/A')}"
+        )
+        output.append(
+            f"DECLINING={breadth.get('declining', 'N/A')}"
+        )
+        output.append(
+            f"UNCHANGED={breadth.get('unchanged', 'N/A')}"
+        )
+
+        output.append(
+            "ADVANCE_DECLINE_RATIO="
+            + _fmt_number(
+                breadth.get("advance_decline_ratio")
+            )
+        )
+
+        output.append(
+            "ABOVE_EMA20="
+            + _fmt_percent(
+                breadth.get("above_ema20_percent")
+            )
+        )
+
+        output.append(
+            "ABOVE_EMA50="
+            + _fmt_percent(
+                breadth.get("above_ema50_percent")
+            )
+        )
+
+        output.append(
+            "ABOVE_EMA200="
+            + _fmt_percent(
+                breadth.get("above_ema200_percent")
+            )
+        )
+
+        output.append(
+            "STRONG_UPTREND_PERCENT="
+            + _fmt_percent(
+                breadth.get("strong_uptrend_percent")
+            )
+        )
+
+        output.append(
+            "STRONG_DOWNTREND_PERCENT="
+            + _fmt_percent(
+                breadth.get("strong_downtrend_percent")
+            )
+        )
+
+        # --------------------------------------------------------------------
+        # DATA AVAILABILITY MATRIX
+        # --------------------------------------------------------------------
+
+        output.append("")
+        output.append("DATA AVAILABILITY MATRIX")
+
+        availability = {
+            "MARKET_REGIME": "AVAILABLE",
+            "NIFTY_RETURNS": "AVAILABLE",
+            "MARKET_BREADTH": "AVAILABLE",
+            "TECHNICAL_RANKING": "AVAILABLE",
+            "MOMENTUM_RANKING": "AVAILABLE",
+            "RELATIVE_STRENGTH": "AVAILABLE",
+            "RELATIVE_VOLUME": "AVAILABLE",
+            "TREND_CLASSIFICATION": "AVAILABLE",
+            "INDIA_VIX": "NOT_AVAILABLE",
+            "MARKET_WIDE_VOLATILITY_REGIME": "NOT_AVAILABLE",
+            "SECTOR_STRENGTH": "NOT_AVAILABLE",
+            "DERIVATIVES_OI": "NOT_AVAILABLE",
+            "OPTIONS_IV": "NOT_AVAILABLE",
+            "PUT_CALL_RATIO": "NOT_AVAILABLE",
+            "MAX_PAIN": "NOT_AVAILABLE",
+            "INSTITUTIONAL_FLOW": "NOT_AVAILABLE",
+            "EVENT_RISK": "NOT_AVAILABLE",
+            "TRANSACTION_COST_MODEL": "NOT_AVAILABLE",
+            "COVARIANCE_PORTFOLIO_MODEL": "NOT_AVAILABLE",
+        }
+
+        for key, value in availability.items():
+            output.append(f"{key}={value}")
+
+        # --------------------------------------------------------------------
+        # TOP TECHNICAL RANKINGS
+        # --------------------------------------------------------------------
+
+        output.append("")
+        output.append("TOP TECHNICAL RANKINGS")
+        output.append("[CALCULATED DATA]")
+
+        technical = dataframe.sort_values(
+            "score",
+            ascending=False,
+        ).head(10)
+
+        for rank, (_, row) in enumerate(
+            technical.iterrows(),
+            start=1,
+        ):
+            output.append(
+                f"{rank}. {row['symbol']} | "
+                f"PRICE={_fmt_number(row['price'])} | "
+                f"SCORE={_fmt_number(row['score'])} | "
+                f"TREND={row['trend']} | "
+                f"RSI14={_fmt_number(row['rsi_14'])} | "
+                f"RVOL={_fmt_number(row['relative_volume'])} | "
+                f"RETURN20D={_fmt_percent(row['return_20d'])} | "
+                f"RETURN60D={_fmt_percent(row['return_60d'])} | "
+                f"RS20={_fmt_percent(row['relative_strength_20d'])}"
+            )
+
+        # --------------------------------------------------------------------
+        # TOP MOMENTUM
+        # --------------------------------------------------------------------
+
+        output.append("")
+        output.append("TOP MOMENTUM")
+        output.append("[CALCULATED DATA]")
+
+        momentum = dataframe.sort_values(
+            [
+                "return_20d",
+                "return_60d",
+                "score",
+            ],
+            ascending=False,
+        ).head(10)
+
+        for rank, (_, row) in enumerate(
+            momentum.iterrows(),
+            start=1,
+        ):
+            output.append(
+                f"{rank}. {row['symbol']} | "
+                f"RETURN20D={_fmt_percent(row['return_20d'])} | "
+                f"RETURN60D={_fmt_percent(row['return_60d'])} | "
+                f"RSI14={_fmt_number(row['rsi_14'])} | "
+                f"MACD={row['macd_condition']} | "
+                f"TREND={row['trend']} | "
+                f"SCORE={_fmt_number(row['score'])}"
+            )
+
+        # --------------------------------------------------------------------
+        # TOP RELATIVE STRENGTH
+        # --------------------------------------------------------------------
+
+        output.append("")
+        output.append("TOP RELATIVE STRENGTH")
+        output.append("[CALCULATED DATA]")
+
+        relative_strength = dataframe.sort_values(
+            [
+                "relative_strength_20d",
+                "relative_strength_60d",
+            ],
+            ascending=False,
+        ).head(10)
+
+        for rank, (_, row) in enumerate(
+            relative_strength.iterrows(),
+            start=1,
+        ):
+            output.append(
+                f"{rank}. {row['symbol']} | "
+                f"RS20={_fmt_percent(row['relative_strength_20d'])} | "
+                f"RS60={_fmt_percent(row['relative_strength_60d'])} | "
+                f"RETURN20D={_fmt_percent(row['return_20d'])} | "
+                f"RETURN60D={_fmt_percent(row['return_60d'])} | "
+                f"TREND={row['trend']}"
+            )
+
+        # --------------------------------------------------------------------
+        # TOP VOLUME EXPANSION
+        # --------------------------------------------------------------------
+
+        output.append("")
+        output.append("TOP VOLUME EXPANSION")
+        output.append("[CALCULATED DATA]")
+
+        volume = dataframe.sort_values(
+            [
+                "relative_volume",
+                "score",
+            ],
+            ascending=False,
+        ).head(10)
+
+        for rank, (_, row) in enumerate(
+            volume.iterrows(),
+            start=1,
+        ):
+            output.append(
+                f"{rank}. {row['symbol']} | "
+                f"RVOL={_fmt_number(row['relative_volume'])} | "
+                f"VOLUME_CONDITION={row['volume_condition']} | "
+                f"RETURN1D={_fmt_percent(row['return_1d'])} | "
+                f"RSI14={_fmt_number(row['rsi_14'])} | "
+                f"TREND={row['trend']}"
+            )
+
+        # --------------------------------------------------------------------
+        # STRONG UPTRENDS
+        # --------------------------------------------------------------------
+
+        output.append("")
+        output.append("STRONG UPTRENDS")
+        output.append("[CALCULATED DATA]")
+
+        uptrends = dataframe[
+            dataframe["trend"] == "STRONG_UPTREND"
+        ].sort_values(
+            "score",
+            ascending=False,
+        ).head(10)
+
+        for rank, (_, row) in enumerate(
+            uptrends.iterrows(),
+            start=1,
+        ):
+            output.append(
+                f"{rank}. {row['symbol']} | "
+                f"PRICE={_fmt_number(row['price'])} | "
+                f"SCORE={_fmt_number(row['score'])} | "
+                f"RSI14={_fmt_number(row['rsi_14'])} | "
+                f"RVOL={_fmt_number(row['relative_volume'])} | "
+                f"RETURN20D={_fmt_percent(row['return_20d'])} | "
+                f"RS20={_fmt_percent(row['relative_strength_20d'])}"
+            )
+
+        # --------------------------------------------------------------------
+        # REASONING GUARDRAILS
+        # --------------------------------------------------------------------
+
+        output.append("")
+        output.append("REASONING GUARDRAILS")
+
+        rules = [
+            "Never claim data marked NOT_AVAILABLE.",
+            "High relative volume does NOT prove institutional buying.",
+            "A high technical score does NOT equal a BUY signal.",
+            "A low technical score does NOT equal a SELL signal.",
+            "Do not claim volatility conditions without measured data.",
+            "Do not claim sector leadership without sector data.",
+            "Do not claim derivatives positioning without OI/options data.",
+            "Do not claim institutional flows without actual flow data.",
+            "Distinguish measured data from analytical inference.",
+            "If critical evidence is missing, say NO SETUP or "
+            "INSUFFICIENT EVIDENCE.",
+        ]
+
+        for index, rule in enumerate(rules, start=1):
+            output.append(f"RULE_{index}={rule}")
+
+        # --------------------------------------------------------------------
+        # FINAL DECISION BOUNDARY
+        # --------------------------------------------------------------------
+
+        output.append("")
+        output.append("FINAL DECISION BOUNDARY")
+        output.append("CURRENT_STATUS=ANALYSIS_ONLY")
+        output.append("BUY_SELL_AUTHORIZATION=DISABLED")
+        output.append("TRADING_EXECUTION=DISABLED")
+        output.append("BROKER_CONNECTION=DISABLED")
+        output.append("TECHNICAL_SCORE_IS_SIGNAL=FALSE")
+        output.append(
+            "MISSING_CRITICAL_LAYERS="
+            "VOLATILITY, SECTOR, DERIVATIVES, EVENT_RISK, RISK_MODEL"
+        )
+        output.append(
+            "FINAL_DECISION_RULE="
+            "Do not issue a BUY or SELL solely from this scanner."
+        )
+        output.append(
+            "If the requested conclusion requires unavailable data, "
+            "state that the evidence is insufficient."
+        )
+        output.append("=" * 60)
+
+        return "\n".join(output)
+
+    except Exception as e:
+        return (
+            "MARKET ANALYSIS ERROR | "
+            f"Unable to run the NSE analysis engine: {e}"
+        )
+
+
+# ============================================================================
+# NOVA MARKET LAB INTEGRATION
+# ============================================================================
+
+def get_market_lab_analysis(query: str = "") -> str:
+    """
+    Run Nova's integrated, evidence-grounded Market Lab analysis.
+
+    READ-ONLY:
+    - No broker connection.
+    - No trade execution.
+    - No automatic orders.
+    """
+
+    try:
+        from market_lab.market_lab_brain import analyze_market_lab
+
+        return analyze_market_lab(query=query)
+
+    except Exception as exc:
+        return (
+            "MARKET LAB TOOL ERROR | "
+            f"{type(exc).__name__}: {exc}"
+        )
+
+
+# ============================================================================
+# URL VALIDATION
+# ============================================================================
+
+def _normalize_url(url: str) -> str:
+    url = str(url).strip().strip("\"'")
+
+    if not url:
+        raise ValueError("empty address")
+
+    if "://" not in url:
+        url = "https://" + url
+
+    parsed = urlparse(url)
+
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("only http and https links are allowed")
+
+    host = parsed.hostname or ""
+
+    if "." not in host or " " in url:
+        raise ValueError("give a full domain like youtube.com")
+
+    return url
+
+
+# ============================================================================
+# OPEN WEBSITE
+# ============================================================================
+
+def open_website(url: str) -> str:
+    try:
+        clean = _normalize_url(url)
+
+    except ValueError as e:
+        return f"Could not open website: {e}."
+
+    try:
+        if webbrowser.open(clean):
+            return f"Opened {clean}."
+
+    except Exception as e:
+        return f"Could not open website: {e}"
+
+    return "Could not open the browser."
+
+
+# ============================================================================
+# OPEN APP
+# ============================================================================
+
+def open_app(name: str) -> str:
+    key = (
+        str(name)
+        .lower()
+        .replace(" ", "")
+        .strip()
+    )
+
+    key = ALIASES.get(key, key)
+
+    if key not in APPS:
+        return (
+            f"I can't open '{name}'. "
+            f"Available apps: {', '.join(APPS)}."
+        )
+
+    if sys.platform != "win32":
+        return "App launching is only set up for Windows."
+
+    try:
+        result = subprocess.run(
+            [
+                "cmd",
+                "/c",
+                "start",
+                "",
+                APPS[key],
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+    except Exception as e:
+        return f"Could not open {key}: {e}"
+
+    if result.returncode != 0:
+        return f"Could not open {key}. Is it installed?"
+
+    return f"Opened {key}."
+
+
+# ============================================================================
+# GOOGLE SEARCH
+# ============================================================================
+
+def search_web(query: str) -> str:
+    query = str(query).strip()
+
+    if not query:
+        return "Please provide a search query."
+
+    search_url = (
+        "https://www.google.com/search?q="
+        + quote(query, safe="")
+    )
+
+    try:
+        if webbrowser.open(search_url):
+            return f"Opened web search results for {query}."
+
+        return "Could not open the browser."
+
+    except Exception as e:
+        return f"Could not open web search: {e}"
+
+
+# ============================================================================
+# YOUTUBE SEARCH
+# ============================================================================
+
+def search_youtube(query: str) -> str:
+    query = str(query).strip()
+
+    if not query:
+        return "Please provide a YouTube search query."
+
+    search_url = (
+        "https://www.youtube.com/results?search_query="
+        + quote(query, safe="")
+    )
+
+    try:
+        if webbrowser.open(search_url):
+            return f"Opened YouTube search results for {query}."
+
+        return "Could not open the browser."
+
+    except Exception as e:
+        return f"Could not open YouTube search: {e}"
+
+
+# ============================================================================
+# SEARXNG WEB RESEARCH
+# ============================================================================
+
+def web_research(query: str) -> str:
+    """Search through the local SearXNG instance."""
+
+    query = str(query).strip()
+
+    if not query:
+        return "Please provide a research query."
+
+    try:
+        url = (
+            f"{SEARXNG_URL}/search"
+            f"?q={quote(query)}"
+            f"&format=json"
+            f"&language=en"
+        )
+
+        request = Request(
+            url,
+            headers={
+                "User-Agent": "Nova/1.0 Local AI Assistant"
+            },
+        )
+
+        with urlopen(request, timeout=15) as response:
+            raw = response.read().decode("utf-8")
+
+        data = json.loads(raw)
+
+    except HTTPError as e:
+        return f"SearXNG returned HTTP {e.code}."
+
+    except URLError:
+        return (
+            "I can't reach local SearXNG. "
+            "Make sure the SearXNG Docker container is running."
+        )
+
+    except json.JSONDecodeError:
+        return "SearXNG returned invalid JSON."
+
+    except Exception as e:
+        return f"Web research failed: {e}"
+
+    results = data.get("results", [])
+
+    if not results:
+        return f"No useful web results were found for: {query}"
+
+    max_results = 6
+    max_content = 500
+
+    output = [
+        f"Web research results for: {query}",
+        "",
+    ]
+
+    for index, result in enumerate(
+        results[:max_results],
+        start=1,
+    ):
+        title = str(
+            result.get("title", "Untitled") or "Untitled"
+        ).strip()
+
+        url = str(
+            result.get("url", "") or ""
+        ).strip()
+
+        content = str(
+            result.get("content", "") or ""
+        ).strip()
+
+        if len(content) > max_content:
+            content = content[:max_content].rstrip() + "..."
+
+        output.append(f"{index}. {title}")
+
+        if url:
+            output.append(f"URL: {url}")
+
+        if content:
+            output.append(f"Summary: {content}")
+
+        output.append("")
+
+    return "\n".join(output).strip()
+
+
+# ============================================================================
+# TOOL REGISTRY
+# ============================================================================
+
+TOOLS = {
+    "get_time": get_time,
+    "get_market_data": get_market_data,
+    "get_market_analysis": get_market_analysis,
+    "get_market_lab_analysis": get_market_lab_analysis,
+    "open_website": open_website,
+    "open_app": open_app,
+    "search_web": search_web,
+    "search_youtube": search_youtube,
+    "web_research": web_research,
+}
+
+
+# ============================================================================
+# TOOL SCHEMA
+# ============================================================================
+
+TOOL_SCHEMA = [
+    # ------------------------------------------------------------------------
+    # TIME
+    # ------------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "get_time",
+            "description": (
+                "Get the current local date and time. "
+                "Always use this for any time or date question."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------------
+    # DIRECT MARKET DATA
+    # ------------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "get_market_data",
+            "description": (
+                "Get the latest available NIFTY 50 market data "
+                "from Yahoo Finance. "
+                "MANDATORY for direct NIFTY 50 price, open, high, "
+                "low, close or volume questions. "
+                "Never guess or invent a market number. "
+                "Use the exact returned value."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------------
+    # FULL MARKET ANALYSIS
+    # ------------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "get_market_analysis",
+            "description": (
+                "Run the full read-only NSE market intelligence scanner. "
+                "MANDATORY for broad current Indian market analysis, "
+                "including market regime, breadth, momentum, technical "
+                "rankings, relative strength, volume expansion, strongest "
+                "stocks and NSE-wide conditions. "
+                "The tool returns an evidence contract identifying "
+                "verified data, calculated data and unavailable data. "
+                "Never infer unavailable market information. "
+                "High volume does not prove institutional activity. "
+                "Technical score is NOT a BUY/SELL signal. "
+                "Do not claim volatility, sector leadership, derivatives "
+                "positioning, institutional flows or event risk unless "
+                "the tool explicitly provides that data. "
+                "This tool is read-only."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------------
+    # INTEGRATED MARKET LAB ANALYSIS
+    # ------------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "get_market_lab_analysis",
+            "description": (
+                "Run Nova's integrated Market Lab analysis. "
+                "MANDATORY for comprehensive current Indian market "
+                "interpretation involving market regime, NIFTY and "
+                "BANK NIFTY returns, breadth, volatility, sectors, "
+                "technical rankings, derivatives and institutional flow "
+                "when available. Distinguish measured data from inference, "
+                "identify conflicting evidence, and report missing or "
+                "stale data. Do not invent values or claim unvalidated "
+                "accuracy. Read-only: never executes trades or places orders."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "The specific integrated market-analysis "
+                            "question. For a general assessment, ask for "
+                            "the integrated Market Lab outlook."
+                        ),
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------------
+    # OPEN WEBSITE
+    # ------------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "open_website",
+            "description": (
+                "Open a website in the browser. "
+                "Use only when the user explicitly asks "
+                "to open a website."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "Full domain, e.g. youtube.com",
+                    },
+                },
+                "required": ["url"],
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------------
+    # OPEN APP
+    # ------------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "open_app",
+            "description": (
+                "Open a desktop application. Supported apps: "
+                + ", ".join(APPS)
+                + "."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Application name",
+                    },
+                },
+                "required": ["name"],
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------------
+    # GOOGLE SEARCH
+    # ------------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "search_web",
+            "description": (
+                "Open Google search results in the browser. "
+                "Use when the user explicitly wants browser search results."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------------
+    # YOUTUBE SEARCH
+    # ------------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "search_youtube",
+            "description": "Search YouTube in the browser.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "YouTube search query",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------------
+    # WEB RESEARCH
+    # ------------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "web_research",
+            "description": (
+                "Search the live web through the local SearXNG "
+                "search engine and return actual search results "
+                "for analysis. "
+                "Use this for current information, news, facts, "
+                "companies, products, events and research. "
+                "For direct NIFTY price questions use get_market_data. "
+                "For broad quantitative Indian market analysis use "
+                "get_market_analysis. "
+                "For comprehensive integrated analysis use "
+                "get_market_lab_analysis."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "Exact topic or question to research."
+                        ),
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+]
+
+
+# ============================================================================
+# TOOL EXECUTION
+# ============================================================================
+
+def run_tool(
+    name: str,
+    args,
+) -> str:
+    """
+    Safely execute a tool requested by the model.
+
+    Tool failures are returned as text rather than raised,
+    so Nova can explain the problem to the user.
+    """
+
+    fn = TOOLS.get(name)
+
+    if fn is None:
+        result = f"Unknown tool '{name}'."
+
+    else:
+        # --------------------------------------------------------------------
+        # NORMALIZE ARGUMENTS
+        # --------------------------------------------------------------------
+
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except json.JSONDecodeError:
+                args = {}
+
+        if not isinstance(args, dict):
+            args = {}
+
+        # --------------------------------------------------------------------
+        # EXECUTE
+        # --------------------------------------------------------------------
+
+        try:
+            result = str(fn(**args))
+
+        except TypeError:
+            result = f"Bad arguments for {name}."
+
+        except Exception as e:
+            result = f"Tool error: {e}"
+
+    # ------------------------------------------------------------------------
+    # DEBUG OUTPUT
+    # ------------------------------------------------------------------------
+
+    if DEBUG:
+        print(f"[tool] {name}({args}) -> {result}")
+
+    return result

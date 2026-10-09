@@ -1,0 +1,203 @@
+﻿========== MARKET LAB REPORT ==========
+
+    return str(value).strip()
+
+
+def normalize_key(
+    value: Any,
+) -> str:
+
+    text = clean_text(
+        value
+    ).lower()
+
+    output = []
+
+    for character in text:
+
+        if character.isalnum():
+
+            output.append(
+                character
+            )
+
+        else:
+
+            output.append("_")
+
+    return (
+        "".join(output)
+        .strip("_")
+    )
+
+
+def find_column(
+    dataframe: pd.DataFrame,
+    *candidates: str,
+) -> str | None:
+
+    if (
+        dataframe is None
+        or dataframe.empty
+    ):
+
+        return None
+
+    normalized = {
+        normalize_key(column):
+            column
+        for column
+        in dataframe.columns
+    }
+
+    for candidate in candidates:
+
+        key = normalize_key(
+            candidate
+        )
+
+        if key in normalized:
+
+            return normalized[key]
+
+    return None
+
+
+def latest_file(
+    directory: Path,
+    prefix: str,
+) -> Path | None:
+
+    if not directory.exists():
+        return None
+
+    files = list(
+        directory.glob(
+            f"{prefix}_*.csv"
+        )
+    )
+
+    if not files:
+        return None
+
+    files.sort(
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+========== MARKET ANALYSIS END ==========
+        )
+
+        output.append(
+            f"NIFTY_RETURN_5D="
+            f"{_fmt_percent(nifty_returns.get('return_5d'))}"
+        )
+
+        output.append(
+            f"NIFTY_RETURN_20D="
+            f"{_fmt_percent(nifty_returns.get('return_20d'))}"
+        )
+
+        output.append(
+            f"NIFTY_RETURN_60D="
+            f"{_fmt_percent(nifty_returns.get('return_60d'))}"
+        )
+
+        # ====================================================================
+        # MARKET BREADTH
+        # ====================================================================
+
+        output.append("")
+        output.append(
+            "==================== MARKET BREADTH ======================"
+        )
+
+        output.append(
+            "[CALCULATED DATA]"
+        )
+
+        output.append(
+            f"TOTAL_STOCKS={breadth.get('total', 'N/A')}"
+        )
+
+        output.append(
+            f"ADVANCING={breadth.get('advancing', 'N/A')}"
+        )
+
+        output.append(
+            f"DECLINING={breadth.get('declining', 'N/A')}"
+        )
+
+        output.append(
+            f"UNCHANGED={breadth.get('unchanged', 'N/A')}"
+        )
+
+        output.append(
+            "ADVANCE_DECLINE_RATIO="
+            + _fmt_number(
+                breadth.get(
+                    "advance_decline_ratio"
+                )
+            )
+        )
+
+        output.append(
+            "ABOVE_EMA20="
+            + _fmt_percent(
+                breadth.get(
+                    "above_ema20_percent"
+                )
+            )
+        )
+
+        output.append(
+            "ABOVE_EMA50="
+            + _fmt_percent(
+                breadth.get(
+                    "above_ema50_percent"
+                )
+========== MARKET TOOL SCHEMA ==========
+
+    {
+        "type": "function",
+        "function": {
+            "name": "get_market_analysis",
+            "description": (
+                "Run the full read-only NSE market intelligence scanner. "
+                "MANDATORY for broad current Indian market analysis, "
+                "including market regime, breadth, momentum, technical "
+                "rankings, relative strength, volume expansion, strongest "
+                "stocks and NSE-wide conditions. "
+                "The tool returns an evidence contract identifying "
+                "verified data, calculated data and unavailable data. "
+                "Never infer unavailable market information. "
+                "High volume does not prove institutional activity. "
+                "Technical score is NOT a BUY/SELL signal. "
+                "Do not claim volatility, sector leadership, derivatives "
+                "positioning, institutional flows or event risk unless "
+                "the tool explicitly provides that data. "
+                "This tool is read-only."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------------
+    # OPEN WEBSITE
+    # ------------------------------------------------------------------------
+
+    {
+        "type": "function",
+        "function": {
+            "name": "open_website",
+            "description": (
+                "Open a website in the browser. "
+                "Use only when the user explicitly asks "
+                "to open a website."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {

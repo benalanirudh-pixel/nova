@@ -1,0 +1,30 @@
+# Python runtime
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local virtual environments
+venv/
+.venv/
+
+# Local models and voice assets
+stt_models/
+voices/
+
+# Generated audio and archives
+*.wav
+*.zip
+
+# Logs
+*.log
+market_lab_debug.log
+
+# Market-data caches and generated reports
+analysis/data/cache/
+analysis/data/data/cache/
+
+# Local editor/system noise
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

@@ -1,0 +1,155 @@
+﻿
+  # ============================================================
+  
+  try:
+>     from analysis.data.institutional_flow_engine import (
+>         get_institutional_flow,
+      )
+>     INSTITUTIONAL_FLOW_IMPORT_OK = True
+>     INSTITUTIONAL_FLOW_IMPORT_ERROR = None
+  except Exception as exc:
+>     get_institutional_flow = None
+>     INSTITUTIONAL_FLOW_IMPORT_OK = False
+>     INSTITUTIONAL_FLOW_IMPORT_ERROR = str(exc)
+  
+  
+> def load_institutional_flow_intelligence() -> dict[str, Any]:
+      """
+      Retrieve validated institutional-flow metrics for Market Lab.
+      This layer is analysis-only and never executes trades.
+      """
+      unavailable = {
+          "available": False,
+          "status": "NOT AVAILABLE",
+          "reason": None,
+          "signal_allowed": False,
+      }
+  
+>     if not INSTITUTIONAL_FLOW_IMPORT_OK or get_institutional_flow is None:
+          unavailable["reason"] = (
+>             INSTITUTIONAL_FLOW_IMPORT_ERROR
+              or "Institutional-flow engine import failed."
+          )
+          return unavailable
+  
+      try:
+          # Refresh the latest observation and calculate metrics from saved
+          # history. Do not trigger a full historical backfill on every run.
+>         result = get_institutional_flow(
+              target_sessions=20,
+              save=True,
+              backfill=False,
+          )
+  
+          if not isinstance(result, dict):
+              unavailable["reason"] = "Engine returned an invalid result."
+              return unavailable
+  # MAIN MARKET LAB DATA
+  # ============================================================
+  
+> def get_market_lab_data(
+      force_refresh: bool = False,
+  ) -> dict[str, Any]:
+  
+      print()
+      print("=" * 66)
+      print("NOVA MARKET LAB")
+      print("=" * 66)
+      print()
+      # INSTITUTIONAL FLOW
+      # --------------------------------------------------------
+  
+>     institutional_flow = load_institutional_flow_intelligence()
+  
+      # --------------------------------------------------------
+      # AVAILABILITY
+      # --------------------------------------------------------
+  
+      data_availability = (
+          build_data_availability(
+              market_dataframe,
+          )
+      )
+  
+>     data_availability["institutional_flow"] = (
+          "READY"
+>         if institutional_flow.get("available")
+          else "NOT AVAILABLE"
+      )
+  
+      # --------------------------------------------------------
+      # DECISION POLICY
+      # --------------------------------------------------------
+  
+      decision_policy = {
+              derivatives,
+  
+  
+>         "institutional_flow":
+>             institutional_flow,
+  
+          "data_availability":
+              data_availability,
+  
+          "decision_policy":
+              decision_policy,
+  
+          # ----------------------------------------------------
+          # AI CONTEXT
+          # ----------------------------------------------------
+  
+>         "ai_context":
+              {
+  
+                  "system":
+                      "NOVA MARKET LAB",
+  
+                  "purpose":
+                      (
+                          "Evidence-grounded market "
+                      derivatives,
+  
+  
+>                 "institutional_flow":
+>                     institutional_flow,
+  
+                  "data_availability":
+                      data_availability,
+  
+                  "guardrails":
+                      {
+  
+                          "analysis_only":
+              },
+      }
+  
+>     return report
+  
+  
+  # ============================================================
+  # TERMINAL OUTPUT
+  # ============================================================
+  
+> def print_market_lab(
+      report: dict[str, Any],
+  ) -> None:
+  
+      print()
+      print("=" * 66)
+      print("NOVA MARKET LAB")
+      print("=" * 66)
+  
+      print("INSTITUTIONAL FLOW")
+      print("-" * 70)
+  
+>     flow = report.get("institutional_flow") or {}
+      flow_metrics = flow.get("metrics") or {}
+      flow_snapshot = flow.get("snapshot") or {}
+  
+      print(f"Status: {flow.get('status', 'NOT AVAILABLE')}")
+      print(f"Latest session: {flow.get('latest_date') or 'N/A'}")
+      print(f"Source: {flow.get('latest_source') or 'N/A'}")
+      print(f"Market scope: {flow.get('market_scope') or 'N/A'}")
+      print(
+
+

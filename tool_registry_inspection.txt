@@ -1,0 +1,138 @@
+﻿
+  tools.py:226:# ============================================================================
+  tools.py:227:# EVIDENCE-GROUNDED MARKET ANALYSIS
+  tools.py:228:# ============================================================================
+  tools.py:229:
+  tools.py:230:
+> tools.py:231:def get_market_analysis() -> str:
+  tools.py:232:    """
+  tools.py:233:    Run the NSE market scanner and return an evidence-grounded
+  tools.py:234:    market-intelligence snapshot.
+  tools.py:235:
+  tools.py:236:    READ-ONLY.
+  tools.py:237:
+  tools.py:238:    This tool does NOT:
+  tools.py:239:    - place trades
+  tools.py:240:    - connect to a broker
+  tools.py:241:    - generate orders
+  tools.py:242:    - prove institutional activity
+  tools.py:243:    - provide derivatives positioning
+  tools.py:325:        output.append(
+  tools.py:326:            "ANALYSIS_STATUS=SUCCESS"
+  tools.py:327:        )
+  tools.py:328:
+  tools.py:329:        output.append(
+> tools.py:330:            "DATA_TYPE=READ_ONLY_QUANTITATIVE_MARKET_ANALYSIS"
+  tools.py:331:        )
+  tools.py:332:
+  tools.py:333:        output.append(
+  tools.py:334:            f"DATA_TIMESTAMP={timestamp}"
+  tools.py:335:        )
+  tools.py:336:
+  tools.py:337:        output.append(
+  tools.py:338:            f"STOCKS_IN_UNIVERSE={stocks_in_universe}"
+  tools.py:339:        )
+  tools.py:340:
+  tools.py:341:        output.append(
+  tools.py:342:            f"STOCKS_ANALYZED={stocks_analyzed}"
+  tools.py:1290:# ============================================================================
+  tools.py:1291:# TOOL REGISTRY
+  tools.py:1292:# ============================================================================
+  tools.py:1293:
+  tools.py:1294:
+> tools.py:1295:TOOLS = {
+  tools.py:1296:
+  tools.py:1297:    "get_time":
+  tools.py:1298:        get_time,
+  tools.py:1299:
+  tools.py:1300:    "get_market_data":
+  tools.py:1301:        get_market_data,
+  tools.py:1302:
+> tools.py:1303:    "get_market_analysis":
+> tools.py:1304:        get_market_analysis,
+  tools.py:1305:
+  tools.py:1306:    "open_website":
+  tools.py:1307:        open_website,
+  tools.py:1308:
+  tools.py:1309:    "open_app":
+  tools.py:1310:        open_app,
+  tools.py:1311:
+  tools.py:1312:    "search_web":
+  tools.py:1313:        search_web,
+  tools.py:1314:
+  tools.py:1315:    "search_youtube":
+  tools.py:1316:        search_youtube,
+  tools.py:1324:# ============================================================================
+  tools.py:1325:# TOOL SCHEMA
+  tools.py:1326:# ============================================================================
+  tools.py:1327:
+  tools.py:1328:
+> tools.py:1329:TOOL_SCHEMA = [
+  tools.py:1330:
+  tools.py:1331:    # ------------------------------------------------------------------------
+  tools.py:1332:    # TIME
+  tools.py:1333:    # ------------------------------------------------------------------------
+  tools.py:1334:
+  tools.py:1335:    {
+  tools.py:1336:        "type": "function",
+  tools.py:1337:        "function": {
+  tools.py:1338:            "name": "get_time",
+  tools.py:1339:            "description": (
+  tools.py:1340:                "Get the current local date and time. "
+  tools.py:1341:                "Always use this for any time or date question."
+  tools.py:1375:    # ------------------------------------------------------------------------
+  tools.py:1376:
+  tools.py:1377:    {
+  tools.py:1378:        "type": "function",
+  tools.py:1379:        "function": {
+> tools.py:1380:            "name": "get_market_analysis",
+  tools.py:1381:            "description": (
+  tools.py:1382:                "Run the full read-only NSE market intelligence scanner. "
+  tools.py:1383:                "MANDATORY for broad current Indian market analysis, "
+  tools.py:1384:                "including market regime, breadth, momentum, technical "
+  tools.py:1385:                "rankings, relative strength, volume expansion, strongest "
+  tools.py:1386:                "stocks and NSE-wide conditions. "
+  tools.py:1387:                "The tool returns an evidence contract identifying "
+  tools.py:1388:                "verified data, calculated data and unavailable data. "
+  tools.py:1389:                "Never infer unavailable market information. "
+  tools.py:1390:                "High volume does not prove institutional activity. "
+  tools.py:1391:                "Technical score is NOT a BUY/SELL signal. "
+  tools.py:1392:                "Do not claim volatility, sector leadership, derivatives "
+  tools.py:1528:                "for analysis. "
+  tools.py:1529:                "Use this for current information, news, facts, "
+  tools.py:1530:                "companies, products, events and research. "
+  tools.py:1531:                "For direct NIFTY price questions use get_market_data. "
+  tools.py:1532:                "For broad quantitative Indian market analysis use "
+> tools.py:1533:                "get_market_analysis."
+  tools.py:1534:            ),
+  tools.py:1535:            "parameters": {
+  tools.py:1536:                "type": "object",
+  tools.py:1537:                "properties": {
+  tools.py:1538:                    "query": {
+  tools.py:1539:                        "type": "string",
+  tools.py:1540:                        "description": (
+  tools.py:1541:                            "Exact topic or question to research."
+  tools.py:1542:                        ),
+  tools.py:1543:                    }
+  tools.py:1544:                },
+  tools.py:1545:                "required": [
+  tools.py:1555:# ============================================================================
+  tools.py:1556:# TOOL EXECUTION
+  tools.py:1557:# ============================================================================
+  tools.py:1558:
+  tools.py:1559:
+> tools.py:1560:def run_tool(
+  tools.py:1561:    name: str,
+  tools.py:1562:    args,
+  tools.py:1563:) -> str:
+  tools.py:1564:    """
+  tools.py:1565:    Safely execute a tool requested by the model.
+  tools.py:1566:
+  tools.py:1567:    Tool failures are returned as text rather than raised,
+  tools.py:1568:    so Nova can explain the problem to the user.
+  tools.py:1569:    """
+  tools.py:1570:
+  tools.py:1571:    fn = TOOLS.get(name)
+  tools.py:1572:
+
+
