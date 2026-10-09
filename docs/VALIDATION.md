@@ -109,7 +109,9 @@ data for lightweight index refreshes.
 - The GUI was not launched during the documentation audit.
 - No full `--refresh` market scan was run during the documentation audit.
 - No live trade/broker behavior exists to validate, and none should be added.
-- No automated test suite is currently configured.
+- Automated unit tests now exist for engine math:
+  `tests/test_engine_math.py` (32 tests, stdlib unittest). Integration and
+  backtest coverage still missing.
 - Existing `test_nse_*` scripts are manual smoke scripts, not a formal test
   suite.
 
@@ -225,4 +227,21 @@ GUI, Ollama, and `--refresh` also not run.
 
 Observation for a future task: `get_market_analysis()` calls `scan_market()`
 unconditionally; making it cache-first would match Market Lab behavior.
+
+## 2026-10-10 - Engine Math Test Suite
+
+New file: `tests/test_engine_math.py` (stdlib `unittest`; pytest is not
+installed and was not added).
+
+Checks run:
+
+- `.\venv\Scripts\python.exe -m unittest discover -s tests -v`
+  - Result: `Ran 32 tests in 0.023s - OK`.
+- Pure offline: hand-computed fixtures only, no network or cache access.
+- Note: unittest writes results to stderr; PowerShell 5.1 garbles native
+  stderr redirection. Capture clean logs with
+  `cmd /c "...python.exe -m unittest discover -s tests -v > out.txt 2>&1"`.
+
+Not run: network scripts, GUI, forced `--refresh`, Ollama.
+
 

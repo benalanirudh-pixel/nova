@@ -65,6 +65,7 @@ Use the existing virtual environment unless the user asks otherwise:
 .\venv\Scripts\python.exe test_nse_mcp.py
 .\venv\Scripts\python.exe test_nse_tools.py
 .\venv\Scripts\python.exe check_event_calendar.py
+.\venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
 The full refresh command is intentionally heavier:

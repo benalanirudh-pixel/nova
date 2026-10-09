@@ -107,3 +107,19 @@ Validation:
 - Preserved behavior note: `get_market_analysis()` still runs a live full
   NSE scan per call (pre-existing; unchanged).
 
+
+## 2026-10-10 - Engine Math Test Suite
+
+- New `tests/test_engine_math.py`: 32 reference-value tests using stdlib
+  `unittest` (pytest is not installed; no new dependency added).
+- Coverage: technical engine (SMA, EMA, RSI bounds/warm-up, MACD on constant
+  series, True Range gap logic, Wilder ATR, ROC, relative volume, VWAP),
+  volatility engine (rolling ATR known mean, realized-vol edge cases,
+  percentile rank, regime thresholds, direction rules), risk engine
+  (position sizing known values, input rejection, guardrail flags), event
+  risk engine (freshness/completeness gates, proximity score escalation,
+  rejection of unverified/naive-timestamp events, guardrails).
+- Fixtures are hand-computed; no network, caches, or live market data.
+- Result: 32/32 passing in ~0.02 s.
+- Test command registered in `AGENTS.md`.
+
