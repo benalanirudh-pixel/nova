@@ -168,4 +168,11 @@ Validation:
   calls `get_market_lab_data(live_only=True)` in the background worker
   (auto-saved to JSON like every report); both buttons disable while a
   report task runs. Import smoke confirms both handlers exist.
+- `market_lab_ui.py`: staggered auto-refresh — `AUTO: OFF/ON` toggle +
+  1 s header clock (`HH:MM:SS • NSE OPEN/CLOSED • data age • next update
+  in Ns`). Live-only worker polls every 60 s in market hours, 300 s when
+  closed; single-flight guard (never stacks workers), manual actions
+  reset the countdown, failed polls retry next tick without killing
+  auto mode. Session logic verified: weekday 10:00 IST open, Saturday
+  and pre-open closed.
 

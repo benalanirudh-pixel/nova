@@ -176,6 +176,35 @@ def display_age(seconds):
     return f"{seconds / 86400:.1f} days old"
 
 
+# Auto-refresh cadence: fast clock, slow data. The live-only report costs
+# ~8 s of network-bound fetching, so polling it every second would stack
+# workers, saturate the connection, and invite NSE throttling. The 1 s
+# timer only repaints cheap local state (clock, ages, countdowns).
+AUTO_CLOCK_MS = 1000
+AUTO_POLL_OPEN_S = 60
+AUTO_POLL_CLOSED_S = 300
+
+
+def nse_market_open_now(now=None):
+    """Return True when NSE equity is normally open (Mon-Fri 09:15-15:30 IST).
+
+    Holidays are not modelled here; a holiday simply yields an empty
+    live update, which the worker already surfaces honestly.
+    """
+    from datetime import timezone as _tz, timedelta as _td
+
+    ist = _tz(_td(hours=5, minutes=30))
+    now = now if now is not None else datetime.now(ist)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=ist)
+    else:
+        now = now.astimezone(ist)
+    if now.weekday() >= 5:
+        return False
+    minutes = now.hour * 60 + now.minute
+    return 9 * 60 + 15 <= minutes < 15 * 60 + 30
+
+
 def make_label(text="", size=10, color=TEXT, bold=False):
     label = QLabel(str(text))
     label.setWordWrap(True)
@@ -290,6 +319,10 @@ class MarketLabWindow(QMainWindow):
         self.report = None
         self.workers = {}
         self.cache_is_displayed = False
+        self.auto_enabled = False
+        self.last_update_at = None
+        self.next_poll_at = None
+        self.auto_timer = None
 
         self.setWindowTitle(APP_NAME)
         self.resize(1500, 920)
@@ -371,6 +404,14 @@ class MarketLabWindow(QMainWindow):
         self.live_btn = make_button("⚡ LIVE UPDATE", False)
         self.live_btn.clicked.connect(self.live_update_report)
         header.addWidget(self.live_btn)
+
+        self.auto_btn = make_button("AUTO: OFF", False)
+        self.auto_btn.setCheckable(True)
+        self.auto_btn.clicked.connect(self.toggle_auto_refresh)
+        header.addWidget(self.auto_btn)
+
+        self.clock_label = make_label("--:--:--", 9, MUTED, True)
+        header.addWidget(self.clock_label)
 
         outer.addLayout(header)
 
@@ -693,6 +734,8 @@ class MarketLabWindow(QMainWindow):
 
             self.cache_is_displayed = False
             self.display_report(result, elapsed, cached=False)
+            self.last_update_at = time.time()
+            self.schedule_next_poll()
 
         elif name == "analysis":
             self.analysis_view.setPlainText(
@@ -705,6 +748,9 @@ class MarketLabWindow(QMainWindow):
             )
 
     def task_failed(self, name, error, elapsed):
+        if name == "report":
+            # A failed poll must not kill auto mode; the next tick retries.
+            self.schedule_next_poll()
         if name == "report" and self.cache_is_displayed:
             self.status_data.setText("CACHED • UPDATE FAILED")
             self.status_data.setStyleSheet(f"color:{AMBER};")
@@ -918,6 +964,75 @@ class MarketLabWindow(QMainWindow):
             get_market_lab_data,
             live_only=True,
         )
+        # A manual update resets the auto countdown.
+        self.schedule_next_poll()
+
+    # --------------------------------------------------------
+    # STAGGERED AUTO-REFRESH
+    # --------------------------------------------------------
+    # Tier 1 (1 s): clock/age/countdown repaint only, no network.
+    # Tier 2 (60 s open / 300 s closed): live-only worker poll.
+    # Single-flight: a tick never starts a second worker; manual
+    # actions reset the countdown via schedule_next_poll().
+
+    def auto_interval_seconds(self):
+        if nse_market_open_now():
+            return AUTO_POLL_OPEN_S
+        return AUTO_POLL_CLOSED_S
+
+    def schedule_next_poll(self):
+        if not self.auto_enabled:
+            self.next_poll_at = None
+            return
+        self.next_poll_at = time.time() + self.auto_interval_seconds()
+
+    def toggle_auto_refresh(self):
+        self.auto_enabled = bool(self.auto_btn.isChecked())
+        self.auto_btn.setText(
+            "AUTO: ON" if self.auto_enabled else "AUTO: OFF"
+        )
+        if self.auto_enabled:
+            self.ensure_auto_timer()
+            # First poll fires after one interval, not immediately,
+            # so enabling AUTO never surprises a running task.
+            self.schedule_next_poll()
+            self.tick_auto_clock()
+        else:
+            self.next_poll_at = None
+            self.tick_auto_clock()
+
+    def ensure_auto_timer(self):
+        if self.auto_timer is None:
+            self.auto_timer = QTimer(self)
+            self.auto_timer.setInterval(AUTO_CLOCK_MS)
+            self.auto_timer.timeout.connect(self.tick_auto_clock)
+        if not self.auto_timer.isActive():
+            self.auto_timer.start()
+
+    def tick_auto_clock(self):
+        from datetime import timezone as _tz, timedelta as _td
+
+        ist = _tz(_td(hours=5, minutes=30))
+        now_ist = datetime.now(ist)
+        session = (
+            "NSE OPEN" if nse_market_open_now(now_ist) else "NSE CLOSED"
+        )
+        parts = [now_ist.strftime("%H:%M:%S"), session]
+
+        if self.last_update_at is not None:
+            age = max(0, time.time() - self.last_update_at)
+            parts.append(f"data {display_age(age)}")
+
+        if self.auto_enabled and self.next_poll_at is not None:
+            remaining = int(self.next_poll_at - time.time())
+            if remaining <= 0 and "report" not in self.workers:
+                self.live_update_report()
+                return
+            if remaining > 0:
+                parts.append(f"next update in {remaining}s")
+
+        if hasattr(self, "clock_label"):
+            self.clock_label.setText("  •  ".join(parts))
 
     def run_analysis(self):
         if not self.report:
