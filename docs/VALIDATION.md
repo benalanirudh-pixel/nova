@@ -197,7 +197,32 @@ Checks run:
 
 Not run: forced `--refresh` scan, GUI relaunch, Ollama analysis path.
 
-Known gap carried forward: `tools.py` hardcodes `EVENT_RISK: NOT_AVAILABLE`
-in the main assistant's availability matrix (line ~424); it does not read the
-calendar yet. Separate task.
+Known gap carried forward at the time: `tools.py` hardcoded `EVENT_RISK:
+NOT_AVAILABLE` in the assistant availability matrix; fixed the same day -
+see "Availability Matrix Merge And Calendar Checker" below.
+
+
+## 2026-10-10 - Availability Matrix Merge And Calendar Checker
+
+Code changed: `tools.py`; new file `check_event_calendar.py`; `AGENTS.md`
+command added.
+
+Checks run:
+
+- Project-wide `ast` syntax check with `utf-8-sig` decoding: passed.
+- `check_event_calendar.py` executed: RESULT OK, exit code 0; 11/11 events
+  valid, 5 events in the 7-day window, source FRESH (0.2 h old).
+- Enrichment unit test (scanner NOT executed):
+  `_load_latest_market_lab_report()` returned the report generated
+  2026-10-10T00:13; `_merge_lab_availability` flipped all 9 mapped matrix
+  rows to AVAILABLE with a report present, and left them NOT_AVAILABLE on
+  the no-report path.
+- Main assistant import smoke `import main, brain, tools, ui`: passed.
+
+Not run: full `get_market_analysis()` end-to-end - it triggers a live full
+NSE scan per call (pre-existing behavior), which this change does not need.
+GUI, Ollama, and `--refresh` also not run.
+
+Observation for a future task: `get_market_analysis()` calls `scan_market()`
+unconditionally; making it cache-first would match Market Lab behavior.
 

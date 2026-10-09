@@ -23,6 +23,7 @@ import subprocess
 import sys
 import webbrowser
 
+from pathlib import Path
 from urllib.parse import urlparse, quote
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
@@ -175,6 +176,74 @@ def get_market_data() -> str:
 # ============================================================================
 # EVIDENCE-GROUNDED MARKET ANALYSIS
 # ============================================================================
+# CACHED MARKET LAB AVAILABILITY (NO NETWORK)
+# ============================================================================
+
+def _load_latest_market_lab_report():
+    """Return the newest saved Market Lab report, or None. Cache-first only."""
+    try:
+        from market_lab.market_lab_data import CACHE_DIR
+
+        report_dir = Path(CACHE_DIR) / "market_lab"
+        files = sorted(
+            report_dir.glob("market_lab_*.json"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+
+        for path in files:
+            try:
+                with path.open("r", encoding="utf-8") as handle:
+                    report = json.load(handle)
+            except (OSError, ValueError):
+                continue
+
+            if isinstance(report, dict) and report:
+                return report
+    except Exception:
+        return None
+
+    return None
+
+
+# Saved-report flags that back the scanner-unavailable matrix rows.
+LAB_AVAILABILITY_MAP = {
+    "INDIA_VIX": "india_vix",
+    "MARKET_WIDE_VOLATILITY_REGIME": "volatility_engine",
+    "SECTOR_STRENGTH": "sector_engine",
+    "DERIVATIVES_OI": "derivatives_engine",
+    "OPTIONS_IV": "nifty_options",
+    "PUT_CALL_RATIO": "nifty_options",
+    "MAX_PAIN": "nifty_options",
+    "INSTITUTIONAL_FLOW": "institutional_flow",
+    "EVENT_RISK": "event_risk_engine",
+}
+
+LAB_REPORT_LIVE_FLAGS = {"AVAILABLE", "READY"}
+
+
+def _merge_lab_availability(availability, lab_report):
+    """
+    Fill scanner-unavailable rows from the latest saved Market Lab report.
+
+    A row only flips to AVAILABLE when the report itself confirms it; the
+    report timestamp is printed alongside so staleness stays visible.
+    """
+    if not lab_report:
+        return availability
+
+    lab_flags = lab_report.get("data_availability") or {}
+
+    for key, flag_key in LAB_AVAILABILITY_MAP.items():
+        if key in availability and str(
+            lab_flags.get(flag_key, "")
+        ).upper() in LAB_REPORT_LIVE_FLAGS:
+            availability[key] = "AVAILABLE"
+
+    return availability
+
+
+# ============================================================================
 
 def get_market_analysis() -> str:
     """
@@ -285,10 +354,14 @@ def get_market_analysis() -> str:
 
         output.append("[NOT AVAILABLE]")
         output.append(
-            "This scanner alone does not provide verified India "
-            "VIX, sector breadth, derivatives/OI, institutional "
-            "flow, event risk, transaction-cost modeling or "
-            "portfolio covariance analysis."
+            "The scanner alone does not provide India VIX, sector "
+            "breadth, derivatives/OI, institutional flow or event "
+            "risk. The availability matrix below is filled from the "
+            "latest saved Market Lab report when one exists."
+        )
+        output.append(
+            "Transaction-cost modeling and portfolio covariance "
+            "analysis are not available anywhere in Nova."
         )
 
         output.append(
@@ -426,8 +499,29 @@ def get_market_analysis() -> str:
             "COVARIANCE_PORTFOLIO_MODEL": "NOT_AVAILABLE",
         }
 
+        lab_report = _load_latest_market_lab_report()
+        availability = _merge_lab_availability(availability, lab_report)
+
         for key, value in availability.items():
             output.append(f"{key}={value}")
+
+        if lab_report:
+            output.append(
+                "AVAILABILITY_SOURCE=SCANNER+LATEST_SAVED_MARKET_LAB_REPORT"
+            )
+            output.append(
+                "MARKET_LAB_REPORT_TIMESTAMP="
+                + str(lab_report.get("generated", "UNKNOWN"))
+            )
+            output.append(
+                "Cached Market Lab values may be stale; check the "
+                "timestamp above before relying on them."
+            )
+        else:
+            output.append(
+                "AVAILABILITY_SOURCE=SCANNER_ONLY"
+                "(NO_SAVED_MARKET_LAB_REPORT_FOUND)"
+            )
 
         # --------------------------------------------------------------------
         # TOP TECHNICAL RANKINGS
@@ -611,9 +705,25 @@ def get_market_analysis() -> str:
         output.append("TRADING_EXECUTION=DISABLED")
         output.append("BROKER_CONNECTION=DISABLED")
         output.append("TECHNICAL_SCORE_IS_SIGNAL=FALSE")
+        missing_layers = []
+        if availability.get("INDIA_VIX") != "AVAILABLE":
+            missing_layers.append("VOLATILITY")
+        if availability.get("SECTOR_STRENGTH") != "AVAILABLE":
+            missing_layers.append("SECTOR")
+        if availability.get("DERIVATIVES_OI") != "AVAILABLE":
+            missing_layers.append("DERIVATIVES")
+        if availability.get("EVENT_RISK") != "AVAILABLE":
+            missing_layers.append("EVENT_RISK")
+
+        lab_flags = (lab_report or {}).get("data_availability") or {}
+        if lab_flags.get("risk_engine") != "AVAILABLE":
+            missing_layers.append("RISK_MODEL")
+
+        missing_layers.extend(
+            ["TRANSACTION_COST_MODEL", "COVARIANCE_PORTFOLIO_MODEL"]
+        )
         output.append(
-            "MISSING_CRITICAL_LAYERS="
-            "VOLATILITY, SECTOR, DERIVATIVES, EVENT_RISK, RISK_MODEL"
+            "MISSING_CRITICAL_LAYERS=" + ", ".join(missing_layers)
         )
         output.append(
             "FINAL_DECISION_RULE="

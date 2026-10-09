@@ -87,3 +87,23 @@ Validation:
 - Maintenance rule: `source_checked_at` must be re-verified within 24 hours
   or the engine deliberately reverts to NOT_AVAILABLE/UNKNOWN.
 
+
+## 2026-10-10 - Assistant Availability Matrix + Event Calendar Checker
+
+- `tools.py`: `get_market_analysis()` no longer underreports the system.
+  Its availability matrix now merges the latest saved Market Lab report
+  (cache-first, no network) into rows the scanner cannot measure: INDIA_VIX,
+  volatility regime, SECTOR_STRENGTH, derivatives OI/IV/PCR/max-pain,
+  INSTITUTIONAL_FLOW, EVENT_RISK. The report timestamp is printed as
+  `MARKET_LAB_REPORT_TIMESTAMP` so staleness stays visible, and
+  `MISSING_CRITICAL_LAYERS` is computed dynamically. Transaction-cost and
+  covariance models remain honestly NOT_AVAILABLE. No-report path behaves
+  exactly as before.
+- New `check_event_calendar.py`: offline validator + 24 h staleness alarm +
+  re-check checklist for `analysis/data/event_calendar.json`. Exit 0 =
+  valid and fresh; exit 1 = stale, invalid, or missing. It never writes to
+  the calendar and never fakes a source check.
+- Registered `check_event_calendar.py` in `AGENTS.md` common commands.
+- Preserved behavior note: `get_market_analysis()` still runs a live full
+  NSE scan per call (pre-existing; unchanged).
+

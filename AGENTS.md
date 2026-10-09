@@ -64,6 +64,7 @@ Use the existing virtual environment unless the user asks otherwise:
 .\venv\Scripts\python.exe market_lab\market_lab_data.py --json
 .\venv\Scripts\python.exe test_nse_mcp.py
 .\venv\Scripts\python.exe test_nse_tools.py
+.\venv\Scripts\python.exe check_event_calendar.py
 ```
 
 The full refresh command is intentionally heavier:
