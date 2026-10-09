@@ -174,3 +174,30 @@ Ollama AI analysis path.
 - Newest-report loader confirmed intact: `generated` 2026-10-09T23:53:32,
   scanner file points at the fresh scan.
 
+
+## 2026-10-10 - Event Risk Calendar Wiring
+
+Data-only change: new file `analysis/data/event_calendar.json`. No Python
+source edits.
+
+Checks run:
+
+- Loader smoke: `load_event_risk_context()` returned `status: AVAILABLE`,
+  `overall_risk: MODERATE` (score 3), 5 upcoming events in the 7-day window,
+  `source_fresh: True`, zero warnings.
+- Engine self-test:
+  `.\venv\Scripts\python.exe -B analysis\data\event_risk_engine.py`
+  - passed (`Status: AVAILABLE`, `Execution enabled: False`).
+- Full cache-first report regeneration (`market_lab_data.py --json`):
+  completed in under 20 s; report `market_lab_20261010_001304.json` shows
+  `data_availability.event_risk_engine: AVAILABLE`, safety guardrails intact,
+  and all other availability flags identical to the previous run.
+- Verified web sources (2026-10-10): recorded inside the calendar file
+  (`source_name`, per-event `source`).
+
+Not run: forced `--refresh` scan, GUI relaunch, Ollama analysis path.
+
+Known gap carried forward: `tools.py` hardcodes `EVENT_RISK: NOT_AVAILABLE`
+in the main assistant's availability matrix (line ~424); it does not read the
+calendar yet. Separate task.
+

@@ -67,3 +67,23 @@ Validation:
   1,999-stock scan; first saved report written (62 KB) and loaded back
   through the UI loader with safety guardrails intact.
 
+
+## 2026-10-10 - Event Risk Engine Wired Via Verified Calendar
+
+- Created `analysis/data/event_calendar.json` — the missing file that was the
+  sole reason `event_risk_engine` reported NOT AVAILABLE and `overall_risk`
+  stayed UNKNOWN. No Python source was changed; the wiring in
+  `load_event_risk_context()` already existed.
+- Populated with 11 source-verified events: India CPI/WPI releases (Oct 12,
+  Oct 14), US BLS CPI/PPI/import-export releases (Oct 14-16), NSE 2026
+  holidays (Dussehra Oct 20, Muhurat Nov 8, Diwali-Balipratipada Nov 10,
+  Guru Nanak Nov 24, Christmas Dec 25), and the next RBI MPC decision
+  (Dec 4).
+- Sources cross-checked on 2026-10-10: Zerodha/Livemint/HDFC Sky (NSE
+  holidays), MoSPI and DPIIT advance release calendars via IndiaInflation.com
+  and Finostat, bls.gov (US releases), RBI 2026-27 MPC schedule.
+- Result: report flag `event_risk_engine` = AVAILABLE, `overall_risk` =
+  MODERATE with 5 events inside the 7-day window.
+- Maintenance rule: `source_checked_at` must be re-verified within 24 hours
+  or the engine deliberately reverts to NOT_AVAILABLE/UNKNOWN.
+

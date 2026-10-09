@@ -1,0 +1,118 @@
+{
+  "calendar_complete": true,
+  "source_checked_at": "2026-10-10T00:11:37+05:30",
+  "source_name": "Cross-checked 2026-10-10: Zerodha NSE/BSE 2026 holiday calendar; Livemint NSE October 2026 holiday list; HDFC Sky holiday notice; MoSPI and DPIIT advance release calendars via IndiaInflation.com and Finostat; US BLS October 2026 release schedule; RBI MPC 2026-27 schedule via IndiaInflation.com.",
+  "source_url": "https://zerodha.com/marketintel/holiday-calendar/",
+  "events": [
+    {
+      "name": "India CPI inflation (Sep 2026) and IIP release",
+      "datetime": "2026-10-12T16:00:00+05:30",
+      "category": "MACRO_INFLATION",
+      "severity": "HIGH",
+      "instruments": ["INDIAN_MARKET", "NIFTY", "BANK_NIFTY"],
+      "source": "MoSPI Advance Release Calendar 2026-27 via IndiaInflation.com and Finostat (checked 2026-10-10)",
+      "verified": true,
+      "impact_note": "Released 16:00 IST after equity close; reaction expected at the Oct 13 open and in evening GIFT Nifty. RBI inflation target is 4% +/- 2%."
+    },
+    {
+      "name": "India WPI inflation (Sep 2026) release",
+      "datetime": "2026-10-14T12:00:00+05:30",
+      "category": "MACRO_INFLATION",
+      "severity": "MODERATE",
+      "instruments": ["INDIAN_MARKET", "NIFTY"],
+      "source": "DPIIT Office of the Economic Adviser advance release calendar via IndiaInflation.com and Finostat (checked 2026-10-10)",
+      "verified": true,
+      "impact_note": "Released 12:00 IST while the equity market is open; typically moves commodity-linked and rate-sensitive names."
+    },
+    {
+      "name": "US CPI inflation (Sep 2026) release",
+      "datetime": "2026-10-14T08:30:00-04:00",
+      "category": "GLOBAL_MACRO_INFLATION",
+      "severity": "HIGH",
+      "instruments": ["GLOBAL_MARKET", "INDIAN_MARKET", "NIFTY"],
+      "source": "US Bureau of Labor Statistics October 2026 schedule, bls.gov (checked 2026-10-10)",
+      "verified": true,
+      "impact_note": "08:30 ET = 18:00 IST, after Indian close; drives global risk sentiment and the next Indian session's open."
+    },
+    {
+      "name": "US PPI (Sep 2026) release",
+      "datetime": "2026-10-15T08:30:00-04:00",
+      "category": "GLOBAL_MACRO_INFLATION",
+      "severity": "MODERATE",
+      "instruments": ["GLOBAL_MARKET", "INDIAN_MARKET"],
+      "source": "US Bureau of Labor Statistics October 2026 schedule, bls.gov (checked 2026-10-10)",
+      "verified": true,
+      "impact_note": "08:30 ET = 18:00 IST; inflation confirmation data one day after US CPI."
+    },
+    {
+      "name": "US import and export prices (Sep 2026) release",
+      "datetime": "2026-10-16T08:30:00-04:00",
+      "category": "GLOBAL_MACRO",
+      "severity": "LOW",
+      "instruments": ["GLOBAL_MARKET"],
+      "source": "US Bureau of Labor Statistics October 2026 schedule, bls.gov (checked 2026-10-10)",
+      "verified": true,
+      "impact_note": "08:30 ET = 18:00 IST; minor global macro input."
+    },
+    {
+      "name": "NSE/BSE trading holiday - Dussehra",
+      "datetime": "2026-10-20T09:15:00+05:30",
+      "category": "MARKET_HOLIDAY",
+      "severity": "LOW",
+      "instruments": ["INDIAN_MARKET", "NIFTY", "BANK_NIFTY"],
+      "source": "NSE 2026 holiday calendar via Zerodha, Livemint and HDFC Sky (checked 2026-10-10)",
+      "verified": true,
+      "impact_note": "Exchange closed; no cash or derivatives trading. Weekly expiry positioning shifts around the closure."
+    },
+    {
+      "name": "Diwali Muhurat special trading session",
+      "datetime": "2026-11-08T18:00:00+05:30",
+      "category": "SPECIAL_SESSION",
+      "severity": "LOW",
+      "instruments": ["INDIAN_MARKET", "NIFTY"],
+      "source": "NSE/BSE 2026 holiday calendar via Zerodha and Livemint (checked 2026-10-10)",
+      "verified": true,
+      "impact_note": "Short symbolic Diwali session on Sunday, Nov 8, 2026; exact timings to be announced by the exchanges."
+    },
+    {
+      "name": "NSE/BSE trading holiday - Diwali-Balipratipada",
+      "datetime": "2026-11-10T09:15:00+05:30",
+      "category": "MARKET_HOLIDAY",
+      "severity": "LOW",
+      "instruments": ["INDIAN_MARKET", "NIFTY", "BANK_NIFTY"],
+      "source": "NSE 2026 holiday calendar via Zerodha and Livemint (checked 2026-10-10)",
+      "verified": true,
+      "impact_note": "Exchange closed the day after Diwali."
+    },
+    {
+      "name": "NSE/BSE trading holiday - Prakash Gurpurb Sri Guru Nanak Dev",
+      "datetime": "2026-11-24T09:15:00+05:30",
+      "category": "MARKET_HOLIDAY",
+      "severity": "LOW",
+      "instruments": ["INDIAN_MARKET", "NIFTY", "BANK_NIFTY"],
+      "source": "NSE 2026 holiday calendar via Zerodha and Livemint (checked 2026-10-10)",
+      "verified": true,
+      "impact_note": "Exchange closed for Guru Nanak Jayanti."
+    },
+    {
+      "name": "NSE/BSE trading holiday - Christmas",
+      "datetime": "2026-12-25T09:15:00+05:30",
+      "category": "MARKET_HOLIDAY",
+      "severity": "LOW",
+      "instruments": ["INDIAN_MARKET", "NIFTY", "BANK_NIFTY"],
+      "source": "NSE 2026 holiday calendar via Zerodha and Livemint (checked 2026-10-10)",
+      "verified": true,
+      "impact_note": "Exchange closed for Christmas."
+    },
+    {
+      "name": "RBI MPC monetary policy decision",
+      "datetime": "2026-12-04T10:00:00+05:30",
+      "category": "CENTRAL_BANK",
+      "severity": "HIGH",
+      "instruments": ["INDIAN_MARKET", "NIFTY", "BANK_NIFTY"],
+      "source": "RBI MPC schedule 2026-27 via IndiaInflation.com (checked 2026-10-10)",
+      "verified": true,
+      "impact_note": "Next scheduled MPC decision per RBI's published schedule; the previous review on Oct 7, 2026 left the repo rate at 5.50%."
+    }
+  ]
+}
