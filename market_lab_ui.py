@@ -604,6 +604,28 @@ class MarketLabWindow(QMainWindow):
         )
         controls_layout.addWidget(self.question)
 
+        watch_row = QHBoxLayout()
+        watch_row.addWidget(make_label("WATCHLIST", 9, MUTED, True))
+        self.watch_input = QLineEdit()
+        self.watch_input.setMinimumHeight(36)
+        self.watch_input.setPlaceholderText(
+            "RELIANCE, HDFCBANK, INFY … (comma-separated, max 10)"
+        )
+        watch_row.addWidget(self.watch_input, 1)
+        self.watch_apply_btn = make_button("PIN", False)
+        self.watch_apply_btn.clicked.connect(self.apply_watchlist)
+        watch_row.addWidget(self.watch_apply_btn)
+        controls_layout.addLayout(watch_row)
+
+        self.watch_view = QPlainTextEdit()
+        self.watch_view.setReadOnly(True)
+        self.watch_view.setMinimumHeight(120)
+        self.watch_view.setPlaceholderText(
+            "Pinned symbols appear here with live price, RSI and trend. "
+            "Refreshes on the auto cadence."
+        )
+        controls_layout.addWidget(self.watch_view)
+
         actions = QHBoxLayout()
         self.analyze_btn = make_button("RUN ANALYSIS", True)
         self.analyze_btn.clicked.connect(self.run_analysis)
@@ -737,6 +759,11 @@ class MarketLabWindow(QMainWindow):
             self.refresh_btn.setEnabled(True)
             self.live_btn.setEnabled(True)
             self.progress.setRange(0, 100)
+
+        elif name == "watchlist":
+            self.watch_apply_btn.setEnabled(True)
+            # Rotate to the next symbol on the following poll.
+            self.poll_watchlist_symbol()
 
         elif name == "analysis":
             self.analyze_btn.setEnabled(True)
@@ -1133,6 +1160,75 @@ class MarketLabWindow(QMainWindow):
             query,
             False,
         )
+
+    # --------------------------------------------------------
+    # STOCK WATCHLIST (same auto cadence, one symbol per poll)
+    # --------------------------------------------------------
+
+    def apply_watchlist(self):
+        from analysis.data.watchlist_engine import MAX_SYMBOLS
+
+        raw = self.watch_input.text().strip().upper()
+        symbols = [
+            part.strip()
+            for part in raw.replace(";", ",").split(",")
+            if part.strip()
+        ]
+        seen = []
+        for symbol in symbols:
+            if symbol not in seen:
+                seen.append(symbol)
+        self.watch_symbols = seen[:MAX_SYMBOLS]
+        self.watch_index = 0
+        self.watch_data = {}
+        self.render_watchlist()
+        if self.watch_symbols:
+            self.footer.setText(
+                f"Watchlist pinned: {', '.join(self.watch_symbols)}. "
+                "Refreshes one symbol per auto poll."
+            )
+            # Refresh the first symbol immediately in the worker.
+            self.poll_watchlist_symbol()
+
+    def poll_watchlist_symbol(self):
+        symbols = getattr(self, "watch_symbols", [])
+        if not symbols or "watchlist" in self.workers:
+            return
+        from analysis.data.watchlist_engine import refresh_watch_symbol
+
+        index = getattr(self, "watch_index", 0) % len(symbols)
+        symbol = symbols[index]
+        self.watch_index = index + 1
+        self.start_task("watchlist", refresh_watch_symbol, symbol)
+
+    def render_watchlist(self):
+        if not hasattr(self, "watch_view"):
+            return
+        symbols = getattr(self, "watch_symbols", [])
+        if not symbols:
+            self.watch_view.setPlainText("")
+            return
+        data = getattr(self, "watch_data", {})
+        lines = []
+        for symbol in symbols:
+            entry = data.get(symbol)
+            if not isinstance(entry, dict):
+                lines.append(f"{symbol}: waiting for first refresh…")
+            elif entry.get("status") == "AVAILABLE":
+                lines.append(
+                    f"{entry.get('symbol', symbol)}: "
+                    f"₹{entry.get('price')} "
+                    f"({entry.get('change_percent'):+.2f}%) • "
+                    f"RSI {entry.get('rsi_14'):.1f} "
+                    f"{entry.get('rsi_condition', '')} • "
+                    f"{entry.get('trend', '')} • "
+                    f"{entry.get('source', '')}"
+                )
+            else:
+                lines.append(
+                    f"{symbol}: NOT AVAILABLE — {entry.get('reason', '')}"
+                )
+        self.watch_view.setPlainText("\n".join(lines))
 
     # --------------------------------------------------------
     # SAFE WINDOW CLOSE
