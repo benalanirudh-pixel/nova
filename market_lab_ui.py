@@ -182,7 +182,7 @@ def display_age(seconds):
 # timer only repaints cheap local state (clock, ages, countdowns).
 AUTO_CLOCK_MS = 1000
 AUTO_POLL_OPEN_S = 60
-AUTO_POLL_CLOSED_S = 300
+AUTO_POLL_CLOSED_S = 30
 
 
 def nse_market_open_now(now=None):
@@ -542,7 +542,7 @@ class MarketLabWindow(QMainWindow):
         # every panel feels live while data polls on the safe cadence.
         live_strip, live_strip_layout = make_panel(
             "Live",
-            "1-second display • data polls every 60 s open / 5 min closed.",
+            "1-second display • data polls every 60 s open / 30 s closed.",
         )
         self.live_clock_value = make_label("--:--:--", 13, TEXT, True)
         live_strip_layout.addWidget(self.live_clock_value)
@@ -994,7 +994,7 @@ class MarketLabWindow(QMainWindow):
     # STAGGERED AUTO-REFRESH
     # --------------------------------------------------------
     # Tier 1 (1 s): clock/age/countdown repaint only, no network.
-    # Tier 2 (60 s open / 300 s closed): live-only worker poll.
+    # Tier 2 (60 s open / 30 s closed): live-only worker poll.
     # Single-flight: a tick never starts a second worker; manual
     # actions reset the countdown via schedule_next_poll().
 

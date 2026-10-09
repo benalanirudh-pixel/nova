@@ -269,7 +269,7 @@ Checks run:
   `live_update_report` and `refresh_report`.
 - Auto-refresh logic smoke: `nse_market_open_now` true for a weekday
   10:00 IST, false for Saturday and pre-open; cadence constants
-  1000 ms / 60 s / 300 s confirmed; auto handlers present.
+  1000 ms / 60 s / 30 s confirmed; auto handlers present.
 - Display ticker smoke: `MarketLabWindow` exposes `ensure_display_ticker`
   + `tick_display` alongside the auto handlers; import-only (no Qt
   event loop started).
