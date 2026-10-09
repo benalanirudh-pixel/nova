@@ -26,7 +26,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from market_lab.market_lab_data import CACHE_DIR, get_market_lab_data
+from market_lab.market_lab_data import (
+    CACHE_DIR,
+    get_market_lab_data,
+    save_json_report,
+)
 from market_lab.market_lab_brain import analyze_market_lab
 
 
@@ -245,6 +249,22 @@ class Worker(QThread):
 
         try:
             result = self.function(*self.args, **self.kwargs)
+
+            if (
+                self.task_name == "report"
+                and isinstance(result, dict)
+                and result
+            ):
+                # Persist in the worker thread so the next launch can
+                # show a saved report without blocking the UI.
+                try:
+                    save_json_report(result)
+                except Exception:
+                    print(
+                        "WARNING: failed to save Market Lab JSON report:"
+                    )
+                    traceback.print_exc()
+
             self.succeeded.emit(
                 self.task_name,
                 result,

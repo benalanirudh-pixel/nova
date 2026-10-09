@@ -111,6 +111,7 @@ data for lightweight index refreshes.
 - No live trade/broker behavior exists to validate, and none should be added.
 - No automated test suite is currently configured.
 - Existing `test_nse_*` scripts are manual smoke scripts, not a formal test
+  suite.
 
 ## 2026-10-09 - Git/GitHub Initialization Session
 
@@ -128,4 +129,32 @@ Checks run:
 - `git status` - clean tree; `main` tracks `origin/main`.
 
 Not run: no Python runtime checks were needed because no source code changed.
-  suite.
+
+
+## 2026-10-09 - Market Lab UI Persistence Fix
+
+Code changed: `market_lab_ui.py` only (import `save_json_report`, save in
+`Worker.run()` on successful report).
+
+Checks run:
+
+- Project-wide `ast` syntax check with `utf-8-sig` decoding: passed.
+- Import smoke:
+  `from market_lab_ui import Worker, load_latest_saved_report; from market_lab.market_lab_data import save_json_report, get_market_lab_data`
+  - passed.
+- Cache-first engine run:
+  `.\venv\Scripts\python.exe -B -u market_lab\market_lab_data.py --json`
+  - completed in 18 s (23:45:46 -> 23:46:04);
+  - used cached scan `market_scan_20261009_202230.csv` (1,999 stocks, no full scan);
+  - live NSE option-chain fetch succeeded (attempt 1/3);
+  - wrote `analysis/data/cache/market_lab/market_lab_20261009_234604.json` (62 KB).
+- UI loader smoke: `load_latest_saved_report()` returned that report with
+  `ai_context.guardrails` intact (`buy_sell_authorized: False`).
+
+Observed data-availability flags from that run (not changed by this fix):
+
+- `event_risk_engine`: NOT AVAILABLE
+- `research_factor_engine`: NOT BUILT
+
+Not run: GUI launch (interactive desktop only), forced `--refresh` scan,
+Ollama AI analysis path.

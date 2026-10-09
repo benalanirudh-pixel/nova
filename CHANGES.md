@@ -54,3 +54,16 @@ Validation:
 - Updated stale "not a Git repository" statements in `AGENTS.md`, `README.md`,
   `PROJECT_CONTEXT.md`, and `docs/MODEL_HANDOFF.md`.
 
+
+## 2026-10-09 - Market Lab UI Report Persistence
+
+- Fixed: `market_lab_ui.py` never saved successful reports to JSON, so
+  `load_latest_saved_report()` had nothing to show on the next launch and
+  `analysis/data/cache/market_lab/` did not exist at all.
+- `Worker.run()` now calls `save_json_report()` in the background thread for
+  every successful `"report"` result; save failures print a warning but never
+  fail the task.
+- Verified with a cache-first engine run: 18 s end-to-end using the cached
+  1,999-stock scan; first saved report written (62 KB) and loaded back
+  through the UI loader with safety guardrails intact.
+
