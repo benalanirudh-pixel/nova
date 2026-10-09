@@ -368,6 +368,10 @@ class MarketLabWindow(QMainWindow):
         self.refresh_btn.clicked.connect(self.refresh_report)
         header.addWidget(self.refresh_btn)
 
+        self.live_btn = make_button("⚡ LIVE UPDATE", False)
+        self.live_btn.clicked.connect(self.live_update_report)
+        header.addWidget(self.live_btn)
+
         outer.addLayout(header)
 
         self.progress = QProgressBar()
@@ -648,6 +652,7 @@ class MarketLabWindow(QMainWindow):
 
         if name == "report":
             self.refresh_btn.setEnabled(False)
+            self.live_btn.setEnabled(False)
             self.progress.setRange(0, 0)
             self.status_data.setText(
                 "CACHED • UPDATING" if self.cache_is_displayed else "LOADING…"
@@ -668,6 +673,7 @@ class MarketLabWindow(QMainWindow):
 
         if name == "report":
             self.refresh_btn.setEnabled(True)
+            self.live_btn.setEnabled(True)
             self.progress.setRange(0, 100)
 
         elif name == "analysis":
@@ -902,6 +908,15 @@ class MarketLabWindow(QMainWindow):
             "report",
             get_market_lab_data,
             force_refresh=True,
+        )
+
+    def live_update_report(self):
+        # Refresh only cheap live layers over the cached equity scan.
+        # Never runs the full NSE scan.
+        self.start_task(
+            "report",
+            get_market_lab_data,
+            live_only=True,
         )
 
     def run_analysis(self):

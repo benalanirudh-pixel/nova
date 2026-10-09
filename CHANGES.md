@@ -164,4 +164,8 @@ Validation:
 - Deleted the half-built `analysis/tools/check_daily_calendar.py` stub
   (bad import of a nonexistent engine constant, broken source URL,
   untested scraping parsers). It was untracked and never committed.
+- `market_lab_ui.py`: new `LIVE UPDATE` button beside `FULL REFRESH`
+  calls `get_market_lab_data(live_only=True)` in the background worker
+  (auto-saved to JSON like every report); both buttons disable while a
+  report task runs. Import smoke confirms both handlers exist.
 

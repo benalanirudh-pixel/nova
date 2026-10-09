@@ -265,7 +265,9 @@ Checks run:
   available, all decision-policy flags false.
 - Mutual exclusion: `--live-only --refresh` prints the exclusivity error
   and exits 2.
-- Full suite: `Ran 40 tests in 0.083s - OK` (captured via
+- `market_lab_ui.py` import smoke: `MarketLabWindow` exposes both
+  `live_update_report` and `refresh_report`.
+- Full suite: `Ran 40 tests in 0.077s - OK` (captured via
   `cmd /c "... > file 2>&1"`; PowerShell 5.1 garbles native stderr).
 
 Not run: forced `--refresh`, GUI relaunch, Ollama analysis path.
