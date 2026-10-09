@@ -245,3 +245,29 @@ Checks run:
 Not run: network scripts, GUI, forced `--refresh`, Ollama.
 
 
+## 2026-10-10 - Live-Only Mode + Calendar Re-Check Helper
+
+Code changed: `market_lab/market_lab_data.py`; new file
+`touch_event_calendar.py`; `AGENTS.md` + `CHANGES.md` updated; half-built
+`analysis/tools/check_daily_calendar.py` stub deleted (untracked, never
+committed; failed import on a nonexistent engine constant).
+
+Checks run:
+
+- Project-wide `ast` syntax check with `utf-8-sig` decoding: 44 files OK.
+- `touch_event_calendar.py` decline path: piped `no` leaves the calendar
+  untouched, exit 1. (The `yes` stamp path was not exercised, to avoid
+  mutating the verified `source_checked_at`.)
+- Live `--live-only --json` run: completed in seconds reusing cached
+  1,999-stock scan `market_scan_20261009_235322.csv`; saved
+  `market_lab_20261010_012258.json` with `mode: LIVE_ONLY`,
+  `event_risk_engine` + `research_factor_engine` AVAILABLE, risk
+  available, all decision-policy flags false.
+- Mutual exclusion: `--live-only --refresh` prints the exclusivity error
+  and exits 2.
+- Full suite: `Ran 40 tests in 0.083s - OK` (captured via
+  `cmd /c "... > file 2>&1"`; PowerShell 5.1 garbles native stderr).
+
+Not run: forced `--refresh`, GUI relaunch, Ollama analysis path.
+
+

@@ -143,3 +143,25 @@ Validation:
   (1,999-stock universe). Guardrails intact: `factor_rank_is_a_buy_sell_signal:
   false`, `buy_sell_authorization: false`, `trading_execution: false`.
 
+
+## 2026-10-10 - Live-Only Report Mode + Calendar Re-Check Helper
+
+- New `--live-only` mode in `market_lab/market_lab_data.py`:
+  `get_market_lab_data(live_only=True)` reuses the newest cached equity
+  scan at any age via `load_latest_market_scan_any_age()`, then refreshes
+  only the cheap live layers (index returns, NIFTY snapshot, volatility,
+  derivatives, institutional flow, risk, event risk). Report carries
+  `mode: LIVE_ONLY` with scanner file + age labelled. `--live-only` and
+  `--refresh` are mutually exclusive (CLI exits 2, function raises
+  `ValueError`). Verified live: 1,999-stock reuse in seconds, report
+  `market_lab_20261010_012258.json`, all availability flags AVAILABLE,
+  guardrails all false.
+- New `touch_event_calendar.py`: interactive re-check confirmer for
+  `analysis/data/event_calendar.json`. Prints the 4 source groups + event
+  consistency as 5 checks; only a literal `yes` stamps
+  `source_checked_at` to now, anything else leaves the file untouched.
+  Never touches the network, never edits events. Registered below.
+- Deleted the half-built `analysis/tools/check_daily_calendar.py` stub
+  (bad import of a nonexistent engine constant, broken source URL,
+  untested scraping parsers). It was untracked and never committed.
+

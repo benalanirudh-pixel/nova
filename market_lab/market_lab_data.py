@@ -851,6 +851,74 @@ def load_latest_market_scan() -> tuple[
 
 
 
+def load_latest_market_scan_any_age() -> tuple[
+    pd.DataFrame | None,
+    Path | None,
+]:
+    """
+    Load the newest scanner CSV regardless of age.
+
+    Used only by live-only mode: the 16-hour freshness gate is skipped
+    because the caller only wants cheap live layers (index, derivatives,
+    flow, event, risk) recomputed over whatever cached universe exists.
+    Scanner-derived sections are still labelled with the scan file and
+    its age so staleness stays visible; nothing is presented as current
+    when it is not.
+    """
+
+    if not SCANNER_CACHE_DIR.exists():
+        print(
+            f"Scanner cache directory not found: "
+            f"{SCANNER_CACHE_DIR}"
+        )
+        return None, None
+
+    files = sorted(
+        SCANNER_CACHE_DIR.glob("market_scan_*.csv"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+
+    if not files:
+        print("No cached market scan found.")
+        return None, None
+
+    latest = files[0]
+
+    print()
+    print(f"Latest market scan: {latest.name}")
+
+    try:
+        modified_at = datetime.fromtimestamp(latest.stat().st_mtime)
+        age_hours = (
+            datetime.now() - modified_at
+        ).total_seconds() / 3600.0
+    except (OSError, OverflowError, ValueError) as exc:
+        print(f"Could not validate cache timestamp: {exc}")
+        return None, latest
+
+    try:
+        dataframe = pd.read_csv(latest)
+
+    except Exception as exc:
+        print(f"Could not read cached market scan: {exc}")
+        return None, latest
+
+    if dataframe.empty:
+        print("Cached market scan is empty.")
+        return None, latest
+
+    print(
+        f"Using cached market scan for live-only mode "
+        f"({len(dataframe):,} stocks; "
+        f"{age_hours:.1f} hours old; "
+        f"scanner sections NOT refreshed)."
+    )
+
+    return dataframe, latest
+
+
+
 # ============================================================
 # MARKET REGIME SIDECAR
 # ============================================================
@@ -2833,6 +2901,7 @@ def build_data_availability(
 
 def get_market_lab_data(
     force_refresh: bool = False,
+    live_only: bool = False,
 ) -> dict[str, Any]:
 
     print()
@@ -2840,6 +2909,20 @@ def get_market_lab_data(
     print("NOVA MARKET LAB")
     print("=" * 66)
     print()
+
+    if live_only and force_refresh:
+        raise ValueError(
+            "live_only and force_refresh are mutually exclusive: "
+            "live_only never runs the full NSE scan."
+        )
+
+    if live_only:
+        print(
+            "LIVE-ONLY MODE: cached equity scan is reused as-is; "
+            "only index, derivatives, flow, event, and risk layers "
+            "are refreshed."
+        )
+        print()
 
     market_dataframe = None
 
@@ -2853,7 +2936,24 @@ def get_market_lab_data(
     # NORMAL MODE = CACHE FIRST
     # --------------------------------------------------------
 
-    if not force_refresh:
+    if live_only:
+
+        (
+            market_dataframe,
+            market_file,
+        ) = load_latest_market_scan_any_age()
+
+        if (
+            market_dataframe is None
+            or market_dataframe.empty
+        ):
+            raise RuntimeError(
+                "Live-only mode needs a cached market scan, "
+                "but none was usable. Run a normal report first "
+                "or use --refresh to build one."
+            )
+
+    elif not force_refresh:
 
         (
             market_dataframe,
@@ -3222,6 +3322,8 @@ def get_market_lab_data(
             (
                 "FORCED_REFRESH"
                 if force_refresh
+                else "LIVE_ONLY"
+                if live_only
                 else "CACHED_OR_REFRESH"
             ),
 
@@ -4500,6 +4602,16 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--live-only",
+        action="store_true",
+        help=(
+            "Refresh only live layers (index, derivatives, flow, "
+            "event, risk) over the cached equity scan. Never runs "
+            "the full NSE scan; refuses to combine with --refresh."
+        ),
+    )
+
+    parser.add_argument(
         "--json",
         action="store_true",
         help=(
@@ -4519,10 +4631,25 @@ def main() -> int:
 
     args = parse_arguments()
 
+    if args.live_only and args.refresh:
+        print()
+        print("=" * 66)
+        print("NOVA MARKET LAB ERROR")
+        print("=" * 66)
+        print()
+        print(
+            "--live-only and --refresh are mutually exclusive: "
+            "live-only mode never runs the full NSE scan."
+        )
+        print()
+
+        return 2
+
     try:
 
         report = get_market_lab_data(
-            force_refresh=args.refresh
+            force_refresh=args.refresh,
+            live_only=args.live_only,
         )
 
         print_market_lab(
