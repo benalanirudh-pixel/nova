@@ -123,3 +123,23 @@ Validation:
 - Result: 32/32 passing in ~0.02 s.
 - Test command registered in `AGENTS.md`.
 
+
+## 2026-10-10 - Research Factor Engine Built And Wired
+
+- New `analysis/data/research_factor_engine.py`: cross-sectional factor
+  ranking over the cached NSE scanner universe. Five transparent,
+  equal-weighted z-score factors: MOMENTUM_60D, RELATIVE_STRENGTH,
+  LOW_VOLATILITY (ATR% sign-flipped), TREND_STRUCTURE (EMA alignment
+  0-3), PROXIMITY_52W_HIGH. Minimum universe 30, minimum factors per
+  stock 3. No fundamental factors — Nova has no verified fundamentals
+  source, so none are invented.
+- Wired into `market_lab/market_lab_data.py` import block and report
+  assembly; `data_availability.research_factor_engine` reflects status.
+- New `tests/test_research_factor_engine.py`: 8 reference-value tests
+  (availability, sign-flip, extreme winner/loser rank, missing columns,
+  small universe, NaN exclusion, guardrails, z-score bounds).
+- Full suite: 40 tests / 0.08 s, all passing.
+- Live cache-first report now shows `research_factor_engine: AVAILABLE`
+  (1,999-stock universe). Guardrails intact: `factor_rank_is_a_buy_sell_signal:
+  false`, `buy_sell_authorization: false`, `trading_execution: false`.
+

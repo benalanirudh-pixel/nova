@@ -358,6 +358,23 @@ except Exception as exc:
     EVENT_RISK_ENGINE_IMPORT_ERROR = str(exc)
 
 # ============================================================
+# RESEARCH FACTOR ENGINE
+# ============================================================
+
+try:
+    from analysis.data.research_factor_engine import (
+        build_research_factors,
+    )
+
+    RESEARCH_FACTOR_ENGINE_IMPORT_OK = True
+    RESEARCH_FACTOR_ENGINE_IMPORT_ERROR = None
+
+except Exception as exc:
+    build_research_factors = None
+    RESEARCH_FACTOR_ENGINE_IMPORT_OK = False
+    RESEARCH_FACTOR_ENGINE_IMPORT_ERROR = str(exc)
+
+# ============================================================
 # EVENT CALENDAR INPUT
 # ============================================================
 
@@ -3019,6 +3036,31 @@ def get_market_lab_data(
     )
 
     # --------------------------------------------------------
+    # RESEARCH FACTORS
+    # --------------------------------------------------------
+
+    try:
+        if not RESEARCH_FACTOR_ENGINE_IMPORT_OK:
+            raise RuntimeError(
+                RESEARCH_FACTOR_ENGINE_IMPORT_ERROR
+                or "Research factor engine import failed."
+            )
+
+        research_factors = build_research_factors(market_dataframe)
+    except Exception as exc:
+        research_factors = {
+            "engine": "Nova Research Factor Engine",
+            "status": "NOT_AVAILABLE",
+            "reason": f"{type(exc).__name__}: {exc}",
+            "warnings": [],
+            "decision_policy": {
+                "factor_rank_is_a_buy_sell_signal": False,
+                "buy_sell_authorization": False,
+                "trading_execution": False,
+            },
+        }
+
+    # --------------------------------------------------------
     # DERIVATIVES
     # --------------------------------------------------------
 
@@ -3118,6 +3160,11 @@ def get_market_lab_data(
             or str(event_risk_context.get("status", "")).upper()
             in {"AVAILABLE", "READY", "OK", "SUCCESS"}
         )
+        else "NOT AVAILABLE"
+    )
+    data_availability["research_factor_engine"] = (
+        "AVAILABLE"
+        if research_factors.get("status") == "AVAILABLE"
         else "NOT AVAILABLE"
     )
 
@@ -3230,6 +3277,9 @@ def get_market_lab_data(
         "event_risk_context":
             event_risk_context,
 
+        "research_factors":
+            research_factors,
+
         "data_availability":
             data_availability,
 
@@ -3291,6 +3341,9 @@ def get_market_lab_data(
 
                 "event_risk_context":
                     event_risk_context,
+
+                "research_factors":
+                    research_factors,
 
                 "decision_policy":
                     decision_policy,
