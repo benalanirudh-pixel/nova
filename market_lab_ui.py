@@ -323,6 +323,7 @@ class MarketLabWindow(QMainWindow):
         self.last_update_at = None
         self.next_poll_at = None
         self.auto_timer = None
+        self.report_generated_at = None
 
         self.setWindowTitle(APP_NAME)
         self.resize(1500, 920)
@@ -371,6 +372,9 @@ class MarketLabWindow(QMainWindow):
 
         self.build_ui()
         QTimer.singleShot(150, self.load_initial_report)
+        # The display ticker always runs: it repaints only in-memory
+        # labels every second and never touches the network.
+        self.ensure_display_ticker()
 
     # --------------------------------------------------------
     # UI
@@ -532,6 +536,23 @@ class MarketLabWindow(QMainWindow):
             metrics, "FLOW ELIGIBILITY", "Unverified"
         )
         layout.addLayout(metrics)
+
+        # Live 1 s strip: pure in-memory repaint, no network. Shows the
+        # wall clock, NSE session, report age, and auto-poll countdown so
+        # every panel feels live while data polls on the safe cadence.
+        live_strip, live_strip_layout = make_panel(
+            "Live",
+            "1-second display • data polls every 60 s open / 5 min closed.",
+        )
+        self.live_clock_value = make_label("--:--:--", 13, TEXT, True)
+        live_strip_layout.addWidget(self.live_clock_value)
+        self.live_session_value = make_label("NSE …", 10, MUTED, True)
+        live_strip_layout.addWidget(self.live_session_value)
+        self.live_age_value = make_label("data age …", 10, MUTED)
+        live_strip_layout.addWidget(self.live_age_value)
+        self.live_next_value = make_label("next update …", 10, MUTED)
+        live_strip_layout.addWidget(self.live_next_value)
+        layout.addWidget(live_strip)
 
         integrity, integrity_layout = make_panel(
             "Data integrity",
@@ -789,12 +810,14 @@ class MarketLabWindow(QMainWindow):
     ):
         self.report = report
         self.report_view.setPlainText(pretty_json(report))
-
-        market = find_value(report, ("market", "market_name"))
         generated = find_value(
             report,
             ("generated", "generated_at", "report_time", "timestamp"),
         )
+        self.report_generated_at = generated
+        self.last_display_at = time.time()
+
+        market = find_value(report, ("market", "market_name"))
 
         event_risk = find_value(
             report,
@@ -1009,6 +1032,63 @@ class MarketLabWindow(QMainWindow):
         if not self.auto_timer.isActive():
             self.auto_timer.start()
 
+    def ensure_display_ticker(self):
+        if getattr(self, "display_timer", None) is None:
+            self.display_timer = QTimer(self)
+            self.display_timer.setInterval(AUTO_CLOCK_MS)
+            self.display_timer.timeout.connect(self.tick_display)
+        if not self.display_timer.isActive():
+            self.display_timer.start()
+        self.tick_display()
+
+    def tick_display(self):
+        """Repaint every visible time-derived label from memory (1 s)."""
+        from datetime import timezone as _tz, timedelta as _td
+
+        ist = _tz(_td(hours=5, minutes=30))
+        now_ist = datetime.now(ist)
+        clock = now_ist.strftime("%H:%M:%S")
+        session_open = nse_market_open_now(now_ist)
+        session = "NSE OPEN" if session_open else "NSE CLOSED"
+
+        if self.last_update_at is not None:
+            data_age = display_age(max(0, time.time() - self.last_update_at))
+        elif self.report_generated_at is not None:
+            data_age = f"report {self.report_generated_at}"
+        else:
+            data_age = "waiting for first report…"
+
+        if self.auto_enabled and self.next_poll_at is not None:
+            remaining = int(self.next_poll_at - time.time())
+            if "report" in self.workers:
+                poll = "updating now…"
+            elif remaining > 0:
+                poll = f"next update in {remaining}s"
+            else:
+                poll = "poll due…"
+        elif "report" in self.workers:
+            poll = "updating now…"
+        else:
+            poll = "AUTO OFF • data polls paused"
+
+        if hasattr(self, "clock_label"):
+            self.clock_label.setText(
+                f"{clock}  •  {session}  •  {data_age}  •  {poll}"
+            )
+        if hasattr(self, "live_clock_value"):
+            self.live_clock_value.setText(clock)
+            self.live_session_value.setText(session)
+            self.live_session_value.setStyleSheet(
+                f"color:{GREEN if session_open else AMBER};"
+                "background:transparent;border:none;"
+            )
+            self.live_age_value.setText(data_age)
+            self.live_next_value.setText(poll)
+
+        if hasattr(self, "metric_time") and self.metric_time is not None:
+            if self.report_generated_at is not None:
+                self.metric_time.setText(str(self.report_generated_at))
+
     def tick_auto_clock(self):
         from datetime import timezone as _tz, timedelta as _td
 
@@ -1033,6 +1113,9 @@ class MarketLabWindow(QMainWindow):
 
         if hasattr(self, "clock_label"):
             self.clock_label.setText("  •  ".join(parts))
+        # The 1 s display ticker owns label repaints; keep the auto
+        # tick to poll scheduling only.
+        self.tick_display()
 
     def run_analysis(self):
         if not self.report:

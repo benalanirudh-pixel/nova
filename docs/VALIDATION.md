@@ -270,7 +270,10 @@ Checks run:
 - Auto-refresh logic smoke: `nse_market_open_now` true for a weekday
   10:00 IST, false for Saturday and pre-open; cadence constants
   1000 ms / 60 s / 300 s confirmed; auto handlers present.
-- Full suite: `Ran 40 tests in 0.072s - OK` (captured via
+- Display ticker smoke: `MarketLabWindow` exposes `ensure_display_ticker`
+  + `tick_display` alongside the auto handlers; import-only (no Qt
+  event loop started).
+- Full suite: `Ran 40 tests in 0.079s - OK` (captured via
   `cmd /c "... > file 2>&1"`; PowerShell 5.1 garbles native stderr).
 
 Not run: forced `--refresh`, GUI relaunch, Ollama analysis path.

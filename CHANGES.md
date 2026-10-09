@@ -175,4 +175,9 @@ Validation:
   reset the countdown, failed polls retry next tick without killing
   auto mode. Session logic verified: weekday 10:00 IST open, Saturday
   and pre-open closed.
+- `market_lab_ui.py`: 1-second live display tier — an always-on display
+  ticker repaints the header clock, the Overview `Live` strip (clock,
+  session badge, data age, countdown), and the REPORT TIME metric every
+  second from memory only; zero network. The auto tick now only
+  schedules polls.
 
