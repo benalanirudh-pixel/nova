@@ -218,13 +218,16 @@ class MarketLabSmokeTestCase(unittest.TestCase):
 
     def test_page_indices_match_the_nav_labels(self):
         window = self.window
-        self.assertEqual(window.pages.count(), 4)
+        self.assertEqual(window.pages.count(), 5)
         self.assertEqual(window.pages.currentIndex(), 0)
         # task_succeeded hardcodes switch_page(3) for backtest.
         self.assertIn("Factor Backtest", window.nav_buttons[3].text())
         self.assertIn("Nova Analysis", window.nav_buttons[2].text())
+        self.assertIn("Event Risk", window.nav_buttons[4].text())
         window.switch_page(3)
         self.assertEqual(window.pages.currentIndex(), 3)
+        window.switch_page(4)
+        self.assertEqual(window.pages.currentIndex(), 4)
         window.switch_page(0)
         self.assertEqual(window.pages.currentIndex(), 0)
 
@@ -596,6 +599,196 @@ class TestCleanShutdown(unittest.TestCase):
         win.closeEvent(event)
         self.assertTrue(event.isAccepted())
         self.assertEqual(win.workers, {})
+
+
+# ----------------------------------------------------------------
+# Event Risk panel: pure renderer + widget wiring
+# ----------------------------------------------------------------
+
+def event_risk_context(**overrides):
+    """A realistic event_risk_context from a Market Lab report."""
+    context = {
+        "engine": "Nova Event Risk Engine",
+        "status": "AVAILABLE",
+        "overall_risk": "MODERATE",
+        "overall_risk_score": 3,
+        "upcoming_event_count": 2,
+        "lookahead_days": 7,
+        "source_fresh": True,
+        "upcoming_events": [
+            {
+                "name": "India CPI inflation (Sep 2026) and IIP release",
+                "datetime_utc": "2026-10-12T10:30:00+00:00",
+                "category": "MACRO_INFLATION",
+                "severity": "HIGH",
+                "instruments": ["NIFTY", "BANK_NIFTY"],
+                "impact_note": "Released 16:00 IST after equity close.",
+                "verified": True,
+            },
+            {
+                "name": "US CPI inflation (Sep 2026) release",
+                "datetime_utc": "2026-10-14T12:30:00+00:00",
+                "category": "GLOBAL_MACRO_INFLATION",
+                "severity": "MODERATE",
+                "instruments": ["GLOBAL_MARKET"],
+                "impact_note": "08:30 ET = 18:00 IST.",
+                "verified": True,
+            },
+        ],
+        "decision_policy": {
+            "buy_sell_authorized": False,
+            "trading_execution": False,
+        },
+    }
+    context.update(overrides)
+    return context
+
+
+@unittest.skipIf(not QT_AVAILABLE, "PySide6 (Qt) is not installed")
+class TestFormatEventRisk(unittest.TestCase):
+    """The pure event-risk renderer (no widgets)."""
+
+    def test_renders_overall_events_and_guardrail(self):
+        text = market_lab_ui.format_event_risk(event_risk_context())
+        self.assertIn("OVERALL EVENT RISK: MODERATE", text)
+        self.assertIn("risk score 3", text)
+        self.assertIn("UPCOMING EVENTS", text)
+        self.assertIn("[HIGH] India CPI inflation", text)
+        self.assertIn("[MODERATE] US CPI inflation", text)
+        self.assertIn("Mon 12 Oct 2026, 16:00 IST", text)  # UTC -> IST
+        self.assertIn("instruments: NIFTY, BANK_NIFTY", text)
+        self.assertIn("NOT a buy/sell signal", text)
+
+    def test_source_freshness_lines(self):
+        self.assertIn(
+            "FRESH", market_lab_ui.format_event_risk(event_risk_context())
+        )
+        stale = market_lab_ui.format_event_risk(
+            event_risk_context(source_fresh=False)
+        )
+        self.assertIn("STALE", stale)
+        unknown = market_lab_ui.format_event_risk(
+            event_risk_context(source_fresh=None)
+        )
+        self.assertIn("freshness unknown", unknown)
+
+    def test_none_and_empty_are_not_available(self):
+        for bad in (None, {}, [], "nope"):
+            text = market_lab_ui.format_event_risk(bad)
+            self.assertIn("NOT AVAILABLE", text)
+
+    def test_countdown_uses_now_not_frozen_hours(self):
+        from datetime import datetime, timezone
+
+        context = event_risk_context(
+            upcoming_events=[{
+                "name": "Test Event",
+                "datetime_utc": "2026-10-10T14:00:00+00:00",
+                "severity": "LOW",
+            }]
+        )
+        now = datetime(2026, 10, 10, 12, 0, tzinfo=timezone.utc)
+        text = market_lab_ui.format_event_risk(context, now=now)
+        self.assertIn("in 2.0 h", text)  # 2h after `now`
+
+    def test_event_without_datetime_but_with_report_hours(self):
+        context = event_risk_context(
+            upcoming_events=[{
+                "name": "No Datetime",
+                "severity": "LOW",
+                "hours_until": 30.0,
+            }]
+        )
+        text = market_lab_ui.format_event_risk(context)
+        self.assertIn("No Datetime", text)
+        self.assertIn("time from report", text)
+
+    def test_event_without_any_time_still_lists_name(self):
+        context = event_risk_context(
+            upcoming_events=[{"name": "Bare Event", "severity": "HIGH"}]
+        )
+        text = market_lab_ui.format_event_risk(context)
+        self.assertIn("[HIGH] Bare Event", text)
+
+
+@unittest.skipIf(not QT_AVAILABLE, "PySide6 (Qt) is not installed")
+class TestFormatEventRiskColors(unittest.TestCase):
+
+    def test_risk_color_levels(self):
+        c = market_lab_ui._risk_color
+        self.assertEqual(c("HIGH"), market_lab_ui.RED)
+        self.assertEqual(c("CRITICAL"), market_lab_ui.RED)
+        self.assertEqual(c("MODERATE"), market_lab_ui.AMBER)
+        self.assertEqual(c("LOW"), market_lab_ui.GREEN)
+        # UNKNOWN / NOT_AVAILABLE must never render green.
+        self.assertEqual(c("UNKNOWN"), market_lab_ui.AMBER)
+        self.assertEqual(c("NOT_AVAILABLE"), market_lab_ui.AMBER)
+
+
+@unittest.skipIf(not QT_AVAILABLE, "PySide6 (Qt) is not installed")
+class TestEventRiskPanel(unittest.TestCase):
+    """display_report must populate the Event Risk page widgets."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    def _window(self):
+        win = MarketLabWindow()
+        self.addCleanup(win.deleteLater)
+        return win
+
+    def _report(self, context):
+        return {
+            "market": "NSE",
+            "generated": "2026-10-10T18:57:11+05:30",
+            "breadth": {"advancing": 1, "declining": 2},
+            "event_risk_context": context,
+        }
+
+    def test_widgets_exist(self):
+        win = self._window()
+        self.assertTrue(hasattr(win, "event_view"))
+        self.assertTrue(hasattr(win, "event_banner"))
+        self.assertTrue(hasattr(win, "event_meta"))
+
+    def test_display_report_populates_event_panel(self):
+        win = self._window()
+        win.display_report(self._report(event_risk_context()), 0.0, cached=True)
+        self.assertIn("MODERATE", win.event_banner.text())
+        self.assertIn(
+            "India CPI inflation", win.event_view.toPlainText()
+        )
+        self.assertIn("FRESH", win.event_meta.text())
+        # MODERATE banner is AMBER.
+        self.assertIn(market_lab_ui.AMBER, win.event_banner.styleSheet())
+
+    def test_high_risk_banner_is_red(self):
+        win = self._window()
+        win.display_report(
+            self._report(event_risk_context(overall_risk="HIGH")),
+            0.0,
+            cached=True,
+        )
+        self.assertIn("HIGH", win.event_banner.text())
+        self.assertIn(market_lab_ui.RED, win.event_banner.styleSheet())
+
+    def test_missing_context_marks_not_available(self):
+        win = self._window()
+        win.render_event_risk(None)
+        self.assertIn("NOT AVAILABLE", win.event_banner.text())
+        self.assertIn(
+            "NOT AVAILABLE", win.event_view.toPlainText()
+        )
+
+    def test_stale_source_surfaces_in_meta(self):
+        win = self._window()
+        win.display_report(
+            self._report(event_risk_context(source_fresh=False)),
+            0.0,
+            cached=True,
+        )
+        self.assertIn("STALE", win.event_meta.text())
 
 
 if __name__ == "__main__":

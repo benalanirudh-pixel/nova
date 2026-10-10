@@ -4,7 +4,7 @@ import json
 import sys
 import time
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -209,6 +209,147 @@ def nse_market_open_now(now=None):
         return False
     minutes = now.hour * 60 + now.minute
     return 9 * 60 + 15 <= minutes < 15 * 60 + 30
+
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def _parse_iso(value):
+    """Parse an ISO-8601 stamp to an aware UTC datetime, or None."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _eta(hours):
+    """Human time-until from a float number of hours (may be negative)."""
+    if hours is None:
+        return ""
+    if hours < 0:
+        return "started"
+    if hours < 1:
+        return f"in {int(hours * 60)}m"
+    if hours < 48:
+        return f"in {hours:.1f} h"
+    return f"in {hours / 24:.1f} d"
+
+
+def _risk_color(level):
+    """Banner color for an overall risk level. UNKNOWN is never green."""
+    level = str(level).upper()
+    if level in ("HIGH", "CRITICAL", "SEVERE"):
+        return RED
+    if level in ("MODERATE", "ELEVATED", "WATCH"):
+        return AMBER
+    if level in ("LOW", "MINIMAL", "CALM"):
+        return GREEN
+    return AMBER
+
+
+def format_event_risk(context, now=None):
+    """Render the event-risk panel body from the report's event_risk_context.
+
+    Pure and offline (no widgets, no network) so it can be unit-tested.
+    Times are shown in IST; the countdown is recomputed from each event's
+    datetime (not the report's frozen hours_until), so a cached report still
+    shows an accurate 'time until' and clearly labels the source freshness.
+    Descriptive context only — never a buy/sell signal.
+    """
+    if not isinstance(context, dict) or not context:
+        return (
+            "EVENT RISK: NOT AVAILABLE\n"
+            "No event-risk context in this report."
+        )
+
+    overall = context.get("overall_risk", "UNKNOWN")
+    status = context.get("status")
+    score = context.get("overall_risk_score")
+    count = context.get("upcoming_event_count")
+    lookahead = context.get("lookahead_days")
+    source_fresh = context.get("source_fresh")
+    events = context.get("upcoming_events")
+    now_utc = now or datetime.now(timezone.utc)
+
+    lines = []
+    header = f"OVERALL EVENT RISK: {overall}"
+    if score is not None:
+        header += f"   (risk score {score})"
+    lines.append(header)
+
+    meta = []
+    if count is not None:
+        meta.append(f"upcoming events: {count}")
+    if lookahead is not None:
+        meta.append(f"lookahead: {lookahead} days")
+    if meta:
+        lines.append("  |  ".join(meta))
+
+    if source_fresh is True:
+        lines.append("Calendar source: FRESH (re-verified within 24h).")
+    elif source_fresh is False:
+        lines.append(
+            "Calendar source: STALE - not re-verified within 24h; "
+            "event risk may be outdated."
+        )
+    else:
+        lines.append("Calendar source: freshness unknown.")
+    lines.append("")
+
+    if status == "NOT_AVAILABLE" or not isinstance(events, list) or not events:
+        lines.append(
+            "No upcoming events in the lookahead window, or the event-risk "
+            "engine returned no events."
+        )
+    else:
+        lines.append("UPCOMING EVENTS (times in IST)")
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            name = event.get("name", "(unnamed event)")
+            severity = str(
+                event.get("severity") or event.get("risk_level") or "UNKNOWN"
+            ).upper()
+
+            parsed = _parse_iso(
+                event.get("datetime_utc") or event.get("datetime")
+            )
+            if parsed is not None:
+                ist_time = parsed.astimezone(IST).strftime(
+                    "%a %d %b %Y, %H:%M IST"
+                )
+                hours = (parsed - now_utc).total_seconds() / 3600.0
+                tail = f" - {ist_time}  |  {_eta(hours)}"
+            elif isinstance(event.get("hours_until"), (int, float)):
+                tail = f" - {_eta(event['hours_until'])} (time from report)"
+            else:
+                tail = ""
+            lines.append(f"[{severity}] {name}{tail}")
+
+            detail = []
+            if event.get("category"):
+                detail.append(f"category: {event['category']}")
+            instruments = event.get("instruments")
+            if isinstance(instruments, list) and instruments:
+                detail.append(
+                    "instruments: " + ", ".join(str(x) for x in instruments)
+                )
+            if detail:
+                lines.append("      " + "  |  ".join(detail))
+            if event.get("impact_note"):
+                lines.append(f"      {event['impact_note']}")
+            lines.append("")
+
+    lines.append(
+        "Descriptive context only. This is NOT a buy/sell signal. "
+        "No broker, no orders, no execution."
+    )
+    return "\n".join(lines)
 
 
 def make_label(text="", size=10, color=TEXT, bold=False):
@@ -476,6 +617,7 @@ class MarketLabWindow(QMainWindow):
             ("Market Report", self.build_report_page),
             ("Nova Analysis", self.build_analysis_page),
             ("Factor Backtest", self.build_backtest_page),
+            ("Event Risk", self.build_event_page),
         ]
 
         for index, (title, builder) in enumerate(specs):
@@ -705,6 +847,85 @@ class MarketLabWindow(QMainWindow):
         layout.addWidget(output, 1)
 
         return page
+
+    def build_event_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        banner, banner_layout = make_panel(
+            "Event risk",
+            "Upcoming macro, holiday and policy events from the event-risk "
+            "engine. Descriptive context only, not a signal.",
+        )
+        banner_row = QHBoxLayout()
+        self.event_banner = make_label("UNKNOWN", 15, AMBER, True)
+        banner_row.addWidget(self.event_banner)
+        banner_row.addStretch()
+        banner_layout.addLayout(banner_row)
+        self.event_meta = make_label("No event-risk data yet.", 10, MUTED)
+        banner_layout.addWidget(self.event_meta)
+        layout.addWidget(banner)
+
+        listing, listing_layout = make_panel(
+            "Upcoming events",
+            "Times in IST; countdown recomputed from each event's datetime.",
+        )
+        self.event_view = QPlainTextEdit()
+        self.event_view.setReadOnly(True)
+        self.event_view.setPlaceholderText(
+            "Waiting for a market report with event-risk data…"
+        )
+        listing_layout.addWidget(self.event_view, 1)
+        layout.addWidget(listing, 1)
+
+        return page
+
+    def render_event_risk(self, context):
+        """Update the Event Risk page widgets from the report's context."""
+        if not isinstance(context, dict) or not context:
+            if hasattr(self, "event_banner"):
+                self.event_banner.setText("EVENT RISK: NOT AVAILABLE")
+                self.event_banner.setStyleSheet(
+                    f"color:{MUTED}; background:transparent; border:none;"
+                )
+            if hasattr(self, "event_meta"):
+                self.event_meta.setText(
+                    "No event-risk context in this report."
+                )
+            if hasattr(self, "event_view"):
+                self.event_view.setPlainText(format_event_risk(None))
+            return
+
+        overall = context.get("overall_risk", "UNKNOWN")
+        if hasattr(self, "event_banner"):
+            self.event_banner.setText(f"OVERALL EVENT RISK: {overall}")
+            self.event_banner.setStyleSheet(
+                f"color:{_risk_color(overall)};"
+                "background:transparent; border:none;"
+            )
+
+        if hasattr(self, "event_meta"):
+            count = context.get("upcoming_event_count")
+            lookahead = context.get("lookahead_days")
+            fresh = context.get("source_fresh")
+            if fresh is True:
+                source = "FRESH (within 24h)"
+            elif fresh is False:
+                source = "STALE (not re-verified within 24h)"
+            else:
+                source = "freshness unknown"
+            meta = []
+            if count is not None:
+                meta.append(f"upcoming events: {count}")
+            if lookahead is not None:
+                meta.append(f"lookahead: {lookahead} days")
+            meta.append(f"calendar source: {source}")
+            self.event_meta.setText("  |  ".join(meta))
+
+        if hasattr(self, "event_view"):
+            self.event_view.setPlainText(format_event_risk(context))
 
     def run_backtest_task(self):
         if "backtest" in self.workers:
@@ -1098,6 +1319,9 @@ class MarketLabWindow(QMainWindow):
 
         self.status_execution.setText("DISABLED")
         self.status_execution.setStyleSheet(f"color:{GREEN};")
+
+        # Dedicated Event Risk page + overview banner.
+        self.render_event_risk(event_context)
 
         availability = find_section(
             report,

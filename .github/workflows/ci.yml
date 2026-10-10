@@ -14,7 +14,7 @@ jobs:
   #   1. every .py source byte-compiles (catches syntax/indentation regressions
   #      anywhere in the tree), and
   #   2. the stdlib-only test suite runs.
-  # The full offline suite (201 tests) is run locally with
+  # The full offline suite (213 tests) is run locally with
   #   .\venv\Scripts\python.exe -m unittest discover -s tests
   syntax-and-light-tests:
     runs-on: ubuntu-latest

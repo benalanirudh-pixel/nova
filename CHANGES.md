@@ -3,6 +3,46 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - Market Lab Event Risk panel (upcoming-events UI)
+
+First UI addition driven by a real gap: event risk was fresh and available in
+the report's `event_risk_context`, but only surfaced as a status chip with no
+dedicated view. Added an Event Risk page to `market_lab_ui.py`.
+
+- New nav page "Event Risk" (index 4, appended so the existing page indices
+  are unchanged): a risk banner, a meta line and a read-only list.
+- `display_report()` now populates it (reusing the already-parsed
+  `event_risk_context`): banner = `OVERALL EVENT RISK: <level>` colored by
+  level (HIGH/CRITICAL red, MODERATE/ELEVATED amber, LOW green, UNKNOWN/other
+  amber - never a false all-clear); meta line shows upcoming count, lookahead
+  and calendar-source freshness (FRESH / STALE / unknown).
+- New pure, offline helpers (unit-testable, no widgets): `format_event_risk`
+  renders the upcoming-events list with severity tag, IST datetime and a
+  countdown **recomputed from each event's datetime** (not the report's frozen
+  `hours_until`), so a cached report still shows an accurate time-until;
+  `_risk_color`, `_parse_iso`, `_eta`. Closes with the guardrail: descriptive
+  context only, not a buy/sell signal.
+- Honesty preserved: missing/empty context -> "NOT AVAILABLE"; stale source
+  flagged; an event without a usable timestamp still lists its name.
+
+Files changed:
+
+- `market_lab_ui.py` (event helpers + `build_event_page` + `render_event_risk`
+  + nav spec + `display_report` wiring)
+- `tests/test_gui_smoke.py` (12 new tests: pure `format_event_risk`/color +
+  widget `TestEventRiskPanel`; updated nav-index test 4 -> 5 pages)
+- `AGENTS.md`, `.github/workflows/ci.yml` (offline-suite count 201 -> 213)
+
+Validation:
+
+- `ast.parse` + `import market_lab_ui` passed; `MarketLabWindow` builds with
+  the three event widgets and 5 nav pages.
+- Headless render of the real saved report: banner MODERATE, meta
+  "5 | 7 days | FRESH (within 24h)", and the full upcoming-events list with
+  IST times and live countdowns (e.g. India CPI "in 43.9 h").
+- Full suite (QT available): `Ran 213 tests ... OK` (201 -> 213; 12 new);
+  also green with Qt absent (Qt-guarded tests skip).
+
 ## 2026-10-10 - Re-checked and re-stamped the event calendar
 
 Web-verified every upcoming calendar entry against authoritative sources, then

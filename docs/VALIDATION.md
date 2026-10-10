@@ -700,3 +700,33 @@ re-check is due around 19:51 IST on 2026-10-11.
 
 Not run: no event entry was added or edited, so only the timestamp change was
 validated.
+
+
+## 2026-10-10 - Market Lab Event Risk panel (upcoming-events UI)
+
+Code changed: `market_lab_ui.py` (UI-only) + `tests/test_gui_smoke.py`
+(12 new tests). No engine, cache, or data-source logic changed; `display_report`
+now also populates the new panel but the report itself is untouched.
+
+Checks run:
+
+- `ast.parse` + `import market_lab_ui` offline: passed.
+- `MarketLabWindow()` builds with `event_banner`, `event_meta`, `event_view`
+  and 5 nav pages (Event Risk appended at index 4, so existing indices unchanged).
+- `.\venv\Scripts\python.exe -m unittest tests.test_gui_smoke -v` (with
+  `QT_QPA_PLATFORM=offscreen`) -> `Ran 32 tests ... OK` (was 20; +12 new); the
+  new tests are: pure `format_event_risk` cases, `_risk_color` levels, and Qt
+  `TestEventRiskPanel` (display_report populates banner/meta/list; HIGH banner
+  red, MODERATE amber; missing context -> NOT AVAILABLE; stale source shown).
+- Live headless render of the real saved report into the panel: banner
+  `OVERALL EVENT RISK: MODERATE`, meta `upcoming events: 5 | lookahead: 7 days
+  | calendar source: FRESH (within 24h)`, and the full list with IST times and
+  live countdowns (e.g. India CPI "in 43.9 h"; countdown recomputed from event
+  datetime, not the report's frozen hours_until).
+- Full offline suite: `Ran 213 tests ... OK` (201 -> 213; 12 new) both with Qt
+  and with Qt absent (Qt-guarded tests skip cleanly).
+
+Not run: an on-desktop click-through of the new page (validated headlessly via
+display_report + real widgets, offscreen). No color assertions beyond the
+banner; the events list is plaintext (severity shown as [TAG]) consistent with
+the other read-only views.
