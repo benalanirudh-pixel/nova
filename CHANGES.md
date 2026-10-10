@@ -3,6 +3,32 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - Assistant tool-registry + run_tool contract tests
+
+Added `tests/test_tool_contract.py` (15 offline tests) protecting the
+invariants the Ollama tool-calling loop relies on:
+
+- Registry/schema lock-step: every callable in `TOOLS` is advertised in
+  `TOOL_SCHEMA`, every schema function name resolves to a real tool, no
+  duplicate schema names, and each entry is a well-formed function schema
+  (name, description, object parameters, required keys exist in properties).
+- `run_tool` never raises: unknown tool -> text; args as JSON string are
+  parsed; malformed JSON and non-dict args are normalized to `{}`; bad
+  arguments become a "Bad arguments" message. Only side-effect-free paths are
+  executed (`get_time`; a missing-arg `open_website` call raises `TypeError`
+  before any browser opens).
+- `get_market_brief` dispatches correctly through `run_tool` (loader stubbed,
+  so it is hermetic and read-only).
+- Brain coupling: `brain.TOOL_SCHEMA` is `tools.TOOL_SCHEMA`, `MAX_TOOL_ROUNDS`
+  is sane, and every schema name is dispatchable by `run_tool`.
+
+No production code changed.
+
+Validation:
+
+- Full suite: `Ran 167 tests ... OK` (152 -> 167; 15 new).
+- `ast.parse` on the new test file passed; `import brain` succeeds offline.
+
 ## 2026-10-10 - Cache-first pipeline integration tests + shared report loader
 
 Added `tests/test_pipeline_integration.py` (19 offline tests) covering the

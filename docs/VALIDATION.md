@@ -490,6 +490,29 @@ agree on the same measured facts; stale/missing handled consistently.
 Not run: GUI launch, a real `scan_market()` run, the Ollama path.
 
 
+## 2026-10-10 - Assistant tool-registry + run_tool contract tests
+
+No production code changed. New file `tests/test_tool_contract.py`.
+
+Checks run:
+
+- `ast.parse` on `tests/test_tool_contract.py`: passed.
+- `.\venv\Scripts\python.exe -m unittest tests.test_tool_contract -v`
+  -> `Ran 15 tests in 0.164s - OK`.
+- Full suite: `Ran 167 tests in 1.395s - OK` (152 -> 167; 15 new).
+- `import brain` offline: passed (imports ollama client module only, no server
+  connection).
+
+Coverage added (all offline): TOOLS/TOOL_SCHEMA lock-step + schema
+well-formedness; `run_tool` never raises (unknown tool, JSON-string args,
+malformed/non-dict args, bad-arguments path) using side-effect-free tools
+only; `get_market_brief` dispatch through `run_tool` (loader stubbed); brain
+coupling (schema identity + dispatchability).
+
+Not run: Ollama tool-calling turn, GUI launch, real NSE scan, live
+open_website/open_app/search execution (deliberately avoided side effects).
+
+
 
 
 
