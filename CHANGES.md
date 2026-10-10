@@ -3,6 +3,37 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - Sector engine unit tests (closes coverage gap)
+
+Added `tests/test_sector_engine.py` (19 offline tests) for the sector engine's
+pure math, which previously had no coverage (technical, volatility,
+institutional-flow, event-risk and research-factor engines were tested; sector
+was not):
+
+- `safe_float`: None/NaN/NA/inf/junk -> None; numbers and numeric strings
+  coerce.
+- `pct_mean`: mean of a numeric series; non-numeric/NaN entries are coerced
+  then dropped; empty/all-invalid -> None.
+- `safe_ratio`: normal ratio; zero and negative denominators -> None.
+- `determine_sector_regime`: table-driven coverage of the descriptive regime
+  score — `INSUFFICIENT_DATA` when there is no evidence, and the STRONG /
+  POSITIVE / NEUTRAL / NEGATIVE / WEAK boundaries at scores 5 / 2 / -2 / -5,
+  plus the single-evidence case. Confirms it stays descriptive (no signal).
+
+The index-classification / scan path (which downloads NSE HTML and reads the
+scanner output) is intentionally not exercised.
+
+Files changed:
+
+- `tests/test_sector_engine.py` (new)
+- `AGENTS.md`, `.github/workflows/ci.yml` (offline-suite count 182 -> 201)
+
+Validation:
+
+- `.\venv\Scripts\python.exe -m unittest tests.test_sector_engine -v` -> 19 OK.
+- `import analysis.data.sector_engine` offline: passed.
+- Full suite: `Ran 201 tests ... OK` (182 -> 201; 19 new).
+
 ## 2026-10-10 - pyproject.toml metadata + dependency-free CI gate
 
 - Added `pyproject.toml`: canonical project metadata (name/version/

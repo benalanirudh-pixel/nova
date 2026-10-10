@@ -656,6 +656,28 @@ for the reasons above. `pip install .` is not validated/used (Nova runs from
 the local venv).
 
 
+## 2026-10-10 - Sector engine unit tests (closes coverage gap)
+
+Code added: `tests/test_sector_engine.py` (19 offline tests). No engine, cache,
+data-source, or UI code changed.
+
+Checks run:
+
+- `import analysis.data.sector_engine` offline: passed.
+- `.\venv\Scripts\python.exe -m unittest tests.test_sector_engine -v`
+  -> `Ran 19 tests in 0.003s - OK`.
+- Full offline suite: `Ran 201 tests ... OK` (182 -> 201; 19 new).
+
+Coverage: the sector engine's pure helpers (`safe_float`, `pct_mean`,
+`safe_ratio`) and `determine_sector_regime` — including the STRONG / POSITIVE /
+NEUTRAL / NEGATIVE / WEAK boundary scores (5 / 2 / -2 / -5), the
+INSUFFICIENT_DATA no-evidence case, and the single-evidence case — are now
+locked in. This closes the one engine that had no unit coverage.
+
+Not run: the sector scan/classification path (downloads NSE primary HTML and
+reads scanner output) — deliberately out of scope for offline unit tests.
+
+
 
 
 
