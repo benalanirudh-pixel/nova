@@ -31,3 +31,6 @@ analysis/cache
 .idea/
 Thumbs.db
 .DS_Store
+
+# Kilo CLI tool config (tool-specific, keep the repo model-agnostic)
+.kilo/

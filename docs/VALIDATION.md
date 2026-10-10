@@ -1,6 +1,6 @@
 # Validation Notes
 
-Last updated: 2026-10-09.
+Last updated: 2026-10-10.
 
 ## What Was Inspected
 
@@ -20,18 +20,19 @@ Read-only repository inspection covered:
 ## Verified Current Facts
 
 - `C:\Users\Anirudh\nova` is the actual local project folder.
-- This folder is not currently a Git repository.
-- No root `requirements.txt`, `pyproject.toml`, or README existed before this
-  context pass.
+- This folder is not currently a Git repository (initialized on 2026-10-09, `git push origin main` completed).
+- Root `requirements.txt` now exists (generated from `venv\pip freeze`, 58 packages).
+- No `pyproject.toml` or similar manifest was found before this context pass.
 - The project has two visible app entry points:
   - `main.py`
   - `market_lab_ui.py`
-- Both `brain.py` and `market_lab/market_lab_brain.py` configure Ollama model
-  `qwen3.5:4b`.
-- Market Lab normal mode is cache-first unless refresh is forced or no cache is
-  available.
-- The current code repeatedly marks market functionality as analysis-only and
-  not a broker/order system.
+- Both `brain.py` and `market_lab/market_lab_brain.py` configure Ollama model `qwen3.5:4b`.
+- Market Lab normal mode is cache-first unless refresh is forced or no cache is available.
+- The current code repeatedly marks market functionality as analysis-only and not a broker/order system.
+- Python syntax verified across 54 source files using BOM-aware decoding (`utf-8-sig`).
+- Main assistant import smoke: `import main, brain, tools, ui` passes.
+- Market Lab import smoke: `import market_lab_ui; from market_lab.market_lab_data import get_market_lab_data; from market_lab.market_lab_brain import analyze_market_lab` passes.
+- Full test suite: `.\venv\Scripts\python.exe -m unittest discover -s tests` → 108 tests in ~0.2s, OK.
 
 ## Checks Run During Context Migration
 
@@ -103,6 +104,12 @@ For cache-first Market Lab terminal report:
 
 Use this only when a terminal report check is needed. It may touch live market
 data for lightweight index refreshes.
+
+Verify requirements.txt exists and is readable:
+
+```powershell
+Test-Path -LiteralPath "requirements.txt"
+```
 
 ## Known Validation Gaps
 
@@ -424,6 +431,34 @@ Not run: a real GUI launch (interactive desktop only), a live `run_backtest`
 (needs network + NSE symbol list), the report/analysis workers, a full
 `--refresh` scan, the Ollama path. UI paint/layout is not visually inspected;
 only widget state and rendered text are asserted.
+
+
+## 2026-10-10 - get_market_analysis made cache-first
+
+Code changed: `tools.py`; new file `tests/test_cached_market_analysis.py` (`CHANGES.md`
+entry added). No engine, cache, or data-source changes.
+
+Checks run:
+
+- `ast.parse` on `tools.py` and `tests/test_cached_market_analysis.py`: passed.
+- `import main, brain, tools, ui`: passed.
+- Full suite: `.\venv\Scripts\python.exe -m unittest discover -s tests`
+  -> `Ran 133 tests in 0.214s - OK` (108 -> 133; 25 new offline tests).
+- Live cache-first call `tools.get_market_analysis()` returned instantly from
+  the saved Market Lab report (no scan): correct regime/breadth/VIX/
+  derivatives/flow/event-risk and honest MOMENTUM/RELATIVE_STRENGTH/
+  RELATIVE_VOLUME = NOT_AVAILABLE with a pointer to FULL REFRESH.
+- Scanner fall-back exercised in tests with a stubbed `scan_market()` result
+  (no network): produces the original full ranking sections.
+- `get_market_analysis()` dispatch verified with mocks: report present ->
+  `scan_market()` NOT called; no report -> `scan_market()` called once;
+  empty scanner frame -> clean MARKET ANALYSIS ERROR.
+
+Not run: a real full `scan_market()` NSE scan, GUI launch, Ollama path. The
+assistant `get_market_analysis()` still triggers a scan only when NO saved
+Market Lab report exists (the previous always-scan behavior is now the
+no-cache fall-back).
+
 
 
 

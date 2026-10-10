@@ -3,6 +3,59 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - requirements.txt generated from venv + full verification
+
+- Generated `requirements.txt` from `.\venv\Scripts\pip.exe freeze` (58 packages).
+- Verified Python syntax across 54 source files with `utf-8-sig` decoding.
+- Confirmed main assistant imports: `import main, brain, tools, ui` ok.
+- Confirmed market lab imports: `import market_lab_ui; from market_lab.market_lab_data import get_market_lab_data; from market_lab.market_lab_brain import analyze_market_lab` ok.
+- Ran full test suite: `.\venv\Scripts\python.exe -m unittest discover -s tests` → 108 tests in 0.200s, OK.
+
+## 2026-10-10 - get_market_analysis made cache-first
+
+`tools.py:get_market_analysis()` used to call `scan_market()` unconditionally
+(the expensive full NSE scan) on every assistant call. It is now cache-first,
+matching Market Lab behavior:
+
+- New `_build_market_analysis_from_report(report)` builds the snapshot purely
+  from the latest saved Market Lab report (regime, NIFTY/BANKNIFTY returns,
+  breadth, India VIX, sector strength, derivatives OI/PCR/max-pain, FII/DII
+  institutional flow, event risk, top technical + factor-ranked stocks).
+  It never runs a scan and never fetches live prices.
+- New `_build_market_analysis_from_scanner(dataframe, summary, lab_report=None)`
+  holds the original scanner logic, now only used as a fall-back when no saved
+  report exists. Still merges the latest saved report into the availability
+  matrix exactly as before.
+- `get_market_analysis()` dispatches: report present → report builder (no
+  scan); no report → `scan_market()` → scanner builder. Removed a duplicate
+  `except` block that an earlier partial edit had left behind.
+- Full-dataframe rankings (momentum / relative strength / volume expansion) are
+  not stored in a saved report, so the cache-first path reports them honestly as
+  NOT_AVAILABLE and tells the user to run FULL REFRESH in Market Lab for those.
+- Derivatives context now renders measured scalars (`SPOT`, `OI_PCR`,
+  `VOLUME_PCR`, `MAX_PAIN_STRIKE`) instead of leaking the report's raw nested
+  dicts.
+- `TOOL_SCHEMA` description for `get_market_analysis` updated to document the
+  cache-first behavior and which layers need a full scan.
+
+Analysis-only invariants unchanged: no broker/order/execution, missing data is
+flagged, measured values are not invented.
+
+Files changed:
+
+- `tools.py` (cache-first dispatch + two builders + `_report_return` helper +
+  schema description)
+- `tests/test_cached_market_analysis.py` (new: 25 offline tests)
+
+Validation:
+
+- `ast.parse` on `tools.py` and the new test file passed.
+- `import main, brain, tools, ui` passed.
+- Full suite: `Ran 133 tests ... OK` (108 → 133; 25 new).
+- Live cache-first call of `get_market_analysis()` returned in well under a
+  second from the saved report (no scan); scanner fall-back exercised with a
+  stubbed dataframe in tests.
+
 ## 2026-10-10 - GUI smoke test: skip cleanly when PySide6 is missing
 
 `tests/test_gui_smoke.py` now guards its PySide6 / Market Lab imports with
