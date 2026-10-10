@@ -52,6 +52,50 @@ def _unavailable(symbol: str, reason: str) -> dict[str, Any]:
     }
 
 
+def _fmt(value: Any, digits: int, signed: bool = False) -> str:
+    """Render a measured number for the watchlist line, or '--' if absent.
+
+    Nova never invents a value: a missing reading is shown as an em dash
+    rather than a fabricated number.
+    """
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "--"
+    if number != number:  # NaN
+        return "--"
+    if signed:
+        return f"{number:+.{digits}f}"
+    return f"{number:.{digits}f}"
+
+
+def format_watchlist_line(entry: dict[str, Any] | None, symbol: str) -> str:
+    """Render one watchlist row from a refresh result.
+
+    Kept free of Qt so it can be exercised offline in the test suite.
+    """
+    if not isinstance(entry, dict):
+        return f"{symbol}: waiting for first refresh…"
+
+    status = entry.get("status")
+    if status != "AVAILABLE":
+        reason = entry.get("reason") or "no data"
+        return f"{symbol}: NOT AVAILABLE — {reason}"
+
+    name = entry.get("symbol") or symbol
+    price = _fmt(entry.get("price"), 2)
+    change = _fmt(entry.get("change_percent"), 2, signed=True)
+    rsi = _fmt(entry.get("rsi_14"), 1)
+    condition = entry.get("rsi_condition") or ""
+    trend = entry.get("trend") or ""
+    source = entry.get("source") or ""
+
+    return (
+        f"{name}: ₹{price} ({change}%) • "
+        f"RSI {rsi} {condition} • {trend} • {source}"
+    )
+
+
 def refresh_watch_symbol(symbol: str) -> dict[str, Any]:
     """Refresh one watchlist symbol through the technical engine."""
     from analysis.data.technical_engine import analyze_stock

@@ -325,6 +325,11 @@ class MarketLabWindow(QMainWindow):
         self.auto_timer = None
         self.report_generated_at = None
 
+        # Watchlist state; populated as each pinned symbol refreshes.
+        self.watch_symbols = []
+        self.watch_index = 0
+        self.watch_data = {}
+
         self.setWindowTitle(APP_NAME)
         self.resize(1500, 920)
         self.setMinimumSize(1050, 680)
@@ -795,6 +800,13 @@ class MarketLabWindow(QMainWindow):
                 "Validate conclusions against the report evidence."
             )
 
+        elif name == "watchlist":
+            if isinstance(result, dict):
+                symbol = str(result.get("symbol") or "").upper()
+                if symbol:
+                    self.watch_data[symbol] = result
+                    self.render_watchlist()
+
     def task_failed(self, name, error, elapsed):
         if name == "report":
             # A failed poll must not kill auto mode; the next tick retries.
@@ -1208,26 +1220,13 @@ class MarketLabWindow(QMainWindow):
         if not symbols:
             self.watch_view.setPlainText("")
             return
+        from analysis.data.watchlist_engine import format_watchlist_line
+
         data = getattr(self, "watch_data", {})
-        lines = []
-        for symbol in symbols:
-            entry = data.get(symbol)
-            if not isinstance(entry, dict):
-                lines.append(f"{symbol}: waiting for first refresh…")
-            elif entry.get("status") == "AVAILABLE":
-                lines.append(
-                    f"{entry.get('symbol', symbol)}: "
-                    f"₹{entry.get('price')} "
-                    f"({entry.get('change_percent'):+.2f}%) • "
-                    f"RSI {entry.get('rsi_14'):.1f} "
-                    f"{entry.get('rsi_condition', '')} • "
-                    f"{entry.get('trend', '')} • "
-                    f"{entry.get('source', '')}"
-                )
-            else:
-                lines.append(
-                    f"{symbol}: NOT AVAILABLE — {entry.get('reason', '')}"
-                )
+        lines = [
+            format_watchlist_line(data.get(symbol), symbol)
+            for symbol in symbols
+        ]
         self.watch_view.setPlainText("\n".join(lines))
 
     # --------------------------------------------------------

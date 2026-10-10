@@ -3,6 +3,38 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - Watchlist refresh results wired into the UI
+
+The stock watchlist (added in `a383f45`) started a `"watchlist"` worker but
+`task_succeeded` had no branch for it, so every refresh result was silently
+dropped and the panel stayed on "waiting for first refresh…" forever. The
+row renderer also formatted numbers with `+.2f` / `.1f`, which raised
+`TypeError` on any `None` reading once data did arrive.
+
+Behavior now:
+
+- `task_succeeded` stores each `refresh_watch_symbol` result into
+  `self.watch_data` and re-renders the panel.
+- Watchlist state (`watch_symbols`, `watch_index`, `watch_data`) is
+  initialized in `MarketLabWindow.__init__` so an early result cannot hit an
+  `AttributeError`.
+- Row rendering moved to a new pure, Qt-free `format_watchlist_line()` in
+  `analysis/data/watchlist_engine.py`. Missing or `NaN` readings render as
+  `--` instead of a fabricated number; analysis-only behavior is unchanged.
+
+Files changed:
+
+- `analysis/data/watchlist_engine.py` (added `_fmt`, `format_watchlist_line`)
+- `market_lab_ui.py` (watchlist result handling, simplified render, init state)
+- `tests/test_watchlist_engine.py` (new: 10 offline tests)
+
+Validation:
+
+- `.\venv\Scripts\python.exe -m unittest discover -s tests -v` → 51 passed.
+- `py_compile` + BOM-aware `ast.parse` passed on the edited files.
+- Formatter output spot-checked for AVAILABLE / waiting / NOT AVAILABLE /
+  missing-value cases.
+
 ## 2026-10-09 - Agent Context Bootstrap
 
 Added a model-agnostic context layer so Nova can be opened by another coding

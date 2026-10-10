@@ -279,3 +279,31 @@ Checks run:
 Not run: forced `--refresh`, GUI relaunch, Ollama analysis path.
 
 
+## 2026-10-10 - Watchlist Refresh Wiring
+
+Code changed: `analysis/data/watchlist_engine.py` (added `_fmt` and
+`format_watchlist_line`); `market_lab_ui.py` (handle the `watchlist` result in
+`task_succeeded`, simplify `render_watchlist`, initialize watchlist state in
+`__init__`); new test `tests/test_watchlist_engine.py`.
+
+Bug fixed: the `"watchlist"` worker (added in `a383f45`) had no
+`task_succeeded` branch, so refresh results were dropped and the panel never
+updated. The old renderer also formatted with `+.2f`/`.1f`, which raised
+`TypeError` on `None` readings.
+
+Checks run:
+
+- Project-wide `ast` syntax check with `utf-8-sig` decoding: passed for the
+  two edited files.
+- `py_compile` on `market_lab_ui.py`, `analysis/data/watchlist_engine.py`,
+  `tests/test_watchlist_engine.py`: passed.
+- `.\\venv\\Scripts\\python.exe -m unittest discover -s tests -v`
+  - Result: `Ran 51 tests in 0.464s - OK` (10 new watchlist tests).
+- Pure formatter smoke (no Qt, no network): AVAILABLE, waiting, NOT
+  AVAILABLE, and all-`None` cases render correctly; missing readings show
+  `--`. Console output required `PYTHONUTF8=1` because the Windows cp1252
+  console cannot encode `₹`/`—` (the Qt text view renders them fine).
+
+Not run: GUI launch (interactive desktop only), forced `--refresh`, live
+single-symbol `refresh_watch_symbol` (needs network), Ollama path.
+
