@@ -346,4 +346,23 @@ Bug fixes verified by regression tests:
 Not run: GUI launch (interactive desktop only), a live `run_backtest` (needs
 network + NSE symbol list), full `--refresh` scan, Ollama path.
 
+## 2026-10-10 - Assistant morning market brief (`get_market_brief`)
+
+Verified:
+
+- `import tools` succeeds; `get_market_brief` and `_build_market_brief` are
+  present and callable (import check).
+- `py_compile` passes on `tools.py`; `ast.parse` passes on the test file.
+- `tests/test_market_brief.py` added (offline fixture report): covers header +
+  staleness line, regime/breadth/VIX lines, institutional-flow honesty
+  (`signal_allowed` correctly reported as NO), event-risk section, top
+  technical + factor lists, data-gap section, and the guardrails footer.
+- Full suite: `Ran 85 tests ... OK` (exit 0).
+- Live spot-check against the real cached Market Lab report: the brief renders
+  all sections with correct measured values (regime BEARISH, A/D 1.44, VIX
+  15.28, FII 20D -57,910.10 Cr, etc.) and the `signal_allowed: NO` line.
+
+Not run: live brain/Ollama tool-call turn (needs Ollama + `qwen3.5:4b`),
+`--refresh` scan. The brief itself only reads cached data.
+
 

@@ -1006,6 +1006,241 @@ def web_research(query: str) -> str:
 
 
 # ============================================================================
+# MORNING MARKET BRIEF (cache-first, read-only)
+# ============================================================================
+
+def _brief_age_hours(generated):
+    """Hours since the saved report was generated, or None if unknown."""
+    if not generated:
+        return None
+    try:
+        stamp = datetime.datetime.fromisoformat(str(generated))
+    except (TypeError, ValueError):
+        return None
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=datetime.timezone.utc)
+    age = (datetime.datetime.now(datetime.timezone.utc) - stamp).total_seconds() / 3600.0
+    return age if age >= 0 else None
+
+
+def _brief_crore(value):
+    """Signed crore string; preserves None as N/A (never invents a number)."""
+    number = _safe_float(value)
+    if number is None:
+        return "N/A"
+    return f"{number:+,.2f}"
+
+
+def _build_market_brief(report: dict) -> str:
+    """Compose a measured-only morning brief from a saved Market Lab report.
+
+    Pure: takes a report dict and returns text. Never fetches data, never
+    scores or advises trades. Missing values stay 'N/A'; interpretation is
+    labelled separately from measured values.
+    """
+    if not isinstance(report, dict):
+        return "MARKET BRIEF ERROR | the saved report is not a valid object."
+
+    generated = report.get("generated")
+    age = _brief_age_hours(generated)
+    market = report.get("market", "NSE")
+    analyzed = report.get("stocks_analyzed")
+    mode = report.get("mode", "")
+
+    lines = [
+        "NOVA MORNING MARKET BRIEF",
+        f"Source report generated: {generated or 'unknown'}"
+        + (f" (about {age:.1f}h old)" if age is not None else " (age unknown)"),
+        f"Market: {market}"
+        + (f" | Stocks analyzed: {analyzed}" if analyzed is not None else "")
+        + (f" | Mode: {mode}" if mode else ""),
+    ]
+
+    # Staleness is a measured concern: a brief from a stale report must say
+    # so instead of being presented as current.
+    if age is not None and age > 24:
+        lines.append(
+            f"WARNING: the saved report is about {age:.1f}h old. "
+            "Open Market Lab to refresh before relying on this brief."
+        )
+    lines.append("")
+
+    # ---- Market regime (plain string) ----
+    regime = report.get("market_regime")
+    lines.append("MARKET REGIME")
+    lines.append(f"  Regime: {regime if regime else 'N/A'}")
+    lines.append("")
+
+    # ---- Breadth ----
+    breadth = report.get("breadth") or {}
+    if breadth:
+        lines.append("BREADTH")
+        lines.append(
+            f"  Advancing: {breadth.get('advancing', 'N/A')}"
+            f" | Declining: {breadth.get('declining', 'N/A')}"
+            f" | A/D ratio: {_fmt_number(breadth.get('advance_decline_ratio'))}"
+        )
+        lines.append(
+            f"  Above EMA20: {_fmt_percent(breadth.get('above_ema20_percent'))}"
+            f" | EMA50: {_fmt_percent(breadth.get('above_ema50_percent'))}"
+            f" | EMA200: {_fmt_percent(breadth.get('above_ema200_percent'))}"
+        )
+        lines.append("")
+
+    # ---- Volatility / India VIX ----
+    vol = report.get("volatility") or {}
+    vix = vol.get("india_vix") or {}
+    if vix:
+        lines.append("VOLATILITY")
+        if vix.get("available"):
+            lines.append(
+                f"  India VIX: {_fmt_number(vix.get('value'))}"
+                f" | {vix.get('direction', 'N/A')}"
+                f" ({_fmt_percent(vix.get('change_percent'))})"
+                f" | 1y percentile: {_fmt_number(vix.get('percentile_1y'), 0)}"
+                f" | Regime: {vix.get('regime', 'N/A')}"
+            )
+        else:
+            lines.append("  India VIX: not available")
+        lines.append("")
+
+    # ---- Institutional flow (FII/DII) ----
+    flow = report.get("institutional_flow") or {}
+    metrics = flow.get("metrics") or {}
+    if flow:
+        lines.append("INSTITUTIONAL FLOW (FII/DII, INR crore)")
+        if flow.get("available") and metrics:
+            lines.append(
+                f"  Regime: {metrics.get('flow_regime', 'N/A')}"
+                f" | Latest session: {metrics.get('latest_date', 'N/A')}"
+                f" (age {metrics.get('latest_session_age_calendar_days', '?')}d)"
+            )
+            lines.append(
+                f"  5D  | FII {_brief_crore(metrics.get('fii_5d'))}"
+                f" | DII {_brief_crore(metrics.get('dii_5d'))}"
+                f" | Combined {_brief_crore(metrics.get('combined_5d'))}"
+            )
+            lines.append(
+                f"  10D | FII {_brief_crore(metrics.get('fii_10d'))}"
+                f" | DII {_brief_crore(metrics.get('dii_10d'))}"
+                f" | Combined {_brief_crore(metrics.get('combined_10d'))}"
+            )
+            lines.append(
+                f"  20D | FII {_brief_crore(metrics.get('fii_20d'))}"
+                f" | DII {_brief_crore(metrics.get('dii_20d'))}"
+                f" | Combined {_brief_crore(metrics.get('combined_20d'))}"
+            )
+            primary = metrics.get("primary_source_sessions_in_target_window", 0)
+            target = metrics.get("target_sessions", "?")
+            lines.append(
+                f"  Primary-verified sessions: {primary}/{target}"
+                f" | Source quality: {metrics.get('source_quality', 'N/A')}"
+            )
+            if not flow.get("signal_allowed", False):
+                reason = flow.get("signal_reason", "not fully primary-verified")
+                lines.append(f"  Signal-eligible: NO ({reason})")
+        else:
+            reason = flow.get("reason")
+            lines.append("  Not available" + (f": {reason}" if reason else ""))
+        lines.append("")
+
+    # ---- Event risk ----
+    event = report.get("event_risk_context") or {}
+    if event:
+        lines.append("EVENT RISK")
+        lines.append(
+            f"  Overall: {event.get('overall_risk', 'N/A')}"
+            f" | Upcoming events: {event.get('upcoming_event_count', 0)}"
+            f" | Source fresh: {event.get('source_fresh', 'N/A')}"
+        )
+        events = event.get("upcoming_events") or []
+        for item in events[:3]:
+            hours = item.get("hours_until")
+            when = f" in {_fmt_number(hours, 0)}h" if hours is not None else ""
+            lines.append(
+                f"  - {item.get('name', 'event')}"
+                f" ({item.get('severity', 'N/A')}{when})"
+            )
+        lines.append("")
+
+    # ---- Top technical stocks (score, explicitly NOT a signal) ----
+    tech = report.get("top_technical_stocks") or []
+    if tech:
+        lines.append("TOP TECHNICAL STOCKS (composite score, NOT a signal)")
+        for index, stock in enumerate(tech[:5], start=1):
+            lines.append(
+                f"  {index}. {stock.get('symbol', '?')}"
+                f" | score {_fmt_number(stock.get('technical_score'), 1)}"
+                f" | {stock.get('trend', 'N/A')}"
+            )
+        lines.append("")
+
+    # ---- Top factor-ranked (cross-sectional z, explicitly NOT a signal) ----
+    factors = report.get("research_factors") or {}
+    ranked = factors.get("top_ranked") or []
+    if ranked and factors.get("status") == "AVAILABLE":
+        lines.append("TOP FACTOR-RANKED (cross-sectional z, NOT a signal)")
+        for entry in ranked[:5]:
+            lines.append(
+                f"  {entry.get('rank', '?')}. {entry.get('symbol', '?')}"
+                f" @ {_fmt_number(entry.get('price'))}"
+                f" | composite z {_fmt_number(entry.get('composite_z'), 3)}"
+            )
+        lines.append("")
+
+    # ---- Data availability gaps ----
+    availability = report.get("data_availability") or {}
+    gaps = [
+        name for name, status in availability.items()
+        if str(status).upper() not in {"AVAILABLE", "READY", "OK", "SUCCESS"}
+    ]
+    lines.append("DATA GAPS")
+    lines.append("  " + (", ".join(sorted(gaps)) if gaps else "None reported"))
+    lines.append("")
+
+    lines.append(
+        "GUARDRAILS: Analysis-only. Measured values above come straight from "
+        "the saved report; any interpretation is separate. This is NOT a "
+        "buy/sell signal. No broker, no orders, no execution."
+    )
+
+    return "\n".join(lines)
+
+
+def get_market_brief() -> str:
+    """Build the morning brief from the latest SAVED Market Lab report.
+
+    Cache-first and read-only: never runs a scan or fetches live prices.
+    """
+    cache_dir = (
+        Path(__file__).resolve().parent
+        / "analysis"
+        / "data"
+        / "cache"
+        / "market_lab"
+    )
+    try:
+        files = list(cache_dir.glob("market_lab_*.json"))
+    except OSError:
+        files = []
+
+    if not files:
+        return (
+            "No saved Market Lab report found. Open Nova Market Lab "
+            "(market_lab_ui.py) once to generate a report, then ask again."
+        )
+
+    latest = max(files, key=lambda p: p.stat().st_mtime)
+    try:
+        with latest.open("r", encoding="utf-8") as handle:
+            report = json.load(handle)
+    except (OSError, json.JSONDecodeError) as exc:
+        return f"MARKET BRIEF ERROR | could not read {latest.name}: {exc}"
+
+    return _build_market_brief(report)
+
+
+# ============================================================================
 # TOOL REGISTRY
 # ============================================================================
 
@@ -1014,6 +1249,7 @@ TOOLS = {
     "get_market_data": get_market_data,
     "get_market_analysis": get_market_analysis,
     "get_market_lab_analysis": get_market_lab_analysis,
+    "get_market_brief": get_market_brief,
     "open_website": open_website,
     "open_app": open_app,
     "search_web": search_web,
@@ -1128,6 +1364,32 @@ TOOL_SCHEMA = [
                     },
                 },
                 "required": ["query"],
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------------
+    # MORNING MARKET BRIEF (CACHE-FIRST)
+    # ------------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "get_market_brief",
+            "description": (
+                "Build Nova's morning market brief from the latest SAVED "
+                "Market Lab report. MANDATORY for a quick pre-market or "
+                "start-of-day summary (regime, breadth, volatility, "
+                "FII/DII institutional flow, event risk, top technical and "
+                "factor-ranked stocks). Fast and cache-first: it reads an "
+                "existing report and never runs a scan or fetches live "
+                "prices. It reports measured values only and flags stale or "
+                "missing data. It is NOT a trading signal and never gives "
+                "BUY/SELL advice. If no saved report exists, say the user "
+                "must open Market Lab first."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
             },
         },
     },

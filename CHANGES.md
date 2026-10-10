@@ -3,6 +3,25 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - Assistant morning market brief tool (`get_market_brief`)
+
+Added a new voice/chat-callable tool, `get_market_brief()`, so the Nova
+assistant can read out a concise morning market brief on request. It is
+**cache-first**: it loads the latest saved Market Lab JSON report and never
+triggers a full NSE scan, so it is cheap and respects the "prefer cache-first"
+rule.
+
+- Composed from measured values only, taken straight from the saved report:
+  header + report age (staleness), market regime, breadth, India VIX +
+  volatility regime, institutional FII/DII flow (5D/10D/20D with the
+  `signal_allowed` honesty line), event risk + top upcoming events, top
+  technical stocks, top factor-ranked names, and any data-availability gaps.
+- Ends with an explicit guardrails footer: analysis-only, measured vs.
+  interpreted kept separate, not a buy/sell signal, no broker/orders.
+- Split into a pure `_build_market_brief(report)` (dict -> str, unit-testable
+  offline) and a thin `get_market_brief()` that loads the cache and calls it.
+- Registered in `TOOLS` and `TOOL_SCHEMA` so the Ollama brain can invoke it.
+
 ## 2026-10-10 - Factor backtest harness fixed and wired into Market Lab UI
 
 The factor backtest harness (`analysis/backtest_harness.py`) was committed but
