@@ -3,6 +3,31 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - Re-checked and re-stamped the event calendar
+
+Web-verified every upcoming calendar entry against authoritative sources, then
+re-stamped `source_checked_at` (resetting the 24h freshness window) — no event
+entries changed, only the timestamp.
+
+Re-check results (all matched, no edits needed):
+
+- US (BLS bls.gov/schedule/2026): CPI Sep -> Wed Oct 14 08:30 ET; PPI Sep ->
+  Thu Oct 15; Import/Export Sep -> Fri Oct 16. (No shutdown delay listed.)
+- India CPI (MoSPI advance release calendar + PIB): Sep -> Mon Oct 12, 4 pm
+  IST (or next working day if a holiday).
+- India WPI (DPIIT via IndiaInflation.com): Sep -> Wed Oct 14, 12:00 IST.
+- RBI MPC (IndiaInflation.com): next decision Fri Dec 4, 2026.
+- NSE/BSE 2026 holidays (NSE circular CM-TR71775 / BSE / Nifty Indices):
+  Dussehra Tue Oct 20; Diwali-Balipratipada Tue Nov 10; Prakash Gurpurb Sri
+  Guru Nanak Dev Tue Nov 24; Christmas Fri Dec 25; Diwali Muhurat Sun Nov 8
+  (timings TBA), all as already recorded.
+
+`source_checked_at`: 2026-10-10T00:11:37+05:30 -> 2026-10-10T19:51:49+05:30.
+Only that one line changed (kept the file's original compact formatting rather
+than the re-serialized array expansion `touch_event_calendar.py` writes).
+`check_event_calendar.py` -> RESULT: OK, 11 valid / 0 invalid, 0.0h -> FRESH.
+Offline suite unchanged: `Ran 201 tests ... OK`.
+
 ## 2026-10-10 - Sector engine unit tests (closes coverage gap)
 
 Added `tests/test_sector_engine.py` (19 offline tests) for the sector engine's

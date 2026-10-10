@@ -676,8 +676,27 @@ locked in. This closes the one engine that had no unit coverage.
 
 Not run: the sector scan/classification path (downloads NSE primary HTML and
 reads scanner output) — deliberately out of scope for offline unit tests.
+## 2026-10-10 - Event calendar re-check and re-stamp
 
+Data changed: only `analysis/data/event_calendar.json` `source_checked_at`
+(2026-10-10T00:11:37+05:30 -> 2026-10-10T19:51:49+05:30). No event entries
+altered; the file's original compact formatting preserved (one-line diff).
 
+Checks run:
 
+- Web-verified every upcoming entry against authoritative sources, all
+  matching: BLS Oct 2026 schedule (US CPI Sep Oct 14 08:30 ET, PPI Oct 15,
+  Import/Export Oct 16); MoSPI/PIB (India CPI Sep Oct 12, 4 pm IST); DPIIT via
+  IndiaInflation.com (India WPI Sep Oct 14, 12:00 IST); RBI MPC (Fri Dec 4,
+  2026); NSE circular CM-TR71775 / BSE (Dussehra Oct 20, Diwali-Balipratipada
+  Nov 10, Guru Nanak Nov 24, Christmas Dec 25, Diwali Muhurat Nov 8).
+- `.\venv\Scripts\python.exe check_event_calendar.py` -> RESULT: OK,
+  11 valid / 0 invalid, FRESH (0.0h).
+- Full offline suite: `Ran 201 tests ... OK` (unchanged; engine tests use
+  fixtures, not this data file).
 
+Note: this reset the 24h freshness window that was about to lapse. The next
+re-check is due around 19:51 IST on 2026-10-11.
 
+Not run: no event entry was added or edited, so only the timestamp change was
+validated.
