@@ -3,6 +3,42 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - pyproject.toml metadata + dependency-free CI gate
+
+- Added `pyproject.toml`: canonical project metadata (name/version/
+  `requires-python >=3.11`) with `dependencies` mirroring `requirements.txt`
+  exactly (107 pinned packages). Metadata-only — no build-system / not a
+  publishing manifest; `pip install .` is not part of Nova's workflow and app
+  runtime is unchanged (still the local venv).
+- Added `tests/test_packaging.py` (3 tests, stdlib `tomllib`): asserts the
+  metadata is present and that `pyproject` dependencies == `requirements.txt`
+  so the two manifests cannot drift.
+- Added `.github/workflows/ci.yml`: a **dependency-free** gate that runs on
+  push/PR to main. The full runtime (PySide6, torch, pywin32, numpy,
+  yfinance, ...) is heavy and Windows-specific and lives in the local venv, so
+  CI instead (1) `ast`-parses every `.py` source (excluding venv/caches/model
+  dirs) to catch syntax regressions tree-wide, and (2) runs the stdlib-only
+  suites `tests.test_start_nova` and `tests.test_packaging`.
+
+Why not a full-suite CI job: Nova pins Python 3.14 with large Windows-only
+packages; installing them on a GitHub runner would be very heavy and fragile.
+The complete offline suite (182 tests) is run locally via
+`.\venv\Scripts\python.exe -m unittest discover -s tests`.
+
+Files added:
+
+- `pyproject.toml`
+- `tests/test_packaging.py`
+- `.github/workflows/ci.yml`
+- `AGENTS.md` (notes the manifests and CI)
+
+Validation:
+
+- `pyproject.toml` parses via `tomllib`; 107 deps == requirements.txt.
+- Full suite: `Ran 182 tests ... OK` (179 -> 182; 3 new).
+- CI steps executed locally and passing: 57 `.py` sources parse clean; the
+  stdlib-only suites run 12 tests OK.
+
 ## 2026-10-10 - Add start_nova.py launcher with local-service preflight
 
 New file `start_nova.py`: a launcher that preflight-checks the two local

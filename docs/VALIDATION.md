@@ -626,6 +626,36 @@ themselves were independently live-launched and verified earlier). The preflight
 check is advisory only and never blocks a launch.
 
 
+## 2026-10-10 - pyproject.toml metadata + dependency-free CI gate
+
+Code added: `pyproject.toml` (metadata-only), `tests/test_packaging.py`
+(3 tests), `.github/workflows/ci.yml`. No existing app, engine, cache, or
+data-source logic changed.
+
+Checks run:
+
+- `pyproject.toml` parses with `tomllib` (Python 3.14); `project.name == nova`,
+  `requires-python == ">=3.11"`, 107 dependencies.
+- `tests/test_packaging.py`: passes; asserts `pyproject` dependencies ==
+  `requirements.txt` (both 107, no drift).
+- CI's parse step executed locally: 57 `.py` sources `ast`-parsed with no
+  errors (excluding venv/caches/model dirs).
+- CI's test step executed locally:
+  `python -m unittest tests.test_start_nova tests.test_packaging` -> 12 tests OK.
+- Full offline suite: `Ran 182 tests ... OK` (179 -> 182; 3 new).
+
+CI scope (documented in the workflow): dependency-free on `ubuntu-latest` /
+Python 3.11 — parse every source + run the two stdlib-only suites. The full
+182-test suite is NOT run in CI because the runtime stack (PySide6, torch,
+pywin32, numpy, yfinance; Python 3.14) is heavy and Windows-specific; it runs
+locally.
+
+Not run here: the GitHub Actions run itself (the workflow's two steps were
+executed locally and pass); a full-dependency CI job is intentionally omitted
+for the reasons above. `pip install .` is not validated/used (Nova runs from
+the local venv).
+
+
 
 
 

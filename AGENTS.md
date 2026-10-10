@@ -93,6 +93,20 @@ The full refresh command is intentionally heavier:
 - Indian market MCP is launched from the active virtual environment as
   `indian-market-mcp.exe`.
 
+## Manifests and CI
+
+- `requirements.txt` is the locked runtime set for the local `venv`
+  (Python 3.14).
+- `pyproject.toml` mirrors it as metadata only; `tests/test_packaging.py`
+  keeps the two in sync. No build-system; `pip install .` is not the workflow.
+- `.github/workflows/ci.yml` is a dependency-free gate (parse every `.py` +
+  stdlib-only tests). The full 182-test offline suite runs locally because the
+  heavy Windows-specific stack is too large for CI:
+
+  ```powershell
+  .\venv\Scripts\python.exe -m unittest discover -s tests -v
+  ```
+
 ## Verification Baseline
 
 Before calling work complete, run checks that match the risk of the change.
