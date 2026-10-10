@@ -513,6 +513,60 @@ Not run: Ollama tool-calling turn, GUI launch, real NSE scan, live
 open_website/open_app/search execution (deliberately avoided side effects).
 
 
+## 2026-10-10 - Live end-to-end check (terminal-integrated)
+
+Live, terminal-driven verification of the integrated stack on the user machine
+(AST Sat 2026-10-10, NSE closed). This closes the live-path validation gap noted
+above. Cache-first / live-only paths used; no forced `--refresh` full scan.
+
+Services and environment:
+
+- Ollama: UP, model list `['qwen3.5:4b']` (the exact configured model).
+- SearXNG: UP (`http://localhost:8080` -> HTTP 200).
+- Entry points present: `main.py`, `market_lab_ui.py`,
+  `market_lab/market_lab_data.py`, `tools.py`, `brain.py`.
+- Cached NSE scans: 28; newest `market_scan_20261010_123734.csv`.
+
+Checks run and results:
+
+- Cache-first Market Lab terminal report
+  `.\venv\Scripts\python.exe -B -u market_lab\market_lab_data.py`: exit 0, 356
+  lines, "Using fresh cached market scan (1,999 stocks; 6.2 hours old)",
+  `Stocks analyzed: 1,999`, no full scan. Guardrails intact:
+  `BUY_SELL_AUTHORIZATION: False`, `TRADING_EXECUTION: False`; event risk
+  MODERATE; volatility regime MODERATE. No ERROR/Traceback.
+- Live Ollama tool-calling turn (`brain.think('Give me the morning market brief
+  please.')`): the model emitted a `get_market_brief({})` tool call, the tool
+  returned the full cache-first brief (BEARISH regime, VIX 14.38, FII/DII flow,
+  signal-eligible NO, event risk), and the model produced a grounded
+  natural-language summary. Full brain -> tool -> cache path confirmed live.
+- Live Market Lab GUI (`QT_QPA_PLATFORM=offscreen`): `MarketLabWindow` built and
+  shown, `load_initial_report` fired, background worker started, and it fetched
+  real NSE option chains (NIFTY spot 22,520.45, OI PCR 1.12; BANKNIFTY spot
+  55,256.65, OI PCR 0.93). Report headless-construction check:
+  `GUI_OK: ... visible=True, title='NOVA MARKET LAB', workers_started=1`.
+- Live main-assistant GUI (`offscreen`):
+  `MAIN_GUI_OK: NovaWindow constructed and shown (visible=True, title='NOVA —
+  Personal Intelligence System')`, no error.
+
+Findings / notes:
+
+- Both GUIs were verified via headless (offscreen) construction by a temporary
+  driver that shows the window, lets startup run ~3 s, then force-exits to avoid
+  the non-daemon report worker keeping the process alive; no window flashes on
+  the desktop and the real caches are not written.
+- The offscreen Market Lab run does perform a live data refresh (option chains,
+  index/volatility), so it makes read-only network calls; quantities are the
+  normal lightweight live layers, not a full 2,333-stock scan.
+- Event calendar was confirmed FRESH earlier today (18.4 h old at check time).
+  It crosses the 24 h staleness threshold around 12:11 IST on 2026-10-11 and
+  then needs a re-check (`touch_event_calendar.py`), else event risk reverts to
+  NOT_AVAILABLE/UNKNOWN the next day. Not re-stamped during this live session.
+
+Not run: forced `--refresh` full scan, a visible (on-desktop) GUI session for the
+user to click through, and `open_website/open_app/search_web` side effects.
+
+
 
 
 

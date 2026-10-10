@@ -3,6 +3,17 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - Live end-to-end check (terminal-integrated)
+
+No code change. On-machine live verification of the integrated stack
+(services, Market Lab CLI, Ollama tool call, both GUIs) — see
+`docs/VALIDATION.md` "2026-10-10 - Live end-to-end check". Result: the whole
+pipeline works in the terminal — Ollama `qwen3.5:4b` UP, SearXNG UP, cache-first
+Market Lab report clean (1,999 stocks, no full scan, guardrails intact), a real
+Ollama turn called `get_market_brief` and produced a grounded summary, and both
+`MarketLabWindow` and `NovaWindow` construct/run headless and fetch live NSE
+data. Reminder logged: event calendar needs re-check ~12:11 IST 2026-10-11.
+
 ## 2026-10-10 - Assistant tool-registry + run_tool contract tests
 
 Added `tests/test_tool_contract.py` (15 offline tests) protecting the
