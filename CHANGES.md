@@ -3,6 +3,34 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - Headless GUI smoke tests for Market Lab
+
+Added `tests/test_gui_smoke.py`: the first automated coverage of the Market Lab
+GUI itself, run fully headless and offline so it can live in the normal
+`unittest discover -s tests` run.
+
+- Forces `QT_QPA_PLATFORM=offscreen` before importing PySide6, creates exactly
+  one `QApplication` for the module, and constructs the real `MarketLabWindow`
+  without ever running an event loop. The deferred
+  `QTimer.singleShot(150, load_initial_report)` therefore never fires, so the
+  test proves construction spawns no worker, no network call, and no NSE scan.
+- Locks in the watchlist fix: `task_succeeded("watchlist", ...)` must store the
+  refresh payload in `watch_data` and re-render `watch_view` (the old code
+  dropped the result, so the panel never populated). Also covers the
+  `NOT_AVAILABLE` branch, the empty-pin reset, `format_watchlist_line` dashes
+  for missing numbers, PIN dedupe/`MAX_SYMBOLS` cap, and the round-robin poll.
+- Locks in the backtest arg-wiring fix: `window.start_task` is stubbed with a
+  recorder so `run_backtest_task` is exercised with no real `QThread` and no
+  network. The captured args/kwargs are bound against the real
+  `inspect.signature(run_backtest)`, which is exactly the `TypeError` the UI's
+  blank-input path used to raise; `symbols` must keep its `None` default.
+- Covers `render_backtest` (real report keys, decile hit-rate labels, trend
+  mix, top-ranked list, "not a buy/sell signal" guardrail), the invalid-result
+  path, `task_succeeded` page switch (index 3 = Factor Backtest, asserted
+  against its nav label), `task_failed` surfacing the error in the result view
+  (`QMessageBox` mocked), and `task_finished` restoring the controls.
+- No production code changed; these tests only assert existing behavior.
+
 ## 2026-10-10 - Institutional flow primary-coverage progress note (Option C)
 
 Made the runway to a fully NSE-primary FII/DII history window legible instead

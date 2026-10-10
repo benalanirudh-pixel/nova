@@ -387,3 +387,40 @@ trading days of the daily schedule), GUI launch, full `--refresh` scan. This
 change is display-only; it does not alter the `signal_allowed` gate.
 
 
+## 2026-10-10 - Headless GUI smoke tests for Market Lab
+
+Added `tests/test_gui_smoke.py` (new file; no production code changed).
+
+Verified:
+
+- `py_compile` passes on `tests/test_gui_smoke.py` and `market_lab_ui.py`;
+  `ast.parse` passes on the new test file.
+- New suite alone: `.\venv\Scripts\python.exe -B -m unittest
+  tests.test_gui_smoke -v` (with `PYTHONUTF8=1`) -> `Ran 17 tests ... OK`
+  (exit 0).
+- Full suite: `.\venv\Scripts\python.exe -B -m unittest discover -s tests`
+  (with `PYTHONUTF8=1`) -> `Ran 108 tests ... OK` (exit 0), up from 91.
+- Offline guarantees observed: headless via `QT_QPA_PLATFORM=offscreen`; a single
+  `QApplication`; the real `MarketLabWindow` is constructed without running an
+  event loop, so the deferred `load_initial_report` never fires and
+  `window.workers` is asserted empty; `window.start_task` is replaced by a
+  recorder for every task-triggering path and `QMessageBox` is mocked for
+  `task_failed`, so no `QThread`, no modal dialog and no network call happens.
+  The `[BACKTEST ERROR]` line in the test output is the intentional fixture
+  text printed by `task_failed`.
+- Regression coverage locked in: watchlist refresh results are stored in
+  `watch_data` and rendered into `watch_view` (previously dropped, so the panel
+  never populated); the backtest UI call binds against the real
+  `run_backtest` signature with `symbols` defaulting to `None` (previously
+  `TypeError` on blank input); `render_backtest` renders the real report keys
+  plus the hit-rate / not-a-buy-sell-signal guardrails; page index 3 still maps
+  to the Factor Backtest nav entry.
+
+Not run: a real GUI launch (interactive desktop only), a live `run_backtest`
+(needs network + NSE symbol list), the report/analysis workers, a full
+`--refresh` scan, the Ollama path. UI paint/layout is not visually inspected;
+only widget state and rendered text are asserted.
+
+
+
+

@@ -1,0 +1,522 @@
+"""
+Headless GUI smoke tests for Nova Market Lab (``market_lab_ui.py``).
+
+Fully offline and headless:
+
+- ``QT_QPA_PLATFORM`` is forced to ``offscreen`` before PySide6 is imported.
+- Exactly one ``QApplication`` is created for the whole module
+  (``QApplication`` is a single-instance class).
+- The real ``MarketLabWindow`` is constructed, but no event loop is ever run,
+  so the deferred ``QTimer.singleShot(150, self.load_initial_report)`` never
+  fires: no report worker, no network call, no NSE scan.
+- Every other background path is captured by stubbing ``window.start_task`` so
+  the call arguments can be asserted without starting a real ``QThread``.
+
+Regressions these tests lock in:
+
+1. ``task_succeeded`` used to drop every ``"watchlist"`` result, so the pinned
+   watchlist panel never populated. The handler must store the refresh dict in
+   ``watch_data`` and re-render ``watch_view`` (and keep rendering an honest
+   "waiting for first refresh" line for symbols that have no data yet).
+2. ``run_backtest`` used to require a positional ``symbols`` while the UI's
+   blank-input path called ``run_backtest(sample=20, quiet=True)``, raising
+   ``TypeError`` on every "RUN BACKTEST" click. The captured ``start_task``
+   arguments are now bound against the real ``inspect`` signature to prove the
+   wiring is callable, and ``symbols`` must keep its ``None`` default.
+3. ``task_succeeded`` jumps to hardcoded page indices (3 = backtest, 2 =
+   analysis). If the nav spec is reordered those indices silently break, so the
+   backtest page index is asserted against its nav button label.
+4. ``render_backtest`` must fill ``backtest_view`` from the real report keys
+   and keep the "hit-rate, not a return" / "not a buy/sell signal" guardrails.
+
+Run from the project root:
+
+    set PYTHONUTF8=1 && .\\venv\\Scripts\\python.exe -m unittest tests.test_gui_smoke -v
+"""
+
+from __future__ import annotations
+
+import inspect
+import os
+import sys
+import unittest
+import unittest.mock
+from pathlib import Path
+
+# Must be set before PySide6 (imported transitively by market_lab_ui) loads.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from PySide6.QtWidgets import QApplication
+
+import market_lab_ui
+from market_lab_ui import MarketLabWindow, Worker
+
+
+# ============================================================
+# FIXTURES (shaped like the real engine outputs, no network)
+# ============================================================
+
+def watchlist_result(symbol="RELIANCE", **overrides):
+    """A realistic ``refresh_watch_symbol`` payload (analysis-only flags kept)."""
+    result = {
+        "engine": "Nova Stock Watchlist Engine",
+        "version": "1.0.0",
+        "status": "AVAILABLE",
+        "symbol": symbol,
+        "company_name": "Reliance Industries",
+        "price": 1455.35,
+        "open": 1448.0,
+        "high": 1462.5,
+        "low": 1440.1,
+        "volume": 8123456.0,
+        "change_percent": 0.87,
+        "rsi_14": 58.4,
+        "rsi_condition": "NEUTRAL",
+        "macd_condition": "BULLISH",
+        "trend": "UPTREND",
+        "momentum_score": 62.5,
+        "ema_20": 1441.2,
+        "ema_50": 1410.9,
+        "ema_200": 1355.0,
+        "timestamp": "2026-10-10T14:30:00",
+        "source": "NSE MCP live quote",
+        "warnings": [],
+        "decision_policy": {
+            "watchlist_is_a_buy_sell_signal": False,
+            "buy_sell_authorization": False,
+            "trading_execution": False,
+        },
+    }
+    result.update(overrides)
+    return result
+
+
+def backtest_report(**overrides):
+    """A realistic ``run_backtest`` report using its real key names."""
+    report = {
+        "generated_at": "20261010_143000",
+        "universe": 20,
+        "completed": 4,
+        "degraded": 1,
+        "errors": 0,
+        "pack_width": 1,
+        "elapsed_seconds": 12.34,
+        "decile_stats": {
+            "top_decile_up_day_fraction": 0.55,
+            "bottom_decile_up_day_fraction": 0.41,
+            "spread_top_vs_bottom": 0.14,
+            "mid_decile_up_day_fraction": 0.48,
+        },
+        "trend_counts": {"UPTREND": 2, "STRONG_UPTREND": 2},
+        "symbols": [
+            {
+                "symbol": "RELIANCE",
+                "score": 71.2,
+                "trend": "STRONG_UPTREND",
+                "rsi": 62.1,
+                "up_day_fraction": 0.56,
+            },
+            {
+                "symbol": "TCS",
+                "score": 68.4,
+                "trend": "UPTREND",
+                "rsi": 57.9,
+                "up_day_fraction": 0.52,
+            },
+        ],
+    }
+    report.update(overrides)
+    return report
+
+
+class MarketLabSmokeTestCase(unittest.TestCase):
+    """One shared real window; each test resets the state it mutates."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+        cls.window = MarketLabWindow()
+
+    @classmethod
+    def tearDownClass(cls):
+        # No worker was ever started, so the safe close path just accepts.
+        cls.window.close()
+        cls.window.deleteLater()
+        cls.window = None
+
+    def setUp(self):
+        window = self.window
+        window.watch_symbols = []
+        window.watch_index = 0
+        window.watch_data = {}
+        window.render_watchlist()
+        window.backtest_input.clear()
+
+    # --------------------------------------------------------
+    # helpers
+    # --------------------------------------------------------
+
+    def capture_start_task(self):
+        """Replace window.start_task with a recorder; returns the call list.
+
+        Records (name, function, args, kwargs) and starts nothing, so no
+        QThread and no network call happens.
+        """
+        window = self.window
+        original = window.start_task
+        calls = []
+
+        def recorder(name, function, *args, **kwargs):
+            calls.append(
+                {
+                    "name": name,
+                    "function": function,
+                    "args": args,
+                    "kwargs": dict(kwargs),
+                }
+            )
+
+        window.start_task = recorder
+        self.addCleanup(setattr, window, "start_task", original)
+        return calls
+
+    # --------------------------------------------------------
+    # construction / structure
+    # --------------------------------------------------------
+
+    def test_construction_is_offline_and_spawns_no_workers(self):
+        window = self.window
+        self.assertIsInstance(window, MarketLabWindow)
+        # The deferred load_initial_report() never ran: no event loop, so no
+        # report worker, no network, no NSE scan.
+        self.assertEqual(window.workers, {})
+        self.assertEqual(window.watch_data, {})
+        self.assertEqual(window.watch_symbols, [])
+        self.assertEqual(window.watch_index, 0)
+        self.assertFalse(window.auto_enabled)
+        self.assertIsNone(window.report)
+
+    def test_page_indices_match_the_nav_labels(self):
+        window = self.window
+        self.assertEqual(window.pages.count(), 4)
+        self.assertEqual(window.pages.currentIndex(), 0)
+        # task_succeeded hardcodes switch_page(3) for backtest.
+        self.assertIn("Factor Backtest", window.nav_buttons[3].text())
+        self.assertIn("Nova Analysis", window.nav_buttons[2].text())
+        window.switch_page(3)
+        self.assertEqual(window.pages.currentIndex(), 3)
+        window.switch_page(0)
+        self.assertEqual(window.pages.currentIndex(), 0)
+
+    def test_panels_and_inputs_exist(self):
+        window = self.window
+        for attribute in (
+            "watch_input",
+            "watch_view",
+            "backtest_input",
+            "backtest_btn",
+            "backtest_view",
+            "analysis_view",
+            "report_view",
+            "integrity_view",
+            "footer",
+        ):
+            self.assertTrue(hasattr(window, attribute), attribute)
+
+
+    # --------------------------------------------------------
+    # REGRESSION: watchlist results used to be dropped
+    # --------------------------------------------------------
+
+    def test_watchlist_result_is_stored_and_rendered(self):
+        window = self.window
+        window.watch_symbols = ["RELIANCE", "TCS"]
+        window.watch_data = {}
+
+        result = watchlist_result("RELIANCE")
+        window.task_succeeded("watchlist", result, 0.0)
+
+        self.assertIs(window.watch_data["RELIANCE"], result)
+
+        lines = window.watch_view.toPlainText().split("\n")
+        self.assertEqual(len(lines), 2)
+        self.assertTrue(lines[0].startswith("RELIANCE:"))
+        self.assertNotIn("waiting", lines[0])
+        self.assertIn("1455.35", lines[0])
+        self.assertIn("+0.87%", lines[0])
+        self.assertIn("RSI 58.4 NEUTRAL", lines[0])
+        self.assertIn("UPTREND", lines[0])
+        # A symbol with no data yet still shows the honest placeholder.
+        self.assertTrue(lines[1].startswith("TCS:"))
+        self.assertIn("waiting for first refresh", lines[1])
+
+        # The analysis-only contract is untouched by the UI.
+        policy = result["decision_policy"]
+        self.assertIs(policy["trading_execution"], False)
+        self.assertIs(policy["buy_sell_authorization"], False)
+
+    def test_watchlist_not_available_result_is_rendered_not_dropped(self):
+        window = self.window
+        window.watch_symbols = ["TCS"]
+        window.watch_data = {}
+
+        result = watchlist_result(
+            "TCS",
+            status="NOT_AVAILABLE",
+            price=None,
+            change_percent=None,
+            rsi_14=None,
+            rsi_condition=None,
+            trend=None,
+            source=None,
+            reason="Engine returned no usable price.",
+        )
+        window.task_succeeded("watchlist", result, 0.0)
+
+        self.assertIs(window.watch_data["TCS"], result)
+        text = window.watch_view.toPlainText()
+        self.assertIn("TCS: NOT AVAILABLE", text)
+        self.assertIn("Engine returned no usable price.", text)
+
+    def test_render_watchlist_clears_view_when_nothing_pinned(self):
+        window = self.window
+        window.watch_symbols = []
+        window.watch_data = {"RELIANCE": watchlist_result()}
+
+        window.render_watchlist()
+
+        self.assertEqual(window.watch_view.toPlainText(), "")
+
+    def test_format_watchlist_line_renders_dashes_for_missing_numbers(self):
+        from analysis.data.watchlist_engine import format_watchlist_line
+
+        line = format_watchlist_line(
+            {
+                "status": "AVAILABLE",
+                "symbol": "INFY",
+                "price": None,
+                "change_percent": None,
+                "rsi_14": None,
+            },
+            "INFY",
+        )
+        self.assertTrue(line.startswith("INFY:"))
+        self.assertEqual(line.count("--"), 3)
+        self.assertNotIn("None", line)
+        self.assertIn(
+            "waiting for first refresh", format_watchlist_line(None, "INFY")
+        )
+
+    def test_apply_watchlist_dedupes_caps_and_polls_first_symbol(self):
+        from analysis.data.watchlist_engine import MAX_SYMBOLS, refresh_watch_symbol
+
+        window = self.window
+        window.watch_input.setText(
+            "reliance, tcs, RELIANCE, infy, sbin, itc, lt, hdfcbank,"
+            " icicibank, maruti, wipro, tatamotors"
+        )
+        calls = self.capture_start_task()
+
+        window.apply_watchlist()
+
+        self.assertEqual(
+            window.watch_symbols,
+            [
+                "RELIANCE", "TCS", "INFY", "SBIN", "ITC", "LT", "HDFCBANK",
+                "ICICIBANK", "MARUTI", "WIPRO",
+            ],
+        )
+        self.assertEqual(len(window.watch_symbols), MAX_SYMBOLS)
+        self.assertEqual(window.watch_data, {})
+        self.assertIn("Watchlist pinned: RELIANCE, TCS", window.footer.text())
+        # The first symbol is refreshed immediately, but only through the
+        # stubbed start_task, so no real worker is started here.
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["name"], "watchlist")
+        self.assertIs(calls[0]["function"], refresh_watch_symbol)
+        self.assertEqual(calls[0]["args"], ("RELIANCE",))
+
+    def test_poll_watchlist_symbol_round_robins_and_skips_when_empty(self):
+        from analysis.data.watchlist_engine import refresh_watch_symbol
+
+        window = self.window
+        window.watch_symbols = ["RELIANCE", "TCS"]
+        window.watch_index = 0
+        calls = self.capture_start_task()
+
+        window.poll_watchlist_symbol()
+        self.assertEqual(calls[0]["args"], ("RELIANCE",))
+        self.assertEqual(window.watch_index, 1)
+
+        window.poll_watchlist_symbol()
+        self.assertEqual(calls[1]["args"], ("TCS",))
+        self.assertEqual(window.watch_index, 2)
+
+        # Round-robin wraps: index = watch_index % len, so the stored counter
+        # restarts at 1 rather than growing forever.
+        window.poll_watchlist_symbol()
+        self.assertEqual(calls[2]["args"], ("RELIANCE",))
+        self.assertEqual(window.watch_index, 1)
+        self.assertIs(calls[0]["function"], refresh_watch_symbol)
+
+        del calls[:]
+        window.watch_symbols = []
+        window.poll_watchlist_symbol()
+        self.assertEqual(calls, [])
+
+
+    # --------------------------------------------------------
+    # REGRESSION: run_backtest arg wiring (blank-input TypeError)
+    # --------------------------------------------------------
+
+    def test_run_backtest_task_blank_input_wires_the_sample_path(self):
+        from analysis.backtest_harness import run_backtest
+
+        window = self.window
+        window.backtest_input.setText("")
+        calls = self.capture_start_task()
+
+        window.run_backtest_task()
+
+        self.assertEqual(len(calls), 1)
+        call = calls[0]
+        self.assertEqual(call["name"], "backtest")
+        self.assertIs(call["function"], run_backtest)
+        self.assertEqual(call["args"], ())
+        self.assertEqual(call["kwargs"], {"sample": 20, "quiet": True})
+        self.assertNotIn("symbols", call["kwargs"])
+        self.assertEqual(window.workers, {})
+
+        # The captured call must bind against the real signature. Before the
+        # fix symbols was a required positional, so this bind raised
+        # TypeError: missing 1 required positional argument: 'symbols'.
+        signature = inspect.signature(run_backtest)
+        signature.bind(*call["args"], **call["kwargs"])
+        self.assertIn("symbols", signature.parameters)
+        self.assertIsNone(signature.parameters["symbols"].default)
+
+    def test_run_backtest_task_symbol_input_wires_the_symbols_path(self):
+        from analysis.backtest_harness import run_backtest
+
+        window = self.window
+        window.backtest_input.setText(" reliance , tcs; INFY ")
+        calls = self.capture_start_task()
+
+        window.run_backtest_task()
+
+        self.assertEqual(len(calls), 1)
+        call = calls[0]
+        self.assertEqual(call["name"], "backtest")
+        self.assertIs(call["function"], run_backtest)
+        self.assertEqual(
+            call["kwargs"],
+            {"symbols": ["RELIANCE", "TCS", "INFY"], "quiet": True},
+        )
+        self.assertNotIn("sample", call["kwargs"])
+        inspect.signature(run_backtest).bind(*call["args"], **call["kwargs"])
+
+    def test_run_backtest_task_skips_when_a_worker_is_running(self):
+        window = self.window
+        window.backtest_input.setText("RELIANCE")
+        sentinel = object()
+        window.workers["backtest"] = sentinel
+        self.addCleanup(window.workers.pop, "backtest", None)
+        calls = self.capture_start_task()
+
+        window.run_backtest_task()
+
+        self.assertEqual(calls, [])
+        self.assertIs(window.workers["backtest"], sentinel)
+
+
+    # --------------------------------------------------------
+    # backtest rendering / task plumbing
+    # --------------------------------------------------------
+
+    def test_render_backtest_fills_view_and_keeps_guardrails(self):
+        window = self.window
+        window.backtest_view.setPlainText("")
+
+        window.render_backtest(backtest_report())
+
+        text = window.backtest_view.toPlainText()
+        self.assertTrue(text.strip())
+        self.assertIn("Universe        : 20", text)
+        self.assertIn("Completed       : 4", text)
+        self.assertIn("Degraded        : 1", text)
+        self.assertIn("Errors          : 0", text)
+        self.assertIn("Pack width      : 1", text)
+        self.assertIn("Generated       : 20261010_143000", text)
+        self.assertIn("DECILE UP-DAY FRACTION (hit-rate, NOT a return)", text)
+        self.assertIn("Top decile    : 0.55", text)
+        self.assertIn("Bottom decile : 0.41", text)
+        self.assertIn("Spread        : 0.14", text)
+        self.assertIn("TREND MIX", text)
+        self.assertIn("UPTREND: 2", text)
+        self.assertIn("TOP RANKED", text)
+        self.assertIn("RELIANCE: score 71.2", text)
+        self.assertIn("not a buy/sell signal", text)
+
+    def test_render_backtest_handles_empty_and_invalid_results(self):
+        window = self.window
+
+        window.render_backtest(backtest_report(symbols=[], trend_counts={}))
+        text = window.backtest_view.toPlainText()
+        self.assertIn("(no symbols completed)", text)
+        self.assertIn("Completed       : 4", text)
+
+        window.render_backtest(None)
+        self.assertIn(
+            "Backtest returned an unexpected result.",
+            window.backtest_view.toPlainText(),
+        )
+
+    def test_task_succeeded_backtest_renders_and_switches_page(self):
+        window = self.window
+        window.switch_page(0)
+        window.backtest_view.setPlainText("")
+
+        window.task_succeeded("backtest", backtest_report(), 1.5)
+
+        self.assertEqual(window.pages.currentIndex(), 3)
+        self.assertIn("Universe", window.backtest_view.toPlainText())
+        self.assertIn("hit-rate, not a return", window.footer.text())
+
+    def test_task_failed_backtest_surfaces_the_error_in_the_view(self):
+        window = self.window
+        window.backtest_view.setPlainText("")
+
+        with unittest.mock.patch.object(market_lab_ui, "QMessageBox") as box:
+            window.task_failed(
+                "backtest",
+                "TypeError: missing 1 required positional argument: 'symbols'",
+                1.5,
+            )
+
+        self.assertEqual(box.warning.call_count, 1)
+        text = window.backtest_view.toPlainText()
+        self.assertIn("Backtest failed after 1.5s.", text)
+        self.assertIn("missing 1 required positional argument", text)
+        self.assertEqual(window.status_data.text(), "BACKTEST ERROR")
+
+    def test_task_finished_restores_controls_and_clears_the_worker(self):
+        window = self.window
+        # Constructed but never started: no thread, no network.
+        worker = Worker("backtest", lambda: None)
+        window.workers["backtest"] = worker
+        window.backtest_btn.setEnabled(False)
+        window.progress.setRange(0, 0)
+
+        window.task_finished("backtest", worker)
+
+        self.assertEqual(window.workers, {})
+        self.assertTrue(window.backtest_btn.isEnabled())
+        self.assertEqual(window.progress.maximum(), 100)
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
