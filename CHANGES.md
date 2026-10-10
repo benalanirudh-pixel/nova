@@ -3,6 +3,16 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - GUI smoke test: skip cleanly when PySide6 is missing
+
+`tests/test_gui_smoke.py` now guards its PySide6 / Market Lab imports with
+`try/except ImportError` and decorates the test case with
+`@unittest.skipIf(not QT_AVAILABLE, ...)`. Without Qt the module still imports
+and the case reports 17 skips instead of an import error, so
+`unittest discover -s tests` stays green on a machine that has no PySide6.
+Behavior with Qt installed is unchanged (`QT_QPA_PLATFORM=offscreen`, one
+`QApplication`, real `MarketLabWindow` built with no event loop).
+
 ## 2026-10-10 - Headless GUI smoke tests for Market Lab
 
 Added `tests/test_gui_smoke.py`: the first automated coverage of the Market Lab

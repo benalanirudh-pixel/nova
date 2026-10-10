@@ -415,6 +415,10 @@ Verified:
   `TypeError` on blank input); `render_backtest` renders the real report keys
   plus the hit-rate / not-a-buy-sell-signal guardrails; page index 3 still maps
   to the Factor Backtest nav entry.
+- Qt-less guard: with `PySide6` forced unimportable (`sys.modules['PySide6'] =
+  None`) the module still imports and the case reports
+  `Ran 17 tests ... OK (skipped=17)` with 0 errors, so a machine without Qt
+  keeps `unittest discover -s tests` green instead of failing collection.
 
 Not run: a real GUI launch (interactive desktop only), a live `run_backtest`
 (needs network + NSE symbol list), the report/analysis workers, a full

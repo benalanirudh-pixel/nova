@@ -11,6 +11,8 @@ Fully offline and headless:
   fires: no report worker, no network call, no NSE scan.
 - Every other background path is captured by stubbing ``window.start_task`` so
   the call arguments can be asserted without starting a real ``QThread``.
+- If PySide6 (or a Market Lab dependency) is not importable the whole test case
+  is skipped, so ``unittest discover -s tests`` stays green without Qt.
 
 Regressions these tests lock in:
 
@@ -50,10 +52,23 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from PySide6.QtWidgets import QApplication
+# Qt is optional for the rest of the suite: skip instead of erroring so
+# `unittest discover -s tests` stays green on a machine without PySide6.
+try:
+    from PySide6.QtWidgets import QApplication
+except ImportError:  # pragma: no cover - depends on the local install
+    QApplication = None
 
-import market_lab_ui
-from market_lab_ui import MarketLabWindow, Worker
+try:
+    import market_lab_ui
+    from market_lab_ui import MarketLabWindow, Worker
+except ImportError:  # pragma: no cover - depends on the local install
+    market_lab_ui = None
+    MarketLabWindow = None
+    Worker = None
+
+
+QT_AVAILABLE = QApplication is not None and MarketLabWindow is not None
 
 
 # ============================================================
@@ -133,6 +148,7 @@ def backtest_report(**overrides):
     return report
 
 
+@unittest.skipIf(not QT_AVAILABLE, "PySide6 (Qt) is not installed")
 class MarketLabSmokeTestCase(unittest.TestCase):
     """One shared real window; each test resets the state it mutates."""
 
