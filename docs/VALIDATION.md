@@ -730,3 +730,60 @@ Not run: an on-desktop click-through of the new page (validated headlessly via
 display_report + real widgets, offscreen). No color assertions beyond the
 banner; the events list is plaintext (severity shown as [TAG]) consistent with
 the other read-only views.
+
+
+## 2026-10-10 - Market Lab terminal UI redesign
+
+Code changed: `market_lab_ui.py` (layout + renderers), new
+`market_lab/view_model.py` (pure adapter), new `market_lab/widgets.py`
+(component library); tests `tests/test_view_model.py` (new, 23) and
+`tests/test_gui_smoke.py` (+6 `TestTerminalLayout`). No backend, engine, cache,
+data-source, `market_lab_data.py` or `market_lab_brain.py` logic changed;
+`main.py` (Nova Assistant) untouched.
+
+Architecture:
+- `view_model.py` is stdlib-only and reads the real report dict, returning
+  UI structures with explicit `N/A` for anything the backend does not provide
+  (unit-tested offline).
+- `widgets.py` provides the themed, self-contained components; `market_lab_ui`
+  wires them to real data in `display_report` and repaints cheap state on the
+  existing 1 s ticker. Refresh controls still call the existing
+  `get_market_lab_data` through the existing single-flight worker (FULL REFRESH
+  = `force_refresh=True`, LIVE UPDATE = `live_only=True`); AUTO toggles the UI
+  timer only.
+
+Checks run:
+
+- `ast.parse` on `market_lab_ui.py`, `view_model.py`, `widgets.py`, and both
+  test files: passed.
+- `.\venv\Scripts\python.exe -m unittest tests.test_view_model` -> 23 OK.
+- `.\venv\Scripts\python.exe -m unittest tests.test_gui_smoke` (offscreen)
+  -> `Ran 38 tests ... OK` (was 32; +6 `TestTerminalLayout` locks the 10 ordered
+  sections, header chips, guardrails footer, collapse/expand, real dashboard
+  values, and that missing data renders N/A rather than a fabricated number).
+- Offscreen render of the real saved report through the rebuilt
+  `MarketLabWindow`: header `data age 1.6h`, `1,999 stocks • 1.6h old`,
+  `MODE: CACHE-FIRST`, `SESSION WEEKEND`, `VIX 14.38`, `SAVED REPORT`; NIFTY
+  22,520.45 +1.30% with OHLC, BANK NIFTY 55,256.65 with OHLC N/A; indicators
+  RSI/MACD N/A, ATR 263.48 pts, VOL 13.74 %; breadth; top sectors; factor top-10
+  rank order; all ten report sections present in order with availability chips
+  (04 PARTIAL, 07 CONTEXT_ONLY, 09 NOT_AVAILABLE, 10 ACTIVE).
+- Full offline suite (offscreen): `Ran 242 tests ... OK` (213 -> 242; +29).
+- Real entry point launched (`.\venv\Scripts\python.exe -B -u market_lab_ui.py`,
+  pid 56200, status running): performed a live-only refresh over the cached
+  1,999-stock scan and fetched real NIFTY (spot 22,520.45, expiry 13-Oct) and
+  BANKNIFTY (spot 55,256.65, expiry 27-Oct) option chains with no Python
+  traceback; stopped cleanly afterward with no orphaned `indian-market-mcp.exe`.
+
+Backend-data limitations surfaced honestly in the UI (not fabricated):
+per-index RSI/MACD/volume, intraday chart series, 52w highs/lows, McClellan,
+portfolio VaR/Sharpe/drawdown, QUALITY/VALUE factors, and the earnings calendar
+are all shown as N/A / NOT_AVAILABLE because the saved report does not provide
+them. Derived index absolute change / previous close are labeled as arithmetic
+on backend values.
+
+Not run/verified here: an on-desktop visual inspection at 1920x1080 and a
+smaller width (layout uses QSplitter + QScrollArea and in-place updates; pixel
+review is manual); FULL REFRESH (`--refresh`, ~2-3 min full scan) was not
+triggered to avoid the heavy scan — it calls the same existing path and is
+unchanged.

@@ -100,7 +100,7 @@ The full refresh command is intentionally heavier:
 - `pyproject.toml` mirrors it as metadata only; `tests/test_packaging.py`
   keeps the two in sync. No build-system; `pip install .` is not the workflow.
 - `.github/workflows/ci.yml` is a dependency-free gate (parse every `.py` +
-  stdlib-only tests). The full offline suite (213 tests) runs locally because
+  stdlib-only tests). The full offline suite (242 tests) runs locally because
   the heavy Windows-specific stack is too large for CI:
 
   ```powershell

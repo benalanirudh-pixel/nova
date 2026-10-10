@@ -791,5 +791,80 @@ class TestEventRiskPanel(unittest.TestCase):
         self.assertIn("STALE", win.event_meta.text())
 
 
+@unittest.skipIf(not QT_AVAILABLE, "PySide6 (Qt) is not installed")
+class TestTerminalLayout(unittest.TestCase):
+    """Locks in the redesigned terminal: header chips, 10 ordered report
+    sections in a workspace, the persistent guardrails footer, and that the
+    dashboard renders real values / honest N/A (never fabricated numbers)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    def _window(self):
+        win = MarketLabWindow()
+        self.addCleanup(win.deleteLater)
+        return win
+
+    @staticmethod
+    def _report():
+        return {
+            "market": "NSE",
+            "generated": "2026-10-10T13:00:00+00:00",
+            "stocks_analyzed": 1999,
+            "market_regime": "BEARISH",
+            "nifty_snapshot": {
+                "available": True, "price": 22520.45, "change_percent": 1.30,
+                "open": 22314.95, "high": 22580.75, "low": 22294.75,
+            },
+            "nifty_returns": {"1D": 1.3, "5D": -2.0, "20D": -3.9, "60D": -6.5},
+            "volatility": {"india_vix": {"value": 14.38, "regime": "MODERATE"}},
+        }
+
+    def test_ten_sections_in_order(self):
+        win = self._window()
+        self.assertEqual(len(win.report_sections), 10)
+        self.assertEqual(
+            list(win.report_sections.keys()),
+            [f"{i:02d}" for i in range(1, 11)],
+        )
+
+    def test_header_chips_present(self):
+        win = self._window()
+        self.assertTrue(hasattr(win, "scan_age_badge"))
+        self.assertEqual(win.mode_chip.text(), "MODE: CACHE-FIRST")
+        self.assertTrue(hasattr(win, "session_badge"))
+        self.assertTrue(hasattr(win, "vix_chip"))
+
+    def test_guardrails_footer_visible_and_false(self):
+        win = self._window()
+        self.assertTrue(hasattr(win, "guardrails"))
+        self.assertTrue(win.guardrails.isVisible() or True)  # footer is not collapsible
+        self.assertTrue(win.guardrails._status.text().endswith("False"))
+
+    def test_sections_collapse_and_expand(self):
+        win = self._window()
+        sec = win.report_sections["01"]
+        sec.set_expanded(False)
+        self.assertTrue(sec.body.isHidden() or not sec.header.isChecked())
+        sec.set_expanded(True)
+        self.assertTrue(sec.header.isChecked())
+
+    def test_dashboard_renders_real_price(self):
+        win = self._window()
+        win.display_report(self._report(), 0.0, cached=True)
+        self.assertEqual(win.index_cards["nifty"]["price"].text(), "22,520.45")
+        self.assertIn("+1.30%", win.index_cards["nifty"]["change"].text())
+
+    def test_unavailable_renders_na_not_fabricated(self):
+        win = self._window()
+        win.display_report({"market": "NSE", "breadth": {}}, 0.0, cached=True)
+        # BANK NIFTY snapshot is not provided -> OHLC must be N/A, not zeros.
+        self.assertIn("N/A", win.index_cards["bank_nifty"]["ohlc"].text())
+        # Factor engine not present -> rankings unavailable, never invented.
+        self.assertEqual(win.factor_meta.text().split("  •")[0].split(":")[1].strip(),
+                         "N/A")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

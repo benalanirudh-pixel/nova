@@ -21,6 +21,9 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QSplitter,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -32,6 +35,8 @@ from market_lab.market_lab_data import (
     save_json_report,
 )
 from market_lab.market_lab_brain import analyze_market_lab
+from market_lab import view_model as vm
+from market_lab import widgets as W
 
 
 # ============================================================
@@ -368,6 +373,41 @@ def make_label(text="", size=10, color=TEXT, bold=False):
     return label
 
 
+# ---------------------------------------------------------------------------
+# Number formatting for the terminal (monospace-friendly). Never invents a
+# value: vm.N_A (or any non-number) is passed through unchanged.
+# ---------------------------------------------------------------------------
+
+def fmt_price(value):
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return vm.N_A
+    return f"{value:,.2f}"
+
+
+def fmt_points(value):
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return vm.N_A
+    return f"{value:,.0f}"
+
+
+def fmt_pct(value, signed=True):
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return vm.N_A
+    return f"{value:+.2f}%" if signed else f"{value:.2f}%"
+
+
+def fmt_num(value, places=2):
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return vm.N_A
+    return f"{value:,.{places}f}"
+
+
+def fmt_crore(value):
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return vm.N_A
+    return f"{value:+,.2f}"
+
+
 def make_button(text, primary=False):
     button = QPushButton(text)
     button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -538,40 +578,13 @@ class MarketLabWindow(QMainWindow):
         self.setCentralWidget(root)
 
         outer = QVBoxLayout(root)
-        outer.setContentsMargins(18, 14, 18, 14)
-        outer.setSpacing(12)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
 
-        header = QHBoxLayout()
+        # --- Fixed terminal header ---
+        outer.addWidget(self.build_header())
 
-        brand = QVBoxLayout()
-        brand.addWidget(make_label("NOVA", 22, GREEN, True))
-        brand.addWidget(
-            make_label("MARKET INTELLIGENCE TERMINAL", 9, MUTED, True)
-        )
-        header.addLayout(brand)
-        header.addStretch()
-
-        self.connection_label = make_label("INITIALIZING", 9, AMBER, True)
-        header.addWidget(self.connection_label)
-
-        self.refresh_btn = make_button("↻  FULL REFRESH", True)
-        self.refresh_btn.clicked.connect(self.refresh_report)
-        header.addWidget(self.refresh_btn)
-
-        self.live_btn = make_button("⚡ LIVE UPDATE", False)
-        self.live_btn.clicked.connect(self.live_update_report)
-        header.addWidget(self.live_btn)
-
-        self.auto_btn = make_button("AUTO: OFF", False)
-        self.auto_btn.setCheckable(True)
-        self.auto_btn.clicked.connect(self.toggle_auto_refresh)
-        header.addWidget(self.auto_btn)
-
-        self.clock_label = make_label("--:--:--", 9, MUTED, True)
-        header.addWidget(self.clock_label)
-
-        outer.addLayout(header)
-
+        # --- Thin progress line ---
         self.progress = QProgressBar()
         self.progress.setTextVisible(False)
         self.progress.setFixedHeight(3)
@@ -583,7 +596,10 @@ class MarketLabWindow(QMainWindow):
         """)
         outer.addWidget(self.progress)
 
+        # --- Status chips row ---
         status_row = QHBoxLayout()
+        status_row.setContentsMargins(12, 8, 12, 4)
+        status_row.setSpacing(10)
         self.status_data = self.add_status(
             status_row, "DATA PIPELINE", "STARTING", AMBER
         )
@@ -598,22 +614,29 @@ class MarketLabWindow(QMainWindow):
         )
         outer.addLayout(status_row)
 
-        workspace = QHBoxLayout()
-        workspace.setSpacing(13)
+        # --- Body: left rail + sector | center pages | factor rankings ---
+        body = QSplitter(Qt.Orientation.Horizontal)
+        body.setHandleWidth(1)
+        body.setStyleSheet(f"QSplitter::handle {{ background:{BORDER}; }}")
 
-        sidebar = QFrame()
-        sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(205)
+        left = QWidget()
+        left.setObjectName("rail")
+        left_layout = QVBoxLayout(left)
+        left_layout.setContentsMargins(10, 10, 10, 10)
+        left_layout.setSpacing(10)
 
-        side = QVBoxLayout(sidebar)
-        side.setContentsMargins(12, 16, 12, 16)
-        side.addWidget(make_label("WORKSPACE", 9, MUTED, True))
+        rail = QFrame()
+        rail.setObjectName("sidebar")
+        rail_layout = QVBoxLayout(rail)
+        rail_layout.setContentsMargins(10, 12, 10, 12)
+        rail_layout.setSpacing(6)
+        rail_layout.addWidget(make_label("WORKSPACE", 9, MUTED, True))
 
         self.pages = QStackedWidget()
         self.nav_buttons = []
 
         specs = [
-            ("Overview", self.build_overview),
+            ("Dashboard", self.build_overview),
             ("Market Report", self.build_report_page),
             ("Nova Analysis", self.build_analysis_page),
             ("Factor Backtest", self.build_backtest_page),
@@ -625,26 +648,128 @@ class MarketLabWindow(QMainWindow):
             nav.clicked.connect(
                 lambda checked=False, i=index: self.switch_page(i)
             )
-            side.addWidget(nav)
+            rail_layout.addWidget(nav)
             self.nav_buttons.append(nav)
             self.pages.addWidget(builder())
 
-        side.addStretch()
-        side.addWidget(make_label("SYSTEM MODE", 9, MUTED, True))
-        side.addWidget(make_label("READ-ONLY", 12, GREEN, True))
-        side.addWidget(make_label(
+        rail_layout.addStretch()
+        rail_layout.addWidget(make_label("SYSTEM MODE", 9, MUTED, True))
+        rail_layout.addWidget(make_label("READ-ONLY", 12, GREEN, True))
+        rail_layout.addWidget(make_label(
             "No broker connection\n"
             "No order placement\n"
             "No automatic execution",
             9, MUTED,
         ))
+        left_layout.addWidget(rail)
 
-        workspace.addWidget(sidebar)
-        workspace.addWidget(self.pages, 1)
-        outer.addLayout(workspace, 1)
+        # Sector overview beneath the rail (real sector data only).
+        self.sector_panel = self.build_sector_panel()
+        left_layout.addWidget(self.sector_panel, 1)
 
+        body.addWidget(left)
+        body.addWidget(self.pages)
+
+        self.factor_panel = self.build_factor_panel()
+        body.addWidget(self.factor_panel)
+
+        body.setStretchFactor(0, 0)
+        body.setStretchFactor(1, 1)
+        body.setStretchFactor(2, 0)
+        body.setSizes([260, 1160, 380])
+        left.setMinimumWidth(230)
+        left.setMaximumWidth(280)
+        self.factor_panel.setMinimumWidth(320)
+        self.factor_panel.setMaximumWidth(420)
+        outer.addWidget(body, 1)
+
+        # --- Footer status line (operational text) ---
         self.footer = make_label("Initializing terminal…", 9, MUTED)
+        self.footer.setContentsMargins(12, 4, 12, 4)
         outer.addWidget(self.footer)
+
+        # --- Persistent guardrails bar (never hidden by ordinary UI actions) ---
+        self.guardrails = W.GuardrailsBar()
+        self.guardrails.set_authorized(
+            bool(vm.guardrails({})["buy_sell_authorization"])
+        )
+        outer.addWidget(self.guardrails)
+
+    def build_header(self):
+        header = QFrame()
+        header.setObjectName("header")
+        header.setFixedHeight(56)
+        header.setStyleSheet(f"""
+            QFrame#header {{
+                background:{SIDEBAR};
+                border-bottom:1px solid {BORDER};
+            }}
+        """)
+        hl = QHBoxLayout(header)
+        hl.setContentsMargins(14, 6, 14, 6)
+        hl.setSpacing(12)
+
+        brand = QVBoxLayout()
+        brand.setSpacing(0)
+        brand.addWidget(W.make_label("NOVA MARKET LAB", 15, GREEN, True))
+        brand.addWidget(W.make_label("INDIAN MARKET INTELLIGENCE", 8, MUTED, True))
+        hl.addLayout(brand)
+        hl.addSpacing(14)
+
+        # Symbol search pins a symbol into the existing watchlist engine.
+        self.symbol_search = QLineEdit()
+        self.symbol_search.setFixedWidth(230)
+        self.symbol_search.setPlaceholderText("Symbol search (e.g. RELIANCE)")
+        self.symbol_search.returnPressed.connect(self._search_symbol)
+        hl.addWidget(self.symbol_search)
+
+        hl.addStretch()
+
+        # Data-age + scanner freshness (measured from backend timestamps).
+        self.data_age_label = W.make_label("data age —", 9, MUTED, True)
+        hl.addWidget(self.data_age_label)
+        self.scan_age_badge = W.FreshnessBadge()
+        hl.addWidget(self.scan_age_badge)
+
+        self.mode_chip = W.stat_chip("MODE: CACHE-FIRST", CYAN)
+        hl.addWidget(self.mode_chip)
+        self.session_badge = W.stat_chip("SESSION —", AMBER)
+        hl.addWidget(self.session_badge)
+        self.vix_chip = W.stat_chip("VIX —", MUTED)
+        hl.addWidget(self.vix_chip)
+
+        self.connection_label = W.make_label("INITIALIZING", 9, AMBER, True)
+        hl.addWidget(self.connection_label)
+
+        self.refresh_btn = make_button("↻  FULL REFRESH", True)
+        self.refresh_btn.clicked.connect(self.refresh_report)
+        hl.addWidget(self.refresh_btn)
+
+        self.live_btn = make_button("⚡ LIVE UPDATE", False)
+        self.live_btn.clicked.connect(self.live_update_report)
+        hl.addWidget(self.live_btn)
+
+        self.auto_btn = make_button("AUTO: OFF", False)
+        self.auto_btn.setCheckable(True)
+        self.auto_btn.clicked.connect(self.toggle_auto_refresh)
+        hl.addWidget(self.auto_btn)
+
+        self.clock_label = W.make_label("--:--:--", 10, MUTED, True)
+        hl.addWidget(self.clock_label)
+        return header
+
+    def _search_symbol(self):
+        """Pin the typed symbol(s) into the existing watchlist and jump to
+        the Nova Analysis page. Uses the real watchlist refresh path only."""
+        text = self.symbol_search.text().strip().upper()
+        if not text:
+            return
+        symbols = [s.strip() for s in text.replace(" ", ",").split(",") if s.strip()]
+        existing = [s for s in self.watch_input.text().split(",") if s.strip()]
+        self.watch_input.setText(", ".join(existing + symbols))
+        self.symbol_search.clear()
+        self.switch_page(2)
+        self.apply_watchlist()
 
     def add_status(self, row, title, value, color):
         frame, layout = make_panel(title)
@@ -666,24 +791,76 @@ class MarketLabWindow(QMainWindow):
     # PAGES
     # --------------------------------------------------------
 
+    # --------------------------------------------------------
+    # Reusable dashboard pieces
+    # --------------------------------------------------------
+
+    def _index_card(self, name):
+        frame, layout = W.panel(name, "Backend index snapshot")
+        self_price_row = QHBoxLayout()
+        price = W.make_label("—", 26, TEXT, bold=True, mono=True)
+        change = W.make_label("—", 13, MUTED, bold=True, mono=True)
+        self_price_row.addWidget(price)
+        self_price_row.addWidget(change)
+        self_price_row.addStretch()
+        layout.addLayout(self_price_row)
+        meta = W.make_label("—", 9, MUTED)
+        layout.addWidget(meta)
+        ohlc = W.make_label("O —  H —  L —  C —", 10, TEXT, mono=True)
+        layout.addWidget(ohlc)
+        returns = W.make_label("5d —  |  20d —  |  60d —", 9, MUTED, mono=True)
+        layout.addWidget(returns)
+        chart = W.make_label("intraday chart: N/A (no series in report)", 8, MUTED)
+        layout.addWidget(chart)
+        return {
+            "frame": frame, "price": price, "change": change, "meta": meta,
+            "ohlc": ohlc, "returns": returns, "chart": chart,
+        }
+
+    def _indicator_card(self, name):
+        frame, layout = W.panel(name, "")
+        value = W.make_label("—", 18, TEXT, bold=True, mono=True)
+        interp = W.make_label("—", 9, MUTED)
+        layout.addWidget(value)
+        layout.addWidget(interp)
+        return {"frame": frame, "value": value, "interp": interp}
+
+    # --------------------------------------------------------
+    # PAGES
+    # --------------------------------------------------------
+
     def build_overview(self):
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(12)
 
-        intro, intro_layout = make_panel(
-            "Market overview",
-            "Powered by your existing Market Lab data and analysis engines.",
-        )
-        intro_layout.addWidget(make_label(
-            "Review market conditions, source quality and analysis "
-            "availability in one workspace.",
-            10, MUTED,
-        ))
-        layout.addWidget(intro)
+        # --- Index cards ---
+        indices = QHBoxLayout()
+        indices.setSpacing(12)
+        self.index_cards = {}
+        for which in ("nifty", "bank_nifty"):
+            self.index_cards[which] = self._index_card(
+                "NIFTY 50" if which == "nifty" else "BANK NIFTY"
+            )
+            indices.addWidget(self.index_cards[which]["frame"], 1)
+        layout.addLayout(indices)
 
+        # --- Technical indicator cards ---
+        indicators = QHBoxLayout()
+        indicators.setSpacing(12)
+        self.ind_cards = {}
+        for label in ("RSI", "MACD", "ATR", "VOL"):
+            self.ind_cards[label] = self._indicator_card(label)
+            indicators.addWidget(self.ind_cards[label]["frame"], 1)
+        layout.addLayout(indicators)
+
+        # --- Metric chips (kept for compatibility + header context) ---
         metrics = QHBoxLayout()
+        metrics.setSpacing(10)
         self.metric_market = self.add_metric(metrics, "MARKET", "Waiting…")
         self.metric_time = self.add_metric(metrics, "REPORT TIME", "Waiting…")
         self.metric_event = self.add_metric(metrics, "EVENT RISK", "UNKNOWN")
@@ -692,23 +869,31 @@ class MarketLabWindow(QMainWindow):
         )
         layout.addLayout(metrics)
 
-        # Live 1 s strip: pure in-memory repaint, no network. Shows the
-        # wall clock, NSE session, report age, and auto-poll countdown so
-        # every panel feels live while data polls on the safe cadence.
+        # --- Breadth table ---
+        bframe, blayout = W.panel(
+            "Market breadth",
+            "Scanner breadth. Metrics the backend does not compute are N/A.",
+        )
+        self.breadth_table = W.make_table(["Metric", "Value"], stretch_column=1)
+        blayout.addWidget(self.breadth_table)
+        layout.addWidget(bframe)
+
+        # --- Live 1 s strip (pure in-memory repaint, no network) ---
         live_strip, live_strip_layout = make_panel(
             "Live",
             "1-second display • data polls every 60 s open / 30 s closed.",
         )
-        self.live_clock_value = make_label("--:--:--", 13, TEXT, True)
+        self.live_clock_value = W.make_label("--:--:--", 13, TEXT, True, mono=True)
         live_strip_layout.addWidget(self.live_clock_value)
-        self.live_session_value = make_label("NSE …", 10, MUTED, True)
+        self.live_session_value = W.make_label("NSE …", 10, MUTED, True)
         live_strip_layout.addWidget(self.live_session_value)
-        self.live_age_value = make_label("data age …", 10, MUTED)
+        self.live_age_value = W.make_label("data age …", 10, MUTED)
         live_strip_layout.addWidget(self.live_age_value)
-        self.live_next_value = make_label("next update …", 10, MUTED)
+        self.live_next_value = W.make_label("next update …", 10, MUTED)
         live_strip_layout.addWidget(self.live_next_value)
         layout.addWidget(live_strip)
 
+        # --- Data integrity ---
         integrity, integrity_layout = make_panel(
             "Data integrity",
             "Cached reports are labelled. Missing evidence is not treated as zero.",
@@ -722,24 +907,422 @@ class MarketLabWindow(QMainWindow):
         integrity_layout.addWidget(self.integrity_view, 1)
         layout.addWidget(integrity, 1)
 
-        return page
+        scroll.setWidget(page)
+        return scroll
+
+    # --------------------------------------------------------
+    # Ten-section report workspace
+    # --------------------------------------------------------
+
+    _REPORT_SECTIONS = [
+        ("01", "Macro Overview"),
+        ("02", "Market Breadth"),
+        ("03", "Sector Intelligence"),
+        ("04", "Technical Analysis"),
+        ("05", "Derivatives Intelligence"),
+        ("06", "Institutional Flow"),
+        ("07", "Risk Metrics"),
+        ("08", "Factor Rankings"),
+        ("09", "Earnings Calendar"),
+        ("10", "Guardrails"),
+    ]
 
     def build_report_page(self):
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(10, 10, 10, 12)
+        layout.setSpacing(10)
 
-        frame, frame_layout = make_panel(
-            "Market Lab report",
-            "Raw report returned by get_market_lab_data().",
-        )
+        self.report_sections = {}
+        for number, title in self._REPORT_SECTIONS:
+            section = W.CollapsibleSection(int(number), title, vm.N_A)
+            self.report_sections[number] = section
+            layout.addWidget(section)
+
+        # Raw report kept as a utility collapsible (NOT one of the 10 sections).
+        raw = W.CollapsibleSection("+", "Raw report (JSON)")
         self.report_view = QPlainTextEdit()
         self.report_view.setReadOnly(True)
         self.report_view.setPlaceholderText("Waiting for market report…")
-        frame_layout.addWidget(self.report_view, 1)
-        layout.addWidget(frame)
+        raw.add(self.report_view)
+        raw.set_expanded(False)
+        layout.addWidget(raw)
 
-        return page
+        layout.addStretch()
+        scroll.setWidget(page)
+        return scroll
+
+    # --------------------------------------------------------
+    # Left sector panel + right factor panel
+    # --------------------------------------------------------
+
+    def build_sector_panel(self):
+        frame, layout = W.panel(
+            "Sector overview",
+            "Top sectors by 20D performance. Real data only — never synthesized.",
+        )
+        self.sector_table = W.make_table(
+            ["Sector", "20D %", "RS 20D", "Regime"], stretch_column=0
+        )
+        layout.addWidget(self.sector_table)
+        self.sector_note = W.make_label("Loading sector data…", 9, MUTED)
+        layout.addWidget(self.sector_note)
+        return frame
+
+    def build_factor_panel(self):
+        frame, layout = W.panel(
+            "Factor rankings",
+            "Cross-sectional equal-weight z-score (research_factor_engine). "
+            "Ranks are analysis inputs, not buy/sell signals.",
+        )
+        self.factor_meta = W.make_label("Loading factor rankings…", 9, MUTED)
+        layout.addWidget(self.factor_meta)
+
+        self.factor_avail = W.make_table(["Factor", "Availability"], stretch_column=0)
+        layout.addWidget(self.factor_avail)
+
+        layout.addWidget(W.make_label("TOP 10 (composite z)", 9, MUTED, True))
+        self.factor_top_table = W.make_table(
+            ["Rank", "Symbol", "Composite Z", "Price"],
+            stretch_column=1,
+        )
+        layout.addWidget(self.factor_top_table)
+        layout.addStretch()
+        return frame
+
+    # --------------------------------------------------------
+    # Small table builders for report sections
+    # --------------------------------------------------------
+
+    @staticmethod
+    def _kv_table(rows, title_field="Field", value_field="Value"):
+        table = W.make_table([title_field, value_field], stretch_column=1)
+        W.fill_table(table, rows)
+        return table
+
+    @staticmethod
+    def _list_table(headers, rows, stretch=1):
+        table = W.make_table(headers, stretch_column=stretch)
+        W.fill_table(table, rows)
+        return table
+
+    def _fill_section(self, number, availability, add_func):
+        section = self.report_sections[number]
+        section.set_availability(availability)
+        section.clear_body()
+        add_func(section)
+
+    # --------------------------------------------------------
+    # Renderers (all read-only; populate existing widgets in place)
+    # --------------------------------------------------------
+
+    def update_header(self, report, now=None):
+        try:
+            age = vm.data_age(report, now=now)
+            self.data_age_label.setText(f"data age {age['label']}")
+            if hasattr(self, "live_age_value"):
+                self.live_age_value.setText(f"data age: {age['label']}")
+        except Exception:
+            pass
+
+        try:
+            scan = vm.scanner_info(report, now=now)
+            if scan["count"] is not None:
+                self.scan_age_badge.set_age(
+                    scan["level"], f"{scan['count']:,} stocks • {scan['label']}"
+                )
+            else:
+                self.scan_age_badge.set_age(None, "scan age —")
+        except Exception:
+            pass
+
+        try:
+            session = vm.session_status(now=now)
+            label = session["label"]
+            color = GREEN if session["open"] else MUTED
+            W.restyle_chip(self.session_badge, f"SESSION {label}", color)
+            if hasattr(self, "live_session_value"):
+                self.live_session_value.setText(f"NSE {label}")
+        except Exception:
+            pass
+
+        try:
+            macro = vm.macro(report)
+            vix = macro["india_vix"]
+            if vix is None:
+                W.restyle_chip(self.vix_chip, "VIX N/A", MUTED)
+            else:
+                W.restyle_chip(self.vix_chip, f"VIX {vix:.2f}", CYAN)  # type: ignore
+        except Exception:
+            pass
+
+        try:
+            g = vm.guardrails(report)
+            if hasattr(self, "guardrails"):
+                self.guardrails.set_authorized(g["buy_sell_authorization"])
+        except Exception:
+            pass
+
+    def render_dashboard(self, report):
+        # --- Index cards ---
+        for which in ("nifty", "bank_nifty"):
+            card = vm.index_card(report, which)
+            c = self.index_cards[which]
+            c["price"].setText(fmt_price(card["price"]))
+            if isinstance(card["change_percent"], (int, float)):
+                c["change"].setText(
+                    f"{fmt_pct(card['change_percent'])}"
+                    f"  ({fmt_points(card['change_abs'])})"
+                )
+                c["change"].setStyleSheet(
+                    f"color:{W.sign_color(card['change_percent'])};"
+                    f"background:transparent;border:none;"
+                )
+            else:
+                c["change"].setText(vm.N_A)
+                c["change"].setStyleSheet(
+                    f"color:{MUTED};background:transparent;border:none;"
+                )
+            c["ohlc"].setText(
+                f"O {fmt_points(card['open'])}  H {fmt_points(card['high'])}  "
+                f"L {fmt_points(card['low'])}  C {fmt_points(card['price'])}"
+            )
+            c["returns"].setText(
+                f"5d {fmt_pct(card['return_5d'])}  |  "
+                f"20d {fmt_pct(card['return_20d'])}  |  "
+                f"60d {fmt_pct(card['return_60d'])}"
+            )
+
+        # --- Indicator cards ---
+        ind = vm.indicator_cards(report, "nifty")
+        for label in ("RSI", "MACD", "ATR", "VOL"):
+            card = self.ind_cards[label]
+            data = ind[label]
+            value = data["value"]
+            if isinstance(value, (int, float)):
+                unit = data.get("unit")
+                text = fmt_num(value) + (f" {unit}" if unit else "")
+                card["value"].setText(text)
+                card["value"].setStyleSheet(
+                    f"color:{TEXT};background:transparent;border:none;"
+                )
+            else:
+                card["value"].setText(vm.N_A)
+                card["value"].setStyleSheet(
+                    f"color:{MUTED};background:transparent;border:none;"
+                )
+            card["interp"].setText(str(data.get("interpretation", vm.N_A)))
+
+        # --- Breadth ---
+        b = vm.breadth_block(report)
+        rows = [
+            ["Advances", b["advancing"]],
+            ["Declines", b["declining"]],
+            ["Unchanged", b["unchanged"]],
+            ["A/D Ratio", fmt_num(b["ad_ratio"])],
+            ["% above EMA20", fmt_pct(b["above_ema20_percent"], signed=False)],
+            ["% above EMA50", fmt_pct(b["above_ema50_percent"], signed=False)],
+            ["% above EMA200", fmt_pct(b["above_ema200_percent"], signed=False)],
+            ["Strong uptrend %", fmt_pct(b["strong_uptrend_percent"], signed=False)],
+            ["Strong downtrend %", fmt_pct(b["strong_downtrend_percent"], signed=False)],
+            ["New 52w highs", b["new_52w_highs"]],
+            ["New 52w lows", b["new_52w_lows"]],
+            ["McClellan Summation", b["mcclellan_summation"]],
+        ]
+        W.fill_table(self.breadth_table, rows)
+
+        self.update_header(report)
+
+    def render_sector(self, report):
+        rows = vm.sector_rows(report, limit=8)
+        if rows:
+            W.fill_table(
+                self.sector_table,
+                [
+                    [
+                        r["name"],
+                        fmt_pct(r["return_20d"]),
+                        fmt_num(r["relative_strength_20d"], 1),
+                        r["regime"],
+                    ]
+                    for r in rows
+                ],
+            )
+            self.sector_note.setText(f"{len(rows)} sectors • source: scanner sector engine")
+        else:
+            W.fill_table(self.sector_table, [])
+            self.sector_note.setText("Sector data unavailable in this report.")
+
+    def render_factor(self, report):
+        fb = vm.factor_block(report)
+        self.factor_meta.setText(
+            f"method: {fb['method']}  •  universe: {fb['universe_size']}  •  "
+            f"as of: {fb['as_of']}"
+        )
+        # Factor availability (QUALITY/VALUE genuinely not computed).
+        avail_rows = []
+        for factor in fb["factors_available"]:
+            avail_rows.append([factor, "AVAILABLE (z populated: "
+                              + ("yes" if fb["per_factor_z_available"] else "no") + ")"] )
+        for factor, reason in fb["factors_unavailable"].items():
+            avail_rows.append([factor, "NOT_AVAILABLE"])
+        W.fill_table(self.factor_avail, avail_rows)
+
+        # Top 10 by composite z (the real ranking output).
+        top_rows = []
+        for r in fb["top"]:
+            top_rows.append([
+                r["rank"], r["symbol"], fmt_num(r["composite_z"], 3),
+                fmt_price(r["price"]),
+            ])
+        if not top_rows:
+            top_rows = []
+        W.fill_table(self.factor_top_table, top_rows)
+
+    def _render_failure(self, panel, exc):
+        """Record that one panel failed to render without crashing the rest
+        of the dashboard; the failure is surfaced in the footer/integrity view
+        rather than substituting fabricated data."""
+        message = f"{panel} panel render failed: {type(exc).__name__}: {exc}"
+        try:
+            self.footer.setText(message)
+        except Exception:
+            pass
+        try:
+            self.integrity_view.appendPlainText("\n" + message)
+        except Exception:
+            pass
+
+    def render_report_sections(self, report):
+        # --- 01 Macro ---
+        macro = vm.macro(report)
+        self._fill_section("01", "AVAILABLE", lambda s: s.add(self._kv_table([
+            ["Market regime", macro["market_regime"]],
+            ["NIFTY level", fmt_price(macro["nifty_price"])],
+            ["India VIX", fmt_num(macro["india_vix"])],
+            ["VIX regime", macro["vix_regime"]],
+            ["VIX change %", fmt_pct(macro["vix_change_percent"])],
+            ["VIX 1y percentile", fmt_num(macro["vix_percentile_1y"], 1)],
+        ])))
+
+        # --- 02 Breadth ---
+        b = vm.breadth_block(report)
+        self._fill_section("02", "AVAILABLE", lambda s: s.add(self._kv_table([
+            ["Advances", b["advancing"]],
+            ["Declines", b["declining"]],
+            ["A/D ratio", fmt_num(b["ad_ratio"])],
+            ["% above EMA200", fmt_pct(b["above_ema200_percent"], signed=False)],
+            ["New 52w highs", b["new_52w_highs"]],
+            ["New 52w lows", b["new_52w_lows"]],
+            ["McClellan Summation", b["mcclellan_summation"]],
+        ])))
+
+        # --- 03 Sector ---
+        sectors = vm.sector_rows(report, limit=20)
+        self._fill_section("03", "AVAILABLE" if sectors else "NOT_AVAILABLE",
+            lambda s: s.add(self._list_table(
+                ["Sector", "20D %", "RS 20D", "Regime"],
+                [[r["name"], fmt_pct(r["return_20d"]),
+                  fmt_num(r["relative_strength_20d"], 1), r["regime"]] for r in sectors],
+                stretch=0)))
+
+        # --- 04 Technical ---
+        t = vm.technical_block(report)
+        def _technical(sec):
+            sec.add(self._list_table(
+                ["Rank", "Symbol", "Score", "Trend"],
+                [[r["rank"], r["symbol"], fmt_num(r["technical_score"], 1), r["trend"]]
+                 for r in t["top_stocks"]]))
+            sec.add(W.make_label(
+                f"RSI oversold {t['rsi_oversold']} • RSI overbought {t['rsi_overbought']} • "
+                f"MACD crossovers {t['macd_crossovers']} • support/resistance {t['support_resistance']}",
+                9, MUTED))
+        self._fill_section("04", "PARTIAL", _technical)
+
+        # --- 05 Derivatives ---
+        def _deriv(sec):
+            for which, label in (("nifty", "NIFTY"), ("bank_nifty", "BANK NIFTY")):
+                d = vm.derivatives_block(report, which)
+                if not d.get("available"):
+                    sec.add(W.make_label(f"{label}: derivatives N/A", 10, MUTED))
+                    continue
+                sec.add(self._kv_table([
+                    [f"{label} spot", fmt_price(d["spot"])],
+                    [f"{label} expiry", d["expiry"]],
+                    [f"{label} OI PCR", fmt_num(d["oi_pcr"], 3)],
+                    [f"{label} volume PCR", fmt_num(d["volume_pcr"], 3)],
+                    [f"{label} max pain", fmt_points(d["max_pain"])],
+                    [f"{label} put/call wall", f"{d['put_wall']} / {d['call_wall']}"],
+                    [f"{label} ATM IV", fmt_num(d["atm_iv"])],
+                    [f"{label} top OI-build stocks", d["stock_oi_buildup_list"]],
+                ], value_field="Value"))
+        self._fill_section("05", "AVAILABLE", _deriv)
+
+        # --- 06 Institutional flow ---
+        f = vm.flow_block(report)
+        def _flow(sec):
+            coverage = (f"{f['primary_verified']}/{f['target_sessions']} sessions verified"
+                        if f.get("primary_verified") is not None else vm.N_A)
+            sec.add(self._kv_table([
+                ["Flow regime", f["flow_regime"]],
+                ["FII net 20D (cr)", fmt_crore(f["fii_20d"])],
+                ["DII net 20D (cr)", fmt_crore(f["dii_20d"])],
+                ["FII net 5D (cr)", fmt_crore(f["fii_5d"])],
+                ["DII net 5D (cr)", fmt_crore(f["dii_5d"])],
+                ["Primary coverage", coverage],
+                ["Signal eligible", ("YES" if f["signal_allowed"] else f"NO — {f['signal_reason']}")],
+            ]))
+        self._fill_section("06", "AVAILABLE" if f["available"] else "NOT_AVAILABLE", _flow)
+
+        # --- 07 Risk metrics ---
+        rk = vm.risk_block(report)
+        def _risk(sec):
+            provided = rk["provided"]
+            sec.add(self._kv_table([
+                ["1-day VaR 95%", rk["var_95"]],
+                ["Sharpe ratio", rk["sharpe"]],
+                ["Max drawdown 52w", rk["max_drawdown_52w"]],
+                ["Current drawdown", rk["current_drawdown"]],
+                ["NIFTY ATR %", fmt_num(provided["atr_pct"])],
+                ["NIFTY realized vol 20D", fmt_num(provided["realized_volatility_20d"]) + "%"],
+                ["Volatility percentile", fmt_num(provided["volatility_percentile"], 1)],
+                ["Volatility regime", provided["volatility_regime"]],
+            ]))
+            sec.add(W.make_label(rk["note"], 9, MUTED))
+        self._fill_section("07", "CONTEXT_ONLY", _risk)
+
+        # --- 08 Factor rankings ---
+        fb2 = vm.factor_block(report)
+        def _factor(sec):
+            sec.add(W.make_label(
+                f"method: {fb2['method']} • universe: {fb2['universe_size']} • "
+                f"as of: {fb2['as_of']}", 9, MUTED))
+            sec.add(self._list_table(
+                ["Rank", "Symbol", "Composite Z", "Price"],
+                [[r["rank"], r["symbol"], fmt_num(r["composite_z"], 3), fmt_price(r["price"])]
+                 for r in fb2["top"]]))
+            for factor, reason in fb2["factors_unavailable"].items():
+                sec.add(W.make_label(f"{factor}: NOT_AVAILABLE — {reason}", 9, MUTED))
+        self._fill_section("08", "AVAILABLE" if fb2["status"] == "AVAILABLE" else "NOT_AVAILABLE", _factor)
+
+        # --- 09 Earnings calendar ---
+        e = vm.earnings_block(report)
+        def _earnings(sec):
+            sec.add(W.make_label(
+                f"Earnings calendar NOT_AVAILABLE — {e['reason']}. "
+                "Nova has no earnings source; no dates are shown.", 9, MUTED))
+        self._fill_section("09", "NOT_AVAILABLE", _earnings)
+
+        # --- 10 Guardrails ---
+        g = vm.guardrails(report)
+        def _guard(sec):
+            sec.add(W.make_label(g["text"], 10, AMBER, True))
+            sec.add(W.make_label(f"buy_sell_authorization: {g['buy_sell_authorization']}",
+                                 10, GREEN, True, mono=True))
+        self._fill_section("10", "ACTIVE", _guard)
 
     def build_analysis_page(self):
         page = QWidget()
@@ -1323,6 +1906,34 @@ class MarketLabWindow(QMainWindow):
         # Dedicated Event Risk page + overview banner.
         self.render_event_risk(event_context)
 
+        # --- Terminal panels: dashboard, 10-section workspace, sector, factors ---
+        try:
+            self.render_dashboard(report)
+        except Exception as exc:
+            self._render_failure("dashboard", exc)
+        try:
+            self.render_report_sections(report)
+        except Exception as exc:
+            self._render_failure("report", exc)
+        try:
+            self.render_sector(report)
+        except Exception as exc:
+            self._render_failure("sector", exc)
+        try:
+            self.render_factor(report)
+        except Exception as exc:
+            self._render_failure("factors", exc)
+
+        if hasattr(self, "guardrails"):
+            dmc = report.get("decision_policy") or {}
+            self.guardrails.set_authorized(
+                bool(dmc.get("buy_sell_authorized") is True)
+            )
+            self.guardrails.set_ops(
+                f"scanner: {report.get('stocks_analyzed', 'N/A')} • "
+                f"mode: cache-first • updated {datetime.now().strftime('%H:%M:%S')}"
+            )
+
         availability = find_section(
             report,
             ("data_availability", "data_quality", "source_quality"),
@@ -1514,6 +2125,14 @@ class MarketLabWindow(QMainWindow):
         if hasattr(self, "metric_time") and self.metric_time is not None:
             if self.report_generated_at is not None:
                 self.metric_time.setText(str(self.report_generated_at))
+
+        # Keep the header session badge + data-age live (uses the report's own
+        # backend timestamp; no network, reuses the last report in memory).
+        if getattr(self, "report", None) is not None and hasattr(self, "scan_age_badge"):
+            try:
+                self.update_header(self.report)
+            except Exception:
+                pass
 
     def tick_auto_clock(self):
         from datetime import timezone as _tz, timedelta as _td

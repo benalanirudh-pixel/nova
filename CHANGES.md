@@ -3,6 +3,68 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - Market Lab terminal UI redesign
+
+Redesigned `market_lab_ui.py` into a native Bloomberg/TradingView-style
+terminal while preserving the working backend, worker/refresh orchestration,
+cache-first behavior, existing pages (Analysis, Backtest, Event Risk), and all
+guardrails. No backend, engine, cache, data-source, or `market_lab_data.py` /
+`market_lab_brain.py` logic changed.
+
+New supporting modules:
+- `market_lab/view_model.py` — pure, stdlib-only adapter that maps the real
+  saved report into UI-friendly structures and marks anything the backend does
+  not actually provide as an explicit `N/A` (never a fabricated value).
+- `market_lab/widgets.py` — self-contained PySide6 component library (palette,
+  `CollapsibleSection`, index/indicator cards, `Sparkline`, tables,
+  `FreshnessBadge`, `GuardrailsBar`, `stat_chip`/`restyle_chip`). No new deps.
+
+Layout now: fixed header (branding, symbol search that pins into the existing
+watchlist, data-age + scanner-freshness badges, MODE: CACHE-FIRST chip, live
+session badge OPEN/CLOSED/PRE-OPEN/WEEKEND, India VIX chip, connection, refresh
+controls, clock) -> status chips -> a `QSplitter` of
+[left nav rail + sector overview | center pages | factor rankings] -> footer
+status line -> a persistent `GuardrailsBar` (always visible, not removable).
+
+Center pages: Dashboard (NIFTY/BANK NIFTY index cards with price/change/OHLC/
+derived prev-close/returns and an honest chart-N/A, four indicator cards, and a
+market-breadth table), Market Report (the ten collapsible report sections in
+order 01-10, plus a utility raw-JSON collapsible), Nova Analysis, Factor
+Backtest, Event Risk.
+
+Refresh behavior unchanged and preserved: AUTO toggles the 1 s UI timer only;
+FULL REFRESH and LIVE UPDATE invoke the existing `get_market_lab_data`
+(`force_refresh=True` / `live_only=True`) through the existing single-flight
+worker; displays update in place (no widget rebuild per tick); header clock/age/
+session repaint every second from memory; cache-first startup shows the saved
+report first.
+
+Honesty by design (see VALIDATION for exact limits): QUALITY/VALUE factor
+rankings are explicitly NOT_AVAILABLE (the factor engine does not compute
+fundamentals); per-index RSI/MACD/volume and intraday chart series are N/A (not
+in the saved report); portfolio VaR/Sharpe/drawdown are N/A (risk engine is
+market-risk-context only); earnings calendar is NOT_AVAILABLE (no source);
+52w highs/lows and McClellan summation are N/A. Derived index absolute change
+and previous close are labeled as arithmetic on backend values.
+
+Files changed:
+- `market_lab_ui.py` (build_ui/build_header/dashboard/report-workspace/sector/
+  factor/renderers wired into display_report + cheap header tick)
+- `market_lab/view_model.py` (new), `market_lab/widgets.py` (new)
+- `tests/test_view_model.py` (new, 23), `tests/test_gui_smoke.py`
+  (+`TestTerminalLayout`, 6; 5 nav pages)
+
+Validation:
+
+- `ast.parse` on all changed files; offscreen `MarketLabWindow` builds and
+  renders the real saved report (header WEEKEND / VIX 14.38, index cards,
+  breadth, sectors, factor top-10 rank order, all ten sections with
+  availability chips).
+- Full offline suite: `Ran 242 tests ... OK` (213 -> 242; +29).
+- Real `market_lab_ui.py` launched and performed a live-only refresh over the
+  cached 1,999-stock scan, fetching real NIFTY/BANKNIFTY option chains, no
+  traceback; stopped afterward with no orphaned market-MCP subprocess.
+
 ## 2026-10-10 - Market Lab Event Risk panel (upcoming-events UI)
 
 First UI addition driven by a real gap: event risk was fresh and available in
