@@ -307,3 +307,35 @@ Checks run:
 Not run: GUI launch (interactive desktop only), forced `--refresh`, live
 single-symbol `refresh_watch_symbol` (needs network), Ollama path.
 
+## 2026-10-10 - Factor Backtest Harness Fix + Market Lab Panel
+
+Code changed: `analysis/backtest_harness.py`; `market_lab_ui.py`; new file
+`tests/test_backtest_harness.py`.
+
+Checks run:
+
+- Project-wide `ast` syntax check with `utf-8-sig` decoding: passed.
+- `py_compile` on `analysis/backtest_harness.py`, `market_lab_ui.py`, and
+  `tests/test_backtest_harness.py`: exit code 0.
+- Import + helper smoke (offline): `_safe_float`, `trend_component`,
+  `strength_component`, `score_symbol`, `_up_day_fraction` import cleanly.
+- Unit test suite:
+  `.\\venv\\Scripts\\python.exe -m unittest discover -s tests`
+  - `Ran 67 tests ... OK` (16 new backtest tests added; suite was 51).
+- Signature/report-key check: `run_backtest(symbols, sample, days, workers,
+  quiet)` and the returned keys (`universe`, `completed`, `degraded`,
+  `errors`, `pack_width`, `elapsed_seconds`, `generated_at`, `symbols`,
+  `trend_counts`, `decile_stats`) match the UI `render_backtest` wiring.
+
+Bug fixes verified by regression tests:
+
+- `_safe_float` was undefined -> `NameError` on the first symbol; now defined.
+- `trend` is the raw `TREND` string (not coerced to `None`); regression test
+  `test_trend_is_a_string_not_coerced_none` covers it.
+- `_success_rate` mislabeled a hit-rate as a return; renamed to
+  `up_day_fraction` and relabeled as a hit-rate in the UI and console.
+
+Not run: GUI launch (interactive desktop only), a live `run_backtest` (needs
+network + NSE symbol list), full `--refresh` scan, Ollama path.
+
+

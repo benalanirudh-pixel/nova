@@ -3,6 +3,43 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - Factor backtest harness fixed and wired into Market Lab UI
+
+The factor backtest harness (`analysis/backtest_harness.py`) was committed but
+never actually ran: `_safe_float` was used in `trend_component`,
+`strength_component`, and `score_symbol` but was never defined or imported, so
+`run_backtest` raised `NameError` on the first symbol. It is now functional and
+surfaced as a new "Factor Backtest" panel in Market Lab.
+
+Evidence-integrity fixes (analysis-only rules):
+
+- Added a numeric `_safe_float()` helper (missing / non-numeric -> `None`).
+- `trend` is read as the raw `TREND` classification string, not coerced through
+  the numeric helper. Routing it through `_safe_float` previously yielded
+  `None`, so `trend_counts` and the trend column were always empty.
+- `_success_rate` actually computes the fraction of up days (a hit-rate), not an
+  average return. It was stored/printed as `avg_20d_return` / "avg 20D return",
+  which would misrepresent measured data. Renamed to `up_day_fraction` across
+  the per-symbol entry, the decile stats keys, and the console output. Missing
+  values stay `None` (never treated as zero).
+
+Market Lab UI wiring (reuses the existing Worker / page / nav pattern):
+
+- New "Factor Backtest" nav page: optional symbol list, "RUN BACKTEST" button,
+  and a read-only result view. Blank input runs the 20-symbol quick sample.
+- `run_backtest` is invoked lazily in a `"backtest"` background worker so the
+  heavy scanner / Yahoo imports never block UI startup.
+- `start_task` / `task_finished` / `task_succeeded` / `task_failed` now handle
+  the `"backtest"` task. The result panel labels the metric as an up-day
+  fraction (hit-rate), not a return, and repeats that this is not a signal.
+
+Files changed:
+
+- `analysis/backtest_harness.py` (fix `_safe_float`, trend string, rename
+  `up_day_fraction`)
+- `market_lab_ui.py` (Factor Backtest page + backtest task handling)
+- `tests/test_backtest_harness.py` (new: 16 offline tests)
+
 ## 2026-10-10 - Watchlist refresh results wired into the UI
 
 The stock watchlist (added in `a383f45`) started a `"watchlist"` worker but

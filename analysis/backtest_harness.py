@@ -66,10 +66,22 @@ BACKTEST_DIR.mkdir(parents=True, exist_ok=True)
 # ---------------------------------------------------------------------------
 
 
+def _safe_float(value: Any) -> float | None:
+    """Coerce a value to float, or None when missing / non-numeric."""
+    try:
+        if value is None or pd.isna(value):
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def trend_component(indicators: pd.DataFrame) -> float:
     """Map the trend classification to a small +/- point value."""
     latest = indicators.iloc[-1]
-    trend = _safe_float(latest.get("TREND"))
+    # TREND is a classification string, not a number, so read it directly
+    # instead of routing it through the numeric helper.
+    trend = latest.get("TREND")
     if trend == "STRONG_UPTREND":
         return 30.0
     if trend == "UPTREND":
@@ -117,7 +129,15 @@ def score_symbol(indicators: pd.DataFrame) -> dict[str, Any]:
         "momentum": round(float(momentum), 2),
         "trend_pts": trend_pts,
         "strength_pts": round(strength_pts, 2),
-        "trend": _safe_float(latest.get("TREND")),
+        # TREND is a classification string ("UPTREND", ...), not a number.
+        # Keep it as a string so trend_counts and the UI show the real
+        # classification. Treat missing/NaN as None rather than the string
+        # "nan", so an absent classification is never shown as a real value.
+        "trend": (
+            None
+            if pd.isna(latest.get("TREND"))
+            else str(latest.get("TREND"))
+        ),
         "rsi": rsi,
         "price": price,
         "ema20": ema20,
@@ -150,14 +170,18 @@ def run_symbol(symbol: str) -> dict[str, Any]:
             "symbol": symbol,
             "status": "OK",
             **score_info,
-            "avg_20d_return": _success_rate(indicators),
+            "up_day_fraction": _up_day_fraction(indicators),
         }
     except Exception as exc:  # noqa: BLE001
         return {"symbol": symbol, "status": "ERROR", "error": str(exc)}
 
 
-def _success_rate(data: pd.DataFrame) -> float:
-    """Fraction of 1d bars in the trailing window that were positive."""
+def _up_day_fraction(data: pd.DataFrame) -> float:
+    """Fraction of 1d bars that were positive (a hit-rate, not a return).
+
+    This is the share of up days across the loaded window, NOT an average
+    daily or 20-day return. Keep it labelled as a fraction everywhere.
+    """
     returns = data["Close"].pct_change().dropna()
     if returns.empty:
         return 0.0
@@ -221,7 +245,7 @@ def run_backtest(
                 "score": r["score"],
                 "trend": r.get("trend"),
                 "rsi": r.get("rsi"),
-                "avg_20d_return": r.get("avg_20d_return"),
+                "up_day_fraction": r.get("up_day_fraction"),
             }
             for r in ranked
         ],
@@ -236,21 +260,23 @@ def run_backtest(
 
     def decile_avg(idx: int) -> float | None:
         chunk = ranked[idx * pack: (idx + 1) * pack] if ranked else []
-        valid = [r for r in chunk if r.get("avg_20d_return") is not None]
+        valid = [r for r in chunk if r.get("up_day_fraction") is not None]
         if not valid:
             return None
-        return float(np.mean([r["avg_20d_return"] for r in valid]))
+        return float(np.mean([r["up_day_fraction"] for r in valid]))
 
     top = decile_avg(0)
     bottom = decile_avg(-1)
     mid = decile_avg(n // 2) if n else None
     report["decile_stats"] = {
-        "top_decile_avg_20d_return": top,
-        "bottom_decile_avg_20d_return": bottom,
+        "top_decile_up_day_fraction": top,
+        "bottom_decile_up_day_fraction": bottom,
         "spread_top_vs_bottom": (
-            round(top - bottom, 2) if (top is not None and bottom is not None) else None
+            round(top - bottom, 4)
+            if (top is not None and bottom is not None)
+            else None
         ),
-        "mid_decile_avg_20d_return": mid,
+        "mid_decile_up_day_fraction": mid,
     }
 
     # ------------------------------------------------------------------
@@ -262,10 +288,13 @@ def run_backtest(
     if not quiet:
         print(f"\n{'='*60}")
         print(f"FACTOR BACKTEST â€” {len(ok)}/{len(pool)} completed in {elapsed:.1f}s")
-        print(f"  Top decile avg 20D return: {top}")
-        print(f"  Bottom decile avg 20D return: {bottom}")
+        print(f"  Top decile up-day fraction: {top}")
+        print(f"  Bottom decile up-day fraction: {bottom}")
         spread = report["decile_stats"]["spread_top_vs_bottom"]
-        print(f"  Spread (top - bottom): {spread if spread is None else round(spread, 2)}%")
+        print(
+            f"  Spread (top - bottom): "
+            f"{spread if spread is None else round(spread, 4)}"
+        )
         print(f"  Saved: {path.name}")
         print(f"{'='*60}\n")
         print("Trend mix:", report["trend_counts"])

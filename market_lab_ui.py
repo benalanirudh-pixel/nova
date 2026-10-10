@@ -468,6 +468,7 @@ class MarketLabWindow(QMainWindow):
             ("Overview", self.build_overview),
             ("Market Report", self.build_report_page),
             ("Nova Analysis", self.build_analysis_page),
+            ("Factor Backtest", self.build_backtest_page),
         ]
 
         for index, (title, builder) in enumerate(specs):
@@ -657,6 +658,131 @@ class MarketLabWindow(QMainWindow):
 
         return page
 
+    def build_backtest_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        controls, controls_layout = make_panel(
+            "Factor backtest",
+            "Ranks the universe by the existing technical composite score "
+            "and compares the top vs bottom deciles. Analysis only.",
+        )
+
+        symbol_row = QHBoxLayout()
+        symbol_row.addWidget(make_label("SYMBOLS", 9, MUTED, True))
+        self.backtest_input = QLineEdit()
+        self.backtest_input.setMinimumHeight(36)
+        self.backtest_input.setPlaceholderText(
+            "blank = 20-symbol quick sample • or RELIANCE, TCS …"
+        )
+        symbol_row.addWidget(self.backtest_input, 1)
+        self.backtest_btn = make_button("RUN BACKTEST", True)
+        self.backtest_btn.clicked.connect(self.run_backtest_task)
+        symbol_row.addWidget(self.backtest_btn)
+        controls_layout.addLayout(symbol_row)
+        layout.addWidget(controls)
+
+        output, output_layout = make_panel(
+            "Backtest result",
+            "Up-day fraction is a hit-rate, not a return. Missing data is "
+            "flagged, never treated as zero.",
+        )
+        self.backtest_view = QPlainTextEdit()
+        self.backtest_view.setReadOnly(True)
+        self.backtest_view.setPlaceholderText(
+            "Run a backtest to see the decile spread."
+        )
+        output_layout.addWidget(self.backtest_view, 1)
+        layout.addWidget(output, 1)
+
+        return page
+
+    def run_backtest_task(self):
+        if "backtest" in self.workers:
+            return
+
+        raw = self.backtest_input.text().strip().upper()
+        symbols = [
+            part.strip()
+            for part in raw.replace(";", ",").split(",")
+            if part.strip()
+        ]
+
+        # Import lazily so the heavy scanner/Yahoo dependencies never
+        # block UI startup when the panel is unused.
+        from analysis.backtest_harness import run_backtest
+
+        if symbols:
+            self.start_task(
+                "backtest",
+                run_backtest,
+                symbols=symbols,
+                quiet=True,
+            )
+        else:
+            self.start_task(
+                "backtest",
+                run_backtest,
+                sample=20,
+                quiet=True,
+            )
+
+    def render_backtest(self, result):
+        if not hasattr(self, "backtest_view"):
+            return
+
+        if not isinstance(result, dict):
+            self.backtest_view.setPlainText(
+                "Backtest returned an unexpected result."
+            )
+            return
+
+        stats = result.get("decile_stats") or {}
+        trend_counts = result.get("trend_counts") or {}
+
+        lines = [
+            f"Universe        : {result.get('universe')}",
+            f"Completed       : {result.get('completed')}",
+            f"Degraded        : {result.get('degraded')}",
+            f"Errors          : {result.get('errors')}",
+            f"Pack width      : {result.get('pack_width')}",
+            f"Elapsed         : {result.get('elapsed_seconds')}s",
+            f"Generated       : {result.get('generated_at')}",
+            "",
+            "DECILE UP-DAY FRACTION (hit-rate, NOT a return)",
+            f"  Top decile    : {stats.get('top_decile_up_day_fraction')}",
+            f"  Bottom decile : {stats.get('bottom_decile_up_day_fraction')}",
+            f"  Spread        : {stats.get('spread_top_vs_bottom')}",
+            f"  Mid decile    : {stats.get('mid_decile_up_day_fraction')}",
+            "",
+            "TREND MIX",
+        ]
+
+        if trend_counts:
+            for key, count in trend_counts.items():
+                lines.append(f"  {key}: {count}")
+        else:
+            lines.append("  (no symbols completed)")
+
+        lines += ["", "TOP RANKED"]
+        for entry in (result.get("symbols") or [])[:10]:
+            lines.append(
+                f"  {entry.get('symbol')}: score {entry.get('score')} "
+                f"| trend {entry.get('trend')} "
+                f"| rsi {entry.get('rsi')} "
+                f"| up {entry.get('up_day_fraction')}"
+            )
+
+        lines += [
+            "",
+            "Analysis only: up-day fraction measures how often prices closed",
+            "higher, not average return. This is not a buy/sell signal.",
+        ]
+
+        self.backtest_view.setPlainText("\n".join(lines))
+
     def switch_page(self, index):
         self.pages.setCurrentIndex(index)
 
@@ -755,6 +881,11 @@ class MarketLabWindow(QMainWindow):
             self.analyze_btn.setEnabled(False)
             self.footer.setText("Nova AI is analyzing the market report…")
 
+        elif name == "backtest":
+            self.backtest_btn.setEnabled(False)
+            self.progress.setRange(0, 0)
+            self.footer.setText("Factor backtest running in the background…")
+
         worker.start()
 
     def task_finished(self, name, worker):
@@ -772,6 +903,10 @@ class MarketLabWindow(QMainWindow):
 
         elif name == "analysis":
             self.analyze_btn.setEnabled(True)
+
+        elif name == "backtest":
+            self.backtest_btn.setEnabled(True)
+            self.progress.setRange(0, 100)
 
         worker.deleteLater()
 
@@ -807,6 +942,14 @@ class MarketLabWindow(QMainWindow):
                     self.watch_data[symbol] = result
                     self.render_watchlist()
 
+        elif name == "backtest":
+            self.render_backtest(result)
+            self.switch_page(3)
+            self.footer.setText(
+                f"Backtest completed in {elapsed:.2f}s. "
+                "Up-day fraction is a hit-rate, not a return."
+            )
+
     def task_failed(self, name, error, elapsed):
         if name == "report":
             # A failed poll must not kill auto mode; the next tick retries.
@@ -817,6 +960,16 @@ class MarketLabWindow(QMainWindow):
             self.footer.setText(
                 "Update failed. The saved report remains visible. "
                 "Check its timestamp before relying on it."
+            )
+        elif name == "backtest":
+            self.status_data.setText("BACKTEST ERROR")
+            self.status_data.setStyleSheet(f"color:{RED};")
+            self.backtest_view.setPlainText(
+                f"Backtest failed after {elapsed:.1f}s.\n\n{error}"
+            )
+            self.footer.setText(
+                f"Backtest failed after {elapsed:.1f}s. "
+                "See the terminal output for details."
             )
         else:
             self.status_data.setText("ERROR" if name == "report" else "ANALYSIS ERROR")
