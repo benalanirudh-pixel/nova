@@ -599,6 +599,33 @@ instead); the `terminate()` last-resort path (only reached if a worker exceeds
 the 10s grace window).
 
 
+## 2026-10-10 - start_nova.py launcher with local-service preflight
+
+Code added: new files `start_nova.py` and `tests/test_start_nova.py` (9 offline
+tests). No existing app, engine, cache, or data-source logic changed.
+
+Checks run:
+
+- `ast.parse` on `start_nova.py` and `tests/test_start_nova.py`: passed.
+- `.\venv\Scripts\python.exe -m unittest tests.test_start_nova -v`
+  -> `Ran 9 tests in 0.004s - OK`.
+- Full suite: `Ran 179 tests ... OK` (170 -> 179; 9 new).
+- Live `.\venv\Scripts\python.exe start_nova.py --check`:
+  `[UP] Ollama http://localhost:11434/api/tags (HTTP 200)` and
+  `[UP] SearXNG http://localhost:8080 (HTTP 200)` -> "All services are up."
+
+Behavior covered by tests (all offline, `urllib.request.urlopen` patched):
+`check_service`/`check_all` return UP/DOWN without raising (connection refused,
+timeout); `print_report` returns True only when every service is UP; `main
+--check` exits 0 when healthy and 1 when a service is down without launching;
+`main market` calls `launch("market")` and never prompts.
+
+Not run: an actual interactive, on-desktop launch of a UI through the launcher
+(the Popen path is verified via a mocked `launch()`; the two entry points
+themselves were independently live-launched and verified earlier). The preflight
+check is advisory only and never blocks a launch.
+
+
 
 
 

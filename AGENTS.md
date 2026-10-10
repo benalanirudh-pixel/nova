@@ -69,6 +69,16 @@ Use the existing virtual environment unless the user asks otherwise:
 .\venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
+Launcher with a preflight check of Ollama/SearXNG (never blocks the UI, only
+warns):
+
+```powershell
+.\venv\Scripts\python.exe start_nova.py main
+.\venv\Scripts\python.exe start_nova.py market
+.\venv\Scripts\python.exe start_nova.py --check
+.\venv\Scripts\python.exe start_nova.py        # interactive menu
+```
+
 The full refresh command is intentionally heavier:
 
 ```powershell

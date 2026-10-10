@@ -3,6 +3,37 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - Add start_nova.py launcher with local-service preflight
+
+New file `start_nova.py`: a launcher that preflight-checks the two local
+services Nova depends on, then starts one of the existing entry points.
+
+- `check_service(url, timeout)` / `check_all()` probe Ollama
+  (`http://localhost:11434/api/tags`) and SearXNG (`http://localhost:8080`) via
+  `urllib` and return `(ok, detail)`; they never raise and never block a launch.
+- `print_report(...)` prints a clear UP/DOWN table with what each service is
+  used for, and returns overall health.
+- `launch("main"|"market")` starts `main.py` or `market_lab_ui.py` with the same
+  interpreter (`subprocess.Popen`); CLI: `start_nova.py [main|market]`,
+  `--check` (check only, exit 0 if all up else 1), or no args for an interactive
+  menu.
+- The check is advisory only: Nova still launches when a service is DOWN, just
+  with a warning. No new broker/order/trading behavior; no app logic changed.
+
+Files added:
+
+- `start_nova.py`
+- `tests/test_start_nova.py` (new: 9 offline tests, `urlopen` patched)
+- `AGENTS.md` (Common Commands now lists the launcher)
+
+Validation:
+
+- `ast.parse` on `start_nova.py` and the new test file: passed.
+- `.\venv\Scripts\python.exe -m unittest tests.test_start_nova -v` -> 9 tests OK.
+- Full suite: `Ran 179 tests ... OK` (170 -> 179; 9 new).
+- Live `.\venv\Scripts\python.exe start_nova.py --check` -> Ollama UP (HTTP 200),
+  SearXNG UP (HTTP 200), "All services are up."
+
 ## 2026-10-10 - Market Lab clean shutdown on window close
 
 `market_lab_ui.py`: replaced the old `closeEvent` that refused to close while
