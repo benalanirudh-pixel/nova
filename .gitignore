@@ -23,6 +23,9 @@ market_lab_debug.log
 analysis/data/cache/
 analysis/data/data/cache/
 
+# Backtest harness cache (ignored directory and its contents)
+analysis/cache
+
 # Local editor/system noise
 .vscode/
 .idea/
