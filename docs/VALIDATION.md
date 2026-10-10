@@ -117,8 +117,11 @@ Test-Path -LiteralPath "requirements.txt"
 - No full `--refresh` market scan was run during the documentation audit.
 - No live trade/broker behavior exists to validate, and none should be added.
 - Automated unit tests now exist for engine math:
-  `tests/test_engine_math.py` (32 tests, stdlib unittest). Integration and
-  backtest coverage still missing.
+  `tests/test_engine_math.py` (32 tests, stdlib unittest). Offline
+  cache-first pipeline integration coverage now exists too:
+  `tests/test_pipeline_integration.py` (save/load round-trip, cache-first
+  dispatch, consumer agreement, staleness). Backtest of the full-history
+  live path and GUI-layout paint are still not covered.
 - Existing `test_nse_*` scripts are manual smoke scripts, not a formal test
   suite.
 
@@ -458,6 +461,33 @@ Not run: a real full `scan_market()` NSE scan, GUI launch, Ollama path. The
 assistant `get_market_analysis()` still triggers a scan only when NO saved
 Market Lab report exists (the previous always-scan behavior is now the
 no-cache fall-back).
+
+
+## 2026-10-10 - Cache-first pipeline integration tests
+
+Code changed: `tools.py` (`get_market_brief` now reuses the shared
+`_load_latest_market_lab_report()` loader instead of duplicating the cache
+glob; behavior preserved). New file `tests/test_pipeline_integration.py`.
+Removed approved scratch files from the repo root (`run_test.py`,
+`test_fix.py`, `test_verify.py`, `test_output.txt`; never committed).
+
+Checks run:
+
+- `ast.parse` on `tools.py` and the new test file: passed.
+- `.\venv\Scripts\python.exe -m unittest tests.test_pipeline_integration -v`
+  -> `Ran 19 tests in 1.224s - OK`.
+- Full suite: `Ran 152 tests in 1.398s - OK` (133 -> 152; 19 new).
+- Live read-only `get_market_brief()` against the real cache still returns a
+  valid brief (source report ~0.0h fresh).
+
+Integration coverage now in place (all offline, cache redirected to a temp
+dir so the real cache is never written): save/load round-trip + guardrail
+survival + newest-file selection; `get_market_brief`/`get_market_analysis`
+read the temp cache; `get_market_analysis` never scans when a report exists
+and falls back to the scanner only on an empty cache; brief and analysis
+agree on the same measured facts; stale/missing handled consistently.
+
+Not run: GUI launch, a real `scan_market()` run, the Ollama path.
 
 
 

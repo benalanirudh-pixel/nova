@@ -3,6 +3,44 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - Cache-first pipeline integration tests + shared report loader
+
+Added `tests/test_pipeline_integration.py` (19 offline tests) covering the
+end-to-end cache-first pipeline without network, Ollama, real scan, or writes
+to the real cache:
+
+- Save/load round-trip: `save_json_report` -> `load_latest_saved_report`
+  returns an equivalent report; guardrails (`analysis_only`,
+  `buy_sell_authorized: false`) survive the round-trip; newest file wins;
+  empty cache loads nothing.
+- `get_market_brief` and `get_market_analysis` read a redirectable temp cache;
+  `get_market_analysis` never calls `scan_market` when a saved report exists,
+  and falls back to the scanner only when the cache is empty.
+- Consumer agreement: the brief and the analysis snapshot, which parse the
+  same report independently, must report identical measured facts (regime,
+  India VIX, breadth, FII/DII flow regime, signal-eligibility honesty, top
+  symbols).
+- Stale/missing handling is consistent across both consumers.
+
+Code change: `tools.get_market_brief` now reuses the shared
+`_load_latest_market_lab_report()` loader instead of duplicating the
+cache-globbing logic. Behavior is preserved (newest valid saved report ->
+brief; none -> the "open Market Lab first" message) and the corpus is now
+readable from a single cache path. Minor behavior improvement: a corrupt
+newest file now falls back to an older valid report instead of erroring.
+
+Removed approved scratch/debug files from the repo root: `run_test.py`,
+`test_fix.py`, `test_verify.py`, `test_output.txt` (never committed; two were
+UTF-16 throwaway scripts, one a 109-byte import stub, one a captured
+test-output log).
+
+Validation:
+
+- `ast.parse` on `tools.py` and the new test file passed.
+- `import tools`; live read-only `get_market_brief()` against the real cache
+  still returns a valid brief (0.0h fresh).
+- Full suite: `Ran 152 tests ... OK` (133 -> 152; 19 new).
+
 ## 2026-10-10 - requirements.txt generated from venv + full verification
 
 - Generated `requirements.txt` from `.\venv\Scripts\pip.exe freeze` (58 packages).

@@ -1415,31 +1415,18 @@ def get_market_brief() -> str:
     """Build the morning brief from the latest SAVED Market Lab report.
 
     Cache-first and read-only: never runs a scan or fetches live prices.
-    """
-    cache_dir = (
-        Path(__file__).resolve().parent
-        / "analysis"
-        / "data"
-        / "cache"
-        / "market_lab"
-    )
-    try:
-        files = list(cache_dir.glob("market_lab_*.json"))
-    except OSError:
-        files = []
 
-    if not files:
+    Uses the shared report loader so the brief and the market-analysis
+    snapshot always read the same newest saved report (a single cache
+    resolution point, and easy to point at a test cache).
+    """
+    report = _load_latest_market_lab_report()
+
+    if report is None:
         return (
             "No saved Market Lab report found. Open Nova Market Lab "
             "(market_lab_ui.py) once to generate a report, then ask again."
         )
-
-    latest = max(files, key=lambda p: p.stat().st_mtime)
-    try:
-        with latest.open("r", encoding="utf-8") as handle:
-            report = json.load(handle)
-    except (OSError, json.JSONDecodeError) as exc:
-        return f"MARKET BRIEF ERROR | could not read {latest.name}: {exc}"
 
     return _build_market_brief(report)
 
