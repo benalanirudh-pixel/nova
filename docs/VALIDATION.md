@@ -321,11 +321,13 @@ Checks run:
   `strength_component`, `score_symbol`, `_up_day_fraction` import cleanly.
 - Unit test suite:
   `.\\venv\\Scripts\\python.exe -m unittest discover -s tests`
-  - `Ran 67 tests ... OK` (16 new backtest tests added; suite was 51).
-- Signature/report-key check: `run_backtest(symbols, sample, days, workers,
-  quiet)` and the returned keys (`universe`, `completed`, `degraded`,
-  `errors`, `pack_width`, `elapsed_seconds`, `generated_at`, `symbols`,
-  `trend_counts`, `decile_stats`) match the UI `render_backtest` wiring.
+  - `Ran 69 tests ... OK` (backtest helper tests plus a network-stubbed
+  `run_backtest` regression test; suite was 51 before this work).
+- Signature/report-key check: `run_backtest(symbols: list[str] | None = None,
+  sample, days, workers, quiet)` and the returned keys (`universe`,
+  `completed`, `degraded`, `errors`, `pack_width`, `elapsed_seconds`,
+  `generated_at`, `symbols`, `trend_counts`, `decile_stats`) match the UI
+  `render_backtest` wiring.
 
 Bug fixes verified by regression tests:
 
@@ -334,6 +336,12 @@ Bug fixes verified by regression tests:
   `test_trend_is_a_string_not_coerced_none` covers it.
 - `_success_rate` mislabeled a hit-rate as a return; renamed to
   `up_day_fraction` and relabeled as a hit-rate in the UI and console.
+- `run_backtest` required a positional `symbols`, so the UI's blank-input
+  path (`run_backtest(sample=20, quiet=True)`) raised `TypeError`; `symbols`
+  now defaults to `None`.
+- The universe guard `if symbols is None:` let the CLI's empty-list `args`
+  take the explicit branch (0 symbols). Now `if not symbols:` so `None` and
+  `[]` both use the universe.
 
 Not run: GUI launch (interactive desktop only), a live `run_backtest` (needs
 network + NSE symbol list), full `--refresh` scan, Ollama path.

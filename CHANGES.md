@@ -33,12 +33,26 @@ Market Lab UI wiring (reuses the existing Worker / page / nav pattern):
   the `"backtest"` task. The result panel labels the metric as an up-day
   fraction (hit-rate), not a return, and repeats that this is not a signal.
 
+Runtime call-path fixes (found after the panel was wired, covered by
+regression tests that stub the network layer):
+
+- `run_backtest(symbols, ...)` had `symbols` as a required positional with no
+  default, but the UI's blank-input path calls `run_backtest(sample=20,
+  quiet=True)`, which raised `TypeError: missing 1 required positional
+  argument` on every "RUN BACKTEST" click. `symbols` now defaults to `None`.
+- The universe-vs-explicit guard used `if symbols is None:`, but the CLI
+  (`main()`) passes `args.symbols` = `[]` from `nargs="*"`. An empty list is
+  not `None`, so `--quick` and any no-arg run took the explicit branch and
+  backtested an empty pool (silently 0 symbols). The guard is now
+  `if not symbols:` so both `None` and `[]` mean "use the universe".
+
 Files changed:
 
 - `analysis/backtest_harness.py` (fix `_safe_float`, trend string, rename
-  `up_day_fraction`)
+  `up_day_fraction`, `symbols=None` default + `if not symbols` guard)
 - `market_lab_ui.py` (Factor Backtest page + backtest task handling)
-- `tests/test_backtest_harness.py` (new: 16 offline tests)
+- `tests/test_backtest_harness.py` (new: offline helper tests plus a
+  network-stubbed `run_backtest` regression test)
 
 ## 2026-10-10 - Watchlist refresh results wired into the UI
 

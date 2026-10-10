@@ -8,7 +8,9 @@ Run from the project root:
 
 from __future__ import annotations
 
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -140,6 +142,108 @@ class TestUpDayFraction(unittest.TestCase):
         value = _up_day_fraction(frame)
         self.assertGreaterEqual(value, 0.0)
         self.assertLessEqual(value, 1.0)
+
+
+class TestRunBacktestDeciles(unittest.TestCase):
+    """Regression coverage for run_backtest's decile math.
+
+    Stubs the network/scanner layer so this runs fully offline. Guards the
+    bug where the bottom decile was sliced as ranked[-pack:0] (always empty),
+    which made spread_top_vs_bottom permanently None.
+    """
+
+    def _fake_module(self):
+        import analysis.backtest_harness as h
+        return h
+
+    def test_decile_spread_is_computed_not_none(self):
+        import tempfile
+
+        h = self._fake_module()
+
+        # 20 symbols; up_day_fraction rises monotonically with score so the
+        # top decile must clearly beat the bottom decile.
+        symbols = [f"S{i:02d}" for i in range(20)]
+
+        def fake_run_symbol(symbol, days=252):
+            i = int(symbol[1:])
+            return {
+                "symbol": symbol,
+                "status": "OK",
+                "score": float(i),
+                "trend": "UPTREND" if i >= 10 else "DOWNTREND",
+                "rsi": 50.0,
+                "up_day_fraction": i / 19.0,
+            }
+
+        orig_syms = h.get_nse_symbols
+        orig_run = h.run_symbol
+        orig_dir = h.BACKTEST_DIR
+        tmp = Path(tempfile.mkdtemp(prefix="nova_bt_test_"))
+        try:
+            h.get_nse_symbols = lambda: list(symbols)
+            h.run_symbol = fake_run_symbol
+            h.BACKTEST_DIR = tmp
+
+            report = h.run_backtest(sample=20, quiet=True)
+        finally:
+            h.get_nse_symbols = orig_syms
+            h.run_symbol = orig_run
+            h.BACKTEST_DIR = orig_dir
+            shutil.rmtree(tmp, ignore_errors=True)
+
+        self.assertEqual(report["universe"], 20)
+        self.assertEqual(report["completed"], 20)
+        stats = report["decile_stats"]
+        # The core regression assertions: these used to be None.
+        self.assertIsNotNone(stats["top_decile_up_day_fraction"])
+        self.assertIsNotNone(stats["bottom_decile_up_day_fraction"])
+        self.assertIsNotNone(stats["mid_decile_up_day_fraction"])
+        self.assertIsNotNone(stats["spread_top_vs_bottom"])
+        # Top decile (highest scores) must beat bottom decile.
+        self.assertGreater(stats["spread_top_vs_bottom"], 0.9)
+        # n=20 => pack=2, so each decile averages its top/bottom 2 symbols.
+        # ranked is S19..S00 by score and up_day_fraction = i/19, giving
+        # top = mean(1.0, 18/19) = 0.973684 and bottom = mean(1/19, 0.0) = 0.026316.
+        self.assertAlmostEqual(
+            stats["top_decile_up_day_fraction"], 0.973684, places=4
+        )
+        self.assertAlmostEqual(
+            stats["bottom_decile_up_day_fraction"], 0.026316, places=4
+        )
+
+    def test_explicit_symbols_branch_still_works(self):
+        import tempfile
+
+        h = self._fake_module()
+
+        def fake_run_symbol(symbol, days=252):
+            return {
+                "symbol": symbol,
+                "status": "OK",
+                "score": 1.0,
+                "trend": "UPTREND",
+                "rsi": 50.0,
+                "up_day_fraction": 0.5,
+            }
+
+        orig_run = h.run_symbol
+        orig_dir = h.BACKTEST_DIR
+        tmp = Path(tempfile.mkdtemp(prefix="nova_bt_test_"))
+        try:
+            h.run_symbol = fake_run_symbol
+            h.BACKTEST_DIR = tmp
+            report = h.run_backtest(
+                symbols=["S1", "S1", "S2"], sample=0, quiet=True
+            )
+        finally:
+            h.run_symbol = orig_run
+            h.BACKTEST_DIR = orig_dir
+            shutil.rmtree(tmp, ignore_errors=True)
+
+        # Duplicate removed -> 2 unique symbols.
+        self.assertEqual(report["universe"], 2)
+        self.assertEqual(report["completed"], 2)
 
 
 if __name__ == "__main__":

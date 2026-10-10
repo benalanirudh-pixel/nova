@@ -193,7 +193,7 @@ def _up_day_fraction(data: pd.DataFrame) -> float:
 
 
 def run_backtest(
-    symbols: list[str] | None,
+    symbols: list[str] | None = None,
     sample: int = 20,
     days: int = 252,
     workers: int = 5,
@@ -202,7 +202,9 @@ def run_backtest(
     now = datetime.now().strftime("%Y%m%d_%H%M%S")
     results: list[dict[str, Any]] = []
 
-    if symbols is None:
+    # None or an empty list both mean "use the scanner universe"; the UI
+    # blank path and the CLI (argparse nargs="*") rely on this.
+    if not symbols:
         all_symbols = get_nse_symbols()
         pool = all_symbols[: 500 if not quiet else max(sample, 10)]
     else:
@@ -258,16 +260,21 @@ def run_backtest(
         },
     }
 
-    def decile_avg(idx: int) -> float | None:
-        chunk = ranked[idx * pack: (idx + 1) * pack] if ranked else []
+    # Deciles are contiguous rank slices of width `pack`. The bottom decile
+    # is the *last* `pack` symbols, so it must be sliced from the tail: a
+    # negative group index (ranked[-pack:0]) yields an empty slice and would
+    # silently report the spread as None.
+    def decile_avg(lo: int, hi: int) -> float | None:
+        chunk = ranked[lo:hi]
         valid = [r for r in chunk if r.get("up_day_fraction") is not None]
         if not valid:
             return None
         return float(np.mean([r["up_day_fraction"] for r in valid]))
 
-    top = decile_avg(0)
-    bottom = decile_avg(-1)
-    mid = decile_avg(n // 2) if n else None
+    top = decile_avg(0, pack)
+    bottom = decile_avg(max(0, n - pack), n)
+    mid_lo = max(0, (n - pack) // 2)
+    mid = decile_avg(mid_lo, mid_lo + pack)
     report["decile_stats"] = {
         "top_decile_up_day_fraction": top,
         "bottom_decile_up_day_fraction": bottom,
