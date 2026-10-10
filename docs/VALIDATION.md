@@ -787,3 +787,34 @@ smaller width (layout uses QSplitter + QScrollArea and in-place updates; pixel
 review is manual); FULL REFRESH (`--refresh`, ~2-3 min full scan) was not
 triggered to avoid the heavy scan — it calls the same existing path and is
 unchanged.
+
+
+## 2026-10-10 - Market Lab terminal visual refinement (Step 5)
+
+Code changed: `market_lab_ui.py` and `market_lab/widgets.py` (presentation
+only). No backend, engine, data-source, or report-schema change; honesty
+preserved.
+
+Checks run:
+
+- `ast.parse` on both files: passed.
+- Non-overlap / pin checks (`win.grab()` + widget geometry, offscreen) at
+  1920x1080, 1366x768, 1280x720: header fixed at 56px; footer + guardrails bar
+  pinned to the bottom (guardrails_bottom == window height) with
+  guardrails_y >= footer_bottom at every size (no overlap).
+- Offscreen render of the real report: header badges; index card NIFTY with
+  real OHLC snapshot (SnapshotBar) and BANK NIFTY "chart unavailable"; five
+  sector rows each with a proportional performance bar; factor top-10 rows with
+  right-aligned numerics + 7 availability rows (color-coded).
+- Full offline suite (offscreen): `Ran 242 tests ... OK` (unchanged).
+- Real entry point launched (`.\venv\Scripts\python.exe -B -u market_lab_ui.py`,
+  pid 53256, running) with a live-only refresh over the cached scan; no
+  traceback. Launch command for the user: `.\venv\Scripts\python.exe market_lab_ui.py`.
+
+Fixed during refinement: a duplicate stale `render_sector` (referencing the
+removed `sector_table`) had shadowed the new sector-rows renderer; removed.
+
+Not verified: human pixel review vs the reference screenshot — this environment
+cannot capture/display the rendered window (only geometry + a saved PNG proxy),
+so aesthetic judgments (spacing balance, chart aesthetics) remain a manual
+step. FULL REFRESH not triggered here.

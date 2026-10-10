@@ -31,21 +31,21 @@ from PySide6.QtWidgets import (
 # Palette + typography
 # ---------------------------------------------------------------------------
 
-BG = "#05090D"
-SIDEBAR = "#080F15"
-PANEL = "#0B151D"
-PANEL_ALT = "#10212B"
-BORDER = "#1A3542"
+BG = "#050B10"
+SIDEBAR = "#070F16"
+PANEL = "#09141D"
+PANEL_ALT = "#0D1D28"
+BORDER = "#1B3443"
 
-TEXT = "#E8F3F7"
-MUTED = "#8198A3"
+TEXT = "#E6F0F7"
+MUTED = "#8298AA"
 
-GREEN = "#39F0B2"
-CYAN = "#35DFFF"
+GREEN = "#20E69A"
+CYAN = "#36DDF2"
 PURPLE = "#B49AFF"
-AMBER = "#FFC857"
-RED = "#FF647C"
-BLUE = "#4DA3FF"
+AMBER = "#FFC45B"
+RED = "#FF465B"
+BLUE = "#3198FF"
 
 REGULAR = "Segoe UI"
 MONO = "Consolas"
@@ -308,6 +308,117 @@ class Sparkline(QWidget):
 
 
 # ---------------------------------------------------------------------------
+# Snapshot + performance bars (custom-painted, real data only)
+# ---------------------------------------------------------------------------
+
+class SnapshotBar(QWidget):
+    """A compact single-session OHLC snapshot visualization: a high~low range
+    with open/close ticks. If the backend provides no OHLC it renders an
+    explicit 'chart unavailable' placeholder — never synthetic candles."""
+
+    def __init__(self, width=150, height=66, parent=None):
+        super().__init__(parent)
+        self.setMinimumSize(width, height)
+        self._ohlc = None
+
+    def set_snapshot(self, open_, high, low, close):
+        try:
+            self._ohlc = (float(open_), float(high), float(low), float(close))
+        except (TypeError, ValueError):
+            self._ohlc = None
+        self.update()
+
+    def set_unavailable(self):
+        self._ohlc = None
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = self.rect()
+        if not self._ohlc:
+            painter.setPen(QPen(QColor(MUTED)))
+            painter.drawText(
+                r, Qt.AlignmentFlag.AlignCenter,
+                "intraday chart unavailable (no series in report)",
+            )
+            return
+        o, h, l, c = self._ohlc
+        pad = 10
+        left = r.left() + pad
+        right = r.right() - pad
+        top = r.top() + pad
+        bot = r.bottom() - pad
+        span = (h - l) or 1.0
+
+        def y(value):
+            return bot - (value - l) / span * (bot - top)
+
+        color = QColor(GREEN if c >= o else RED)
+        # midline reference
+        painter.setPen(QPen(QColor(BORDER), 1))
+        painter.drawLine(left, (top + bot) // 2, right, (top + bot) // 2)
+        # high-low range
+        mid = (left + right) // 2
+        painter.setPen(QPen(color, 2))
+        painter.drawLine(mid, int(y(h)), mid, int(y(l)))
+        # open (left tick) and close (right tick)
+        painter.drawLine(left, int(y(o)), mid - 4, int(y(o)))
+        painter.drawLine(mid + 4, int(y(c)), right, int(y(c)))
+        # current (close) marker
+        painter.setBrush(color)
+        painter.drawEllipse(mid - 3, int(y(c)) - 3, 6, 6)
+        painter.end()
+
+
+class PerfBar(QWidget):
+    """A thin, centered performance bar: right = positive (green), left =
+    negative (red); length proportional to the value within a shared scale."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(12)
+        self._value = None
+        self._scale = 1.0
+
+    def set_value(self, value, scale=None):
+        try:
+            self._value = float(value)
+        except (TypeError, ValueError):
+            self._value = None
+        if scale:
+            try:
+                self._scale = abs(float(scale)) or 1.0
+            except (TypeError, ValueError):
+                self._scale = 1.0
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = self.rect()
+        h = r.height()
+        radius = (h - 4) // 2
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(PANEL_ALT))
+        painter.drawRoundedRect(QRectF(r), radius, radius)
+        if self._value is None:
+            painter.setPen(QPen(QColor(MUTED)))
+            painter.drawText(r, Qt.AlignmentFlag.AlignCenter, "—")
+            return
+        mid = r.center().x()
+        frac = max(-1.0, min(1.0, self._value / (self._scale or 1.0)))
+        width = abs(frac) * (r.width() / 2.0)
+        painter.setBrush(QColor(GREEN if self._value >= 0 else RED))
+        if self._value >= 0:
+            box = QRectF(mid, r.top() + 2, width, h - 4)
+        else:
+            box = QRectF(mid - width, r.top() + 2, width, h - 4)
+        painter.drawRoundedRect(box, radius, radius)
+        painter.end()
+
+
+# ---------------------------------------------------------------------------
 # Tables
 # ---------------------------------------------------------------------------
 
@@ -402,13 +513,23 @@ class GuardrailsBar(QFrame):
         """)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(14, 4, 14, 4)
-        layout.setSpacing(14)
+        layout.setSpacing(10)
+
+        accent = QLabel()
+        accent.setFixedSize(3, 16)
+        accent.setStyleSheet(f"background:{AMBER}; border-radius:1px;")
+        layout.addWidget(accent)
 
         text = make_label(
             "GUARDRAILS: analysis-only, not a buy/sell signal, no broker/orders",
             9, AMBER, bold=True,
         )
         layout.addWidget(text)
+
+        divider = QLabel()
+        divider.setFixedSize(1, 16)
+        divider.setStyleSheet(f"background:{BORDER};")
+        layout.addWidget(divider)
 
         self._status = QLabel("buy_sell_authorization: False")
         self._status.setFont(font(9, mono=True, bold=True))

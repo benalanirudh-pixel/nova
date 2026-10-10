@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -45,20 +45,21 @@ from market_lab import widgets as W
 
 APP_NAME = "NOVA MARKET LAB"
 
-BG = "#05090D"
-SIDEBAR = "#080F15"
-PANEL = "#0B151D"
-PANEL_ALT = "#10212B"
-BORDER = "#1A3542"
+BG = "#050B10"
+SIDEBAR = "#070F16"
+PANEL = "#09141D"
+PANEL_ALT = "#0D1D28"
+BORDER = "#1B3443"
 
-TEXT = "#E8F3F7"
-MUTED = "#8198A3"
+TEXT = "#E6F0F7"
+MUTED = "#8298AA"
 
-GREEN = "#39F0B2"
-CYAN = "#35DFFF"
+GREEN = "#20E69A"
+CYAN = "#36DDF2"
 PURPLE = "#B49AFF"
-AMBER = "#FFC857"
-RED = "#FF647C"
+AMBER = "#FFC45B"
+RED = "#FF465B"
+BLUE = "#3198FF"
 
 FONT = "Segoe UI"
 
@@ -532,7 +533,7 @@ class MarketLabWindow(QMainWindow):
             QFrame#panel {{
                 background:{PANEL};
                 border:1px solid {BORDER};
-                border-radius:11px;
+                border-radius:8px;
             }}
             QFrame#sidebar {{
                 background:{SIDEBAR};
@@ -798,23 +799,23 @@ class MarketLabWindow(QMainWindow):
     def _index_card(self, name):
         frame, layout = W.panel(name, "Backend index snapshot")
         self_price_row = QHBoxLayout()
-        price = W.make_label("—", 26, TEXT, bold=True, mono=True)
-        change = W.make_label("—", 13, MUTED, bold=True, mono=True)
+        price = W.make_label("—", 28, TEXT, bold=True, mono=True)
+        change = W.make_label("—", 15, MUTED, bold=True, mono=True)
         self_price_row.addWidget(price)
         self_price_row.addWidget(change)
         self_price_row.addStretch()
         layout.addLayout(self_price_row)
         meta = W.make_label("—", 9, MUTED)
         layout.addWidget(meta)
+        snapshot = W.SnapshotBar()
+        layout.addWidget(snapshot)
         ohlc = W.make_label("O —  H —  L —  C —", 10, TEXT, mono=True)
         layout.addWidget(ohlc)
         returns = W.make_label("5d —  |  20d —  |  60d —", 9, MUTED, mono=True)
         layout.addWidget(returns)
-        chart = W.make_label("intraday chart: N/A (no series in report)", 8, MUTED)
-        layout.addWidget(chart)
         return {
             "frame": frame, "price": price, "change": change, "meta": meta,
-            "ohlc": ohlc, "returns": returns, "chart": chart,
+            "snapshot": snapshot, "ohlc": ohlc, "returns": returns,
         }
 
     def _indicator_card(self, name):
@@ -964,13 +965,79 @@ class MarketLabWindow(QMainWindow):
             "Sector overview",
             "Top sectors by 20D performance. Real data only — never synthesized.",
         )
-        self.sector_table = W.make_table(
-            ["Sector", "20D %", "RS 20D", "Regime"], stretch_column=0
+        self.sector_scroll = QScrollArea()
+        self.sector_scroll.setWidgetResizable(True)
+        self.sector_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.sector_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
-        layout.addWidget(self.sector_table)
+        self.sector_container = QWidget()
+        self.sector_rows_layout = QVBoxLayout(self.sector_container)
+        self.sector_rows_layout.setContentsMargins(0, 0, 0, 0)
+        self.sector_rows_layout.setSpacing(5)
+        self.sector_scroll.setWidget(self.sector_container)
+        layout.addWidget(self.sector_scroll, 1)
         self.sector_note = W.make_label("Loading sector data…", 9, MUTED)
         layout.addWidget(self.sector_note)
         return frame
+
+    @staticmethod
+    def _clear_layout(layout):
+        while layout.count():
+            item = layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+
+    def _sector_row(self, name, return_20d, relative_strength, regime, scale):
+        row = QFrame()
+        row.setStyleSheet(
+            f"QFrame {{ background:transparent; border-bottom:1px solid {BORDER}; }}"
+        )
+        rh = QHBoxLayout(row)
+        rh.setContentsMargins(2, 3, 2, 3)
+        rh.setSpacing(8)
+        name_lbl = W.make_label(str(name), 9, TEXT)
+        name_lbl.setToolTip(str(name))
+        rh.addWidget(name_lbl, 3)
+        bar = W.PerfBar()
+        bar.set_value(return_20d, scale)
+        bar.setFixedWidth(64)
+        rh.addWidget(bar, 0)
+        pct = W.make_label(fmt_pct(return_20d), 9, W.sign_color(return_20d),
+                           bold=True, mono=True)
+        pct.setFixedWidth(58)
+        pct.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        rh.addWidget(pct, 0)
+        reg = W.make_label(str(regime), 8, MUTED)
+        reg.setFixedWidth(60)
+        reg.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        rh.addWidget(reg, 0)
+        return row
+
+    def render_sector(self, report):
+        rows = vm.sector_rows(report, limit=10)
+        self._clear_layout(self.sector_rows_layout)
+        if rows:
+            scale = max(abs(r["return_20d"]) for r in rows if r["return_20d"] is not None)
+            for r in rows:
+                self.sector_rows_layout.addWidget(
+                    self._sector_row(
+                        r["name"], r["return_20d"],
+                        r["relative_strength_20d"], r["regime"], scale or 1.0,
+                    )
+                )
+            self.sector_rows_layout.addStretch()
+            self.sector_note.setText(
+                f"{len(rows)} sectors • source: scanner sector engine"
+            )
+        else:
+            self.sector_rows_layout.addWidget(
+                W.make_label("Sector data unavailable in this report.", 9, MUTED)
+            )
+            self.sector_note.setText("Sector data unavailable.")
 
     def build_factor_panel(self):
         frame, layout = W.panel(
@@ -1090,6 +1157,15 @@ class MarketLabWindow(QMainWindow):
                 f"O {fmt_points(card['open'])}  H {fmt_points(card['high'])}  "
                 f"L {fmt_points(card['low'])}  C {fmt_points(card['price'])}"
             )
+            # Real OHLC snapshot (NIFTY); BANK NIFTY has no OHLC -> honest
+            # "chart unavailable" state (never synthetic candles).
+            if all(isinstance(x, (int, float))
+                   for x in (card["open"], card["high"], card["low"], card["price"])):
+                c["snapshot"].set_snapshot(
+                    card["open"], card["high"], card["low"], card["price"]
+                )
+            else:
+                c["snapshot"].set_unavailable()
             c["returns"].setText(
                 f"5d {fmt_pct(card['return_5d'])}  |  "
                 f"20d {fmt_pct(card['return_20d'])}  |  "
@@ -1136,26 +1212,6 @@ class MarketLabWindow(QMainWindow):
 
         self.update_header(report)
 
-    def render_sector(self, report):
-        rows = vm.sector_rows(report, limit=8)
-        if rows:
-            W.fill_table(
-                self.sector_table,
-                [
-                    [
-                        r["name"],
-                        fmt_pct(r["return_20d"]),
-                        fmt_num(r["relative_strength_20d"], 1),
-                        r["regime"],
-                    ]
-                    for r in rows
-                ],
-            )
-            self.sector_note.setText(f"{len(rows)} sectors • source: scanner sector engine")
-        else:
-            W.fill_table(self.sector_table, [])
-            self.sector_note.setText("Sector data unavailable in this report.")
-
     def render_factor(self, report):
         fb = vm.factor_block(report)
         self.factor_meta.setText(
@@ -1170,6 +1226,15 @@ class MarketLabWindow(QMainWindow):
         for factor, reason in fb["factors_unavailable"].items():
             avail_rows.append([factor, "NOT_AVAILABLE"])
         W.fill_table(self.factor_avail, avail_rows)
+        # Color availability: green available, muted unavailable (text carries it).
+        for r in range(self.factor_avail.rowCount()):
+            cell = self.factor_avail.item(r, 1)
+            if cell is None:
+                continue
+            if cell.text().startswith("NOT_AVAILABLE"):
+                cell.setForeground(QColor(MUTED))
+            else:
+                cell.setForeground(QColor(GREEN))
 
         # Top 10 by composite z (the real ranking output).
         top_rows = []
@@ -1181,6 +1246,14 @@ class MarketLabWindow(QMainWindow):
         if not top_rows:
             top_rows = []
         W.fill_table(self.factor_top_table, top_rows)
+        # Right-align the numeric columns for a quant-terminal feel.
+        for r in range(self.factor_top_table.rowCount()):
+            for col in (0, 2, 3):
+                cell = self.factor_top_table.item(r, col)
+                if cell is not None:
+                    cell.setTextAlignment(
+                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                    )
 
     def _render_failure(self, panel, exc):
         """Record that one panel failed to render without crashing the rest

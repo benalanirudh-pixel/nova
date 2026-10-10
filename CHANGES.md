@@ -3,6 +3,46 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - Market Lab terminal visual refinement (Step 5)
+
+Visual polish of the new terminal. No backend, engine, data-source, or
+`market_lab_data.py`/`market_lab_brain.py` logic changed; honesty preserved
+(all N/A states unchanged).
+
+- Unified dark theme to the reference palette (BG `#050B10`, panels
+  `#09141D`/`#0D1D28`, border `#1B3443`, text `#E6F0F7`/muted `#8298AA`,
+  green `#20E69A`, red `#FF465B`, amber `#FFC45B`, blue `#3198FF`, cyan
+  `#36DDF2`) in both `market_lab_ui.py` and `market_lab/widgets.py`.
+- `market_lab/widgets.py`: added `SnapshotBar` (real single-session OHLC
+  high-low + open/close ticks, honest "chart unavailable" when absent) and
+  `PerfBar` (thin centered green/red performance bar scaled across the shown
+  rows); `GuardrailsBar` gained a shield-accent strip + divider; `restyle_chip`.
+- `market_lab_ui.py`:
+  - Index cards dominant (28px value, 15px change) with a real OHLC snapshot
+    visual for NIFTY and an honest unavailable state for BANK NIFTY; clearer
+    hierarchy.
+  - Sector panel rebuilt as compact terminal rows (name + proportional
+    PerfBar + colored % + regime) in a horizontal-scroll-disabled QScrollArea.
+  - Factor panel: numeric columns right-aligned, availability color-coded.
+  - Consistent panel radius; footer + guardrails remain pinned and
+    non-overlapping.
+- Fixed: removed a duplicate stale `render_sector` (referenced a removed
+  `sector_table`) that had shadowed the new sector renderer.
+
+Validation:
+
+- Widget geom/non-overlap checks at 1920x1080, 1366x768 and 1280x720: header
+  fixed 56px, footer + guardrails pinned to the bottom with no overlap.
+- Offscreen render of the real report: header badges, index cards (NIFTY with
+  OHLC, BANK NIFTY chart N/A), 5 sector rows with bars, factor top-10 + 7
+  availability rows.
+- Full offline suite: `Ran 242 tests ... OK` (unchanged).
+- Real `market_lab_ui.py` launched (pid, running) with live-only refresh over
+  the cached scan; no traceback.
+
+Manual-only remaining: human pixel review at 1920x1080 vs the reference
+(screenshot not captureable in this environment); FULL REFRESH not triggered.
+
 ## 2026-10-10 - Market Lab terminal UI redesign
 
 Redesigned `market_lab_ui.py` into a native Bloomberg/TradingView-style
