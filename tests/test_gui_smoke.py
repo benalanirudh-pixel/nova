@@ -534,5 +534,69 @@ class MarketLabSmokeTestCase(unittest.TestCase):
         self.assertEqual(window.progress.maximum(), 100)
 
 
+@unittest.skipIf(not QT_AVAILABLE, "PySide6 (Qt) is not installed")
+class TestCleanShutdown(unittest.TestCase):
+    """closeEvent must shut down cleanly instead of refusing and orphaning the
+    Market MCP subprocess.
+
+    The old handler refused to close while any worker ran, which pushed users
+    to force-close the window and left indian-market-mcp.exe orphaned. Now the
+    timers stop, no new worker can start, and a running worker is allowed to
+    finish (so stdio_client tears down its subprocess) before the close is
+    accepted.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    def _window(self):
+        win = MarketLabWindow()
+        self.addCleanup(win.deleteLater)
+        return win
+
+    def test_start_task_is_blocked_during_shutdown(self):
+        win = self._window()
+        win._shutting_down = True
+        win.start_task("report", lambda: "should not run")
+        self.assertNotIn("report", win.workers)
+
+    def test_close_event_stops_running_worker_and_accepts(self):
+        import time
+
+        from PySide6.QtGui import QCloseEvent
+
+        win = self._window()
+        # A short, side-effect-free worker (no network, no MCP).
+        worker = Worker("report", lambda: time.sleep(0.2))
+        win.workers["report"] = worker
+        worker.start()
+
+        # Exercise the timer-stop path too.
+        win.ensure_auto_timer()
+        win.ensure_display_ticker()
+
+        event = QCloseEvent()
+        win.closeEvent(event)
+
+        self.assertTrue(event.isAccepted())
+        # The worker was waited on to completion, not force-killed.
+        self.assertFalse(worker.isRunning())
+        self.assertEqual(win.workers, {})
+        self.assertTrue(win._shutting_down)
+        for name in ("auto_timer", "display_timer"):
+            timer = getattr(win, name, None)
+            self.assertTrue(timer is None or not timer.isActive())
+
+    def test_close_event_accepts_when_idle(self):
+        from PySide6.QtGui import QCloseEvent
+
+        win = self._window()
+        event = QCloseEvent()
+        win.closeEvent(event)
+        self.assertTrue(event.isAccepted())
+        self.assertEqual(win.workers, {})
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

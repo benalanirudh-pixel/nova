@@ -567,6 +567,38 @@ Not run: forced `--refresh` full scan, a visible (on-desktop) GUI session for th
 user to click through, and `open_website/open_app/search_web` side effects.
 
 
+## 2026-10-10 - Market Lab clean shutdown on window close
+
+Code changed: `market_lab_ui.py`; `tests/test_gui_smoke.py` (`CHANGES.md` entry
+added). No engine, cache, or data-source changes.
+
+Context: a user-reported orphan — closing the Market Lab window while a
+background worker ran refused to close and, when force-closed, left
+`indian-market-mcp.exe` (spawned by `nse_feed.stdio_client`) running.
+
+Checks run:
+
+- `ast.parse` on `market_lab_ui.py` and `tests/test_gui_smoke.py`: passed.
+- `.\venv\Scripts\python.exe -m unittest tests.test_gui_smoke -v` -> 20 tests OK
+  (was 17; +3 new `TestCleanShutdown`).
+- Full suite: `Ran 170 tests ... OK` (167 -> 170).
+- `import market_lab_ui` offline: passed.
+- Live: `nse_feed.get_market_status()` ran one MCP round-trip and its
+  `indian-market-mcp.exe` exited on its own; a final Win32_Process sweep
+  (excluding the probe's own command line) found 0 MCP servers and 0 Nova UI
+  processes — no orphan.
+
+New behavior locked in by tests: close stops the auto/display timers and blocks
+`start_task` via `_shutting_down`; a running worker is waited on (up to
+`CLOSE_WORKER_WAIT_MS`) so `stdio_client` tears down its subprocess, then the
+close is accepted; an idle close accepts immediately.
+
+Not run/verified: a user-initiated, on-desktop close of the real window during
+a live refresh (validated headlessly and via the single-call MCP teardown
+instead); the `terminate()` last-resort path (only reached if a worker exceeds
+the 10s grace window).
+
+
 
 
 

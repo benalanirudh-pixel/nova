@@ -3,6 +3,49 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - Market Lab clean shutdown on window close
+
+`market_lab_ui.py`: replaced the old `closeEvent` that refused to close while
+any worker ran (showing "A background task is still running…" and ignoring the
+event). That refusal pushed users to force-close the window, which orphaned the
+`indian-market-mcp.exe` subprocess the worker had spawned via
+`analysis/data/nse_feed.py` (stdio_client) — the "background task running"
+symptom after closing.
+
+New behavior:
+
+- On close, `_shutting_down` is set, `auto_enabled` is cleared and both the
+  auto-refresh clock and the 1s display ticker are stopped, so nothing new can
+  be scheduled.
+- `start_task` now returns immediately when `_shutting_down` is set, which also
+  breaks the watchlist self-chaining (it restarts a worker off `task_succeeded`).
+- Each still-running worker is waited on (`worker.wait`, up to
+  `CLOSE_WORKER_WAIT_MS` = 10s). When `Worker.run()` returns, the `stdio_client`
+  context in nse_feed exits and terminates the `indian-market-mcp.exe`
+  subprocess, so closing leaves no orphan. Only a worker that overstays the
+  grace period is force-`terminate()`d as a last resort so the window can always
+  close.
+- The close is then accepted unconditionally.
+
+Files changed:
+
+- `market_lab_ui.py` (closeEvent rewrite, `_shutting_down` flag, `start_task`
+  guard, `CLOSE_WORKER_WAIT_MS` constant).
+- `tests/test_gui_smoke.py` (new `TestCleanShutdown`: 3 tests).
+
+Validation:
+
+- `ast.parse` on both changed files passed; `import market_lab_ui` ok.
+- `.\venv\Scripts\python.exe -m unittest tests.test_gui_smoke -v` -> 20 tests OK.
+- Full suite: `Ran 170 tests ... OK` (167 -> 170; 3 new).
+- Live: `nse_feed.get_market_status()` spawned and then exited its
+  `indian-market-mcp.exe` on its own (no persistent orphan after the call).
+  Process sweep confirms 0 real MCP servers / 0 Nova UI processes.
+
+Note: real MCP/MCP-shim processes must be counted excluding one's own probe
+process (a `Get-CimInstance ... '*indian-market-mcp*'` PowerShell query matches
+itself).
+
 ## 2026-10-10 - Live end-to-end check (terminal-integrated)
 
 No code change. On-machine live verification of the integrated stack

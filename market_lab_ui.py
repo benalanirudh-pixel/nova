@@ -184,6 +184,12 @@ AUTO_CLOCK_MS = 1000
 AUTO_POLL_OPEN_S = 60
 AUTO_POLL_CLOSED_S = 30
 
+# How long closeEvent waits for a running worker to finish so its Market MCP
+# subprocess is torn down cleanly, before force-terminating it as a last
+# resort. Market-closed cached/live-only polls finish in a few seconds; this
+# is a generous safety ceiling so the window still always closes.
+CLOSE_WORKER_WAIT_MS = 10000
+
 
 def nse_market_open_now(now=None):
     """Return True when NSE equity is normally open (Mon-Fri 09:15-15:30 IST).
@@ -318,6 +324,7 @@ class MarketLabWindow(QMainWindow):
 
         self.report = None
         self.workers = {}
+        self._shutting_down = False
         self.cache_is_displayed = False
         self.auto_enabled = False
         self.last_update_at = None
@@ -851,6 +858,9 @@ class MarketLabWindow(QMainWindow):
     # --------------------------------------------------------
 
     def start_task(self, name, function, *args, **kwargs):
+        if self._shutting_down:
+            return
+
         if name in self.workers:
             self.footer.setText(f"{name.title()} is already running.")
             return
@@ -1387,21 +1397,41 @@ class MarketLabWindow(QMainWindow):
     # --------------------------------------------------------
 
     def closeEvent(self, event):
-        running = [
-            worker for worker in self.workers.values()
-            if worker.isRunning()
-        ]
+        # ------------------------------------------------------------------
+        # Clean shutdown.
+        #
+        # Workers run the market/MCP calls synchronously inside a QThread.
+        # When Worker.run() returns, the nse_feed stdio_client context exits
+        # and terminates the indian-market-mcp.exe subprocess it spawned, so
+        # letting a running worker finish prevents orphaned MCP servers.
+        # Blocking here (briefly) replaces the old "a background task is
+        # running" refusal that could leave the MCP server orphaned when the
+        # user force-closed the window.
+        # ------------------------------------------------------------------
 
-        if running:
-            QMessageBox.information(
-                self,
-                APP_NAME,
-                "A background task is still running. Wait for it to finish "
-                "before closing the terminal.",
-            )
-            event.ignore()
-            return
+        self._shutting_down = True
+        self.auto_enabled = False
+        self.next_poll_at = None
 
+        # Stop the auto-refresh clock and the 1s display ticker so nothing
+        # new can be scheduled (the watchlist chains itself off task_succeeded
+        # via start_task, which the _shutting_down guard now also blocks).
+        for timer_attr in ("auto_timer", "display_timer"):
+            timer = getattr(self, timer_attr, None)
+            if timer is not None:
+                timer.stop()
+
+        running = [w for w in self.workers.values() if w.isRunning()]
+
+        for worker in running:
+            # Wait for the live MCP/network call to finish and its subprocess
+            # to be torn down. Only if it overstays the grace period do we
+            # force-terminate as a last resort so the window can always close.
+            if not worker.wait(CLOSE_WORKER_WAIT_MS):
+                worker.terminate()
+                worker.wait(3000)
+
+        self.workers.clear()
         event.accept()
 
 
