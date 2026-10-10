@@ -1136,6 +1136,11 @@ def _build_market_brief(report: dict) -> str:
                 f"  Primary-verified sessions: {primary}/{target}"
                 f" | Source quality: {metrics.get('source_quality', 'N/A')}"
             )
+            coverage_note = metrics.get("primary_coverage_note")
+            if coverage_note and not metrics.get(
+                "primary_source_verified_for_target_window", False
+            ):
+                lines.append(f"  Coverage: {coverage_note}")
             if not flow.get("signal_allowed", False):
                 reason = flow.get("signal_reason", "not fully primary-verified")
                 lines.append(f"  Signal-eligible: NO ({reason})")

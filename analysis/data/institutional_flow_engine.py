@@ -1571,6 +1571,68 @@ def _mean_last(
     )
 
 
+def _primary_coverage_summary(
+    primary_count: Any,
+    target_sessions: Any,
+) -> Dict[str, Any]:
+    """Turn the measured NSE-primary session count into an honest
+    coverage ratio and a clearly-labelled runway estimate.
+
+    NSE serves only the latest session per call, so full primary
+    verification is reached at roughly one promoted session per trading
+    day. The estimate below assumes that cadence; it is an estimate, not
+    a measured value, and is labelled as such in the note.
+    """
+    try:
+        primary = int(primary_count)
+    except (TypeError, ValueError):
+        primary = 0
+
+    try:
+        target = int(target_sessions)
+    except (TypeError, ValueError):
+        target = 0
+
+    if target <= 0:
+        return {
+            "primary_coverage_ratio": None,
+            "trading_days_to_full_primary_estimate": 0,
+            "primary_coverage_note": (
+                "NSE-primary coverage unknown (no target window)."
+            ),
+        }
+
+    primary = max(0, primary)
+    primary = min(primary, target)
+
+    ratio = round(primary / target, 4)
+    remaining = target - primary
+
+    if remaining == 0:
+        note = (
+            f"Target window is fully NSE-primary verified "
+            f"({primary}/{target})."
+        )
+    elif primary == 0:
+        note = (
+            f"No NSE-primary sessions verified yet; {remaining} more "
+            f"trading day(s) estimated to reach full primary."
+        )
+    else:
+        note = (
+            f"{primary}/{target} target sessions are NSE-primary; "
+            f"{remaining} more trading day(s) estimated to reach full "
+            f"primary (assumes ~1 primary session promoted per day)."
+        )
+
+    return {
+        "primary_coverage_ratio": ratio,
+        "trading_days_to_full_primary_estimate": remaining,
+        "primary_coverage_note": note,
+    }
+
+
+
 def calculate_metrics(
     history: pd.DataFrame,
     target_sessions: int = DEFAULT_TARGET_SESSIONS,
@@ -1929,6 +1991,13 @@ def calculate_metrics(
     )
 
     metrics["source_quality"] = source_quality
+
+    metrics.update(
+        _primary_coverage_summary(
+            primary_count,
+            target_sessions,
+        )
+    )
 
     metrics["history_complete_for_5d"] = (
         sessions >= 5 and not bad_indexes
@@ -2525,6 +2594,12 @@ def print_report(
         "Secondary sessions       : "
         f"{metrics.get('secondary_sessions', 0)}"
     )
+
+    if metrics.get("primary_coverage_note"):
+        print(
+            "Primary coverage note    : "
+            f"{metrics.get('primary_coverage_note')}"
+        )
 
     print(
         "Backfill added           : "

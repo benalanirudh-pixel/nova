@@ -365,4 +365,25 @@ Verified:
 Not run: live brain/Ollama tool-call turn (needs Ollama + `qwen3.5:4b`),
 `--refresh` scan. The brief itself only reads cached data.
 
+## 2026-10-10 - Institutional flow primary-coverage note (Option C)
+
+Verified:
+
+- `py_compile` passes on `analysis/data/institutional_flow_engine.py`;
+  `ast.parse` passes on `tools.py` and the new test file.
+- New `tests/test_institutional_flow_coverage.py` (offline): 6 tests covering
+  `_primary_coverage_summary` (fully/partially/not verified, remaining-day
+  estimate, message text) and its wiring into metrics.
+- Full suite: `Ran 91 tests ... OK` (exit 0), up from 85.
+- Live `institutional_flow_engine.py --days 20 --save` run exits 0 (READY) and
+  `calculate_metrics` -> `_primary_coverage_summary` resolves with no error
+  (the call site previously had no helper defined).
+- Live `get_market_brief()` renders the new line, e.g. "Coverage: 2/20 target
+  sessions are NSE-primary; 18 more trading day(s) estimated to reach full
+  primary ...", with `Signal-eligible: NO` and its reason preserved.
+
+Not run: a promotion beyond the cached 2 primary sessions (requires ~18
+trading days of the daily schedule), GUI launch, full `--refresh` scan. This
+change is display-only; it does not alter the `signal_allowed` gate.
+
 

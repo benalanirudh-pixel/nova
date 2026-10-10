@@ -3,6 +3,30 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-10 - Institutional flow primary-coverage progress note (Option C)
+
+Made the runway to a fully NSE-primary FII/DII history window legible instead
+of a bare "2/22". This is documentation of *progress*, not a way to fake
+coverage: the `signal_allowed` gate is unchanged and still requires every
+target session to be primary-verified.
+
+Context (verified by a live probe of `fetch_nse_rows()`): NSE's combined
+endpoint returns only the latest trading day, and there is no NSE historical
+FII/DII API. Older sessions can only come from the Groww mirror. Promotion is
+sticky (`upsert_rows` keeps the highest-priority source per date), and ~1 NSE
+session is promoted per trading day, so full-primary needs ~18 trading days.
+
+- New pure helper `_primary_coverage_summary(metrics)` in the flow engine
+  returns a coverage note dict (verified fraction, remaining sessions, and an
+  honest "estimated more trading day(s)" runway) and is surfaced as
+  `primary_coverage_note` on the metrics.
+- `print_report` now prints a `Primary coverage:` line when the window is not
+  fully primary-verified.
+- The assistant `get_market_brief` flow section prints a matching
+  `Coverage:` line under Primary-verified sessions, plus the existing
+  honest `Signal-eligible: NO` reason.
+- Added `tests/test_institutional_flow_coverage.py` (offline) for the helper.
+
 ## 2026-10-10 - Assistant morning market brief tool (`get_market_brief`)
 
 Added a new voice/chat-callable tool, `get_market_brief()`, so the Nova
