@@ -508,6 +508,8 @@ class MarketLabWindow(QMainWindow):
         self.workers = {}
         self._shutting_down = False
         self.cache_is_displayed = False
+        self.chart_range = "3M"
+        self._range_buttons = {}
         self.auto_enabled = False
         self.last_update_at = None
         self.next_poll_at = None
@@ -807,7 +809,7 @@ class MarketLabWindow(QMainWindow):
         layout.addLayout(self_price_row)
         meta = W.make_label("—", 9, MUTED)
         layout.addWidget(meta)
-        chart = W.LineChart()
+        chart = W.CandleChart()
         layout.addWidget(chart, 1)
         ohlc = W.make_label("O —  H —  L —  C —", 10, TEXT, mono=True)
         layout.addWidget(ohlc)
@@ -830,6 +832,32 @@ class MarketLabWindow(QMainWindow):
     # PAGES
     # --------------------------------------------------------
 
+    _RANGE_BARS = {"1M": 22, "3M": 63, "6M": 126}
+
+    def _slice_candles(self, candles, rng):
+        limit = self._RANGE_BARS.get(rng, 63)
+        return candles[-limit:] if candles else []
+
+    def set_chart_range(self, rng):
+        """Switch the index chart range (client-side slice of real candles;
+        no refetch)."""
+        self.chart_range = rng
+        for label, button in getattr(self, "_range_buttons", {}).items():
+            button.setChecked(label == rng)
+        if getattr(self, "report", None):
+            for which in ("nifty", "bank_nifty"):
+                card = vm.index_card(self.report, which)
+                c = self.index_cards[which]
+                candles = [dict(row) for row in (card.get("candles") or [])
+                           if isinstance(row, dict)]
+                if candles and isinstance(card["price"], (int, float)):
+                    candles[-1]["c"] = float(card["price"])
+                    if isinstance(card["high"], (int, float)):
+                        candles[-1]["h"] = max(candles[-1]["h"], float(card["high"]))
+                    if isinstance(card["low"], (int, float)):
+                        candles[-1]["l"] = min(candles[-1]["l"], float(card["low"]))
+                c["chart"].set_candles(self._slice_candles(candles, rng))
+
     def build_overview(self):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -838,6 +866,22 @@ class MarketLabWindow(QMainWindow):
         layout = QVBoxLayout(page)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(12)
+
+        # --- Chart range selector (slices the stored real candles) ---
+        range_row = QHBoxLayout()
+        range_row.setSpacing(6)
+        range_row.addWidget(W.make_label("INDEX CHART RANGE", 9, MUTED, True))
+        for label in ("1M", "3M", "6M"):
+            button = make_button(f" {label} ", self.chart_range == label)
+            button.setCheckable(True)
+            button.setChecked(self.chart_range == label)
+            button.clicked.connect(
+                lambda checked=False, r=label: self.set_chart_range(r)
+            )
+            self._range_buttons[label] = button
+            range_row.addWidget(button)
+        range_row.addStretch()
+        layout.addLayout(range_row)
 
         # --- Index cards ---
         indices = QHBoxLayout()
@@ -1157,13 +1201,17 @@ class MarketLabWindow(QMainWindow):
                 f"O {fmt_points(card['open'])}  H {fmt_points(card['high'])}  "
                 f"L {fmt_points(card['low'])}  C {fmt_points(card['price'])}"
             )
-            # Real daily-close series from the index-history engine.
-            series = card.get("series") or []
-            values = [row.get("close") for row in series
-                      if isinstance(row, dict)]
-            labels = [row.get("date", "") for row in series
-                      if isinstance(row, dict)]
-            c["chart"].set_series(values, labels)
+            # Real daily OHLC candles; last candle tracks the live price so the
+            # chart feels live between refreshes. Sliced by the range selector.
+            candles = [dict(row) for row in (card.get("candles") or [])
+                       if isinstance(row, dict)]
+            if candles and isinstance(card["price"], (int, float)):
+                candles[-1]["c"] = float(card["price"])
+                if isinstance(card["high"], (int, float)):
+                    candles[-1]["h"] = max(candles[-1]["h"], float(card["high"]))
+                if isinstance(card["low"], (int, float)):
+                    candles[-1]["l"] = min(candles[-1]["l"], float(card["low"]))
+            c["chart"].set_candles(self._slice_candles(candles, self.chart_range))
             c["returns"].setText(
                 f"5d {fmt_pct(card['return_5d'])}  |  "
                 f"20d {fmt_pct(card['return_20d'])}  |  "

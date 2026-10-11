@@ -237,6 +237,19 @@ class TestIndexCard(unittest.TestCase):
         # no series in report -> empty list (chart shows 'no series')
         self.assertEqual(vm.index_card(report_fixture(), "nifty")["series"], [])
 
+    def test_bank_card_ohlc_derived_from_candle(self):
+        report = report_fixture(
+            bank_nifty_candles=[
+                {"t": "2026-10-09", "o": 100.0, "h": 110.0,
+                 "l": 95.0, "c": 105.0, "v": 1},
+            ]
+        )
+        card = vm.index_card(report, "bank_nifty")
+        self.assertEqual(card["open"], 100.0)
+        self.assertEqual(card["high"], 110.0)
+        self.assertEqual(card["low"], 95.0)
+        self.assertEqual(len(card["candles"]), 1)
+
 
 class TestIndicatorCards(unittest.TestCase):
     def test_only_atr_is_real(self):

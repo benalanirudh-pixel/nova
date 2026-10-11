@@ -3,6 +3,52 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-11 - TradingView-style candlestick charts for NIFTY / BANK NIFTY
+
+Upgraded the index cards from a line/snapshot to a real candlestick chart.
+
+- `market_lab/market_lab_data.py`: added `build_index_candles(symbol, period,
+  limit)` — guarded daily OHLC(+volume) candles from the same `^NSEI` /
+  `^NSEBANK` index history (dates from the frame index); `get_market_lab_data`
+  now records `nifty_candles` / `bank_nifty_candles` (~125 daily bars). Never
+  synthesizes candles; `[]` on failure.
+- `market_lab/view_model.py`: `index_card(...)` exposes `candles` and derives
+  BANK NIFTY OHLC from its last candle (so BANK NIFTY OHLC is now real too).
+- `market_lab/widgets.py`: added `CandleChart` — TradingView-style: restrained
+  grid, green/red OHLC candles, bottom volume bars, right price axis with a
+  live last-price tag, time axis, a dashed last-price line, and a mouse
+  crosshair with an OHLC/change/date read-out. Empty/absent series renders an
+  explicit "no series in report".
+- `market_lab_ui.py`: index cards use `CandleChart`; `render_dashboard` feeds
+  real candles and updates the last candle's close to the live price (so the
+  chart tracks between refreshes) with hi/low widened; added a `1M / 3M / 6M`
+  range selector (`set_chart_range`) that slices the stored real candles
+  client-side (no refetch).
+
+Files changed:
+- `market_lab/market_lab_data.py`, `market_lab/view_model.py`,
+  `market_lab/widgets.py`, `market_lab_ui.py`
+- `tests/test_market_lab_data.py` (+`build_index_candles`),
+  `tests/test_view_model.py` (+candles/OHLC), `tests/test_gui_smoke.py`
+  (+candle render + range selector)
+
+Validation:
+
+- Live fetch: `build_index_candles("^NSEI")` / `^NSEBANK` each returned 125 real
+  daily OHLCV candles (e.g. NIFTY 2026-10-09 O 22,314.95 H 22,580.75 L 22,294.75
+  C 22,520.45 vol 296,200).
+- `tests` for `build_index_candles` (parse/index-dates, empty/error),
+  `index_card` OHLC-from-candle, and dashboard candle wiring + `1M` slice -> OK.
+- NSE-MCP stdio smoke: `test_nse_mcp.py` -> MCP SESSION CONNECTED, 68 tools, no
+  orphan.
+- Full offline suite: `Ran 317 tests ... OK` (314 -> 317; 3 new).
+
+Scope note (honest): these are real DAILY candles (the free NSE/Yahoo sources
+provide daily OHLC, not tick data), so the chart updates on refresh and tracks
+the live price on the last bar rather than ticking tick-by-tick. True sub-minute
+intraday candles require a live feed and are left for the Dhan intraday path
+(when a token/plan is configured); the widget is ready to accept them.
+
 ## 2026-10-11 - Real NIFTY / BANK NIFTY charts on the dashboard
 
 Previously the index cards only had a tiny OHLC snapshot bar (and BANK NIFTY

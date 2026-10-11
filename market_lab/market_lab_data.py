@@ -1385,6 +1385,53 @@ def build_index_series(
         return []
 
 
+def build_index_candles(
+    symbol: str,
+    period: str = "6mo",
+    limit: int = 125,
+) -> list[dict[str, Any]]:
+    """Guarded daily OHLC(+volume) candles for a candlestick chart.
+
+    Reads the same index-history frame Nova already uses; dates come from the
+    frame index (or a Date column if present). Never synthesizes candles;
+    returns [] on any failure so the chart shows an explicit 'no series' state.
+    """
+    try:
+        dataframe = get_index_history(symbol, period=period, interval="1d")
+    except Exception:
+        return []
+    if dataframe is None or getattr(dataframe, "empty", True):
+        return []
+    open_col = find_column(dataframe, "Open")
+    high_col = find_column(dataframe, "High")
+    low_col = find_column(dataframe, "Low")
+    close_col = find_column(dataframe, "Close")
+    volume_col = find_column(dataframe, "Volume")
+    date_col = find_column(dataframe, "Date")
+    if close_col is None or open_col is None or high_col is None or low_col is None:
+        return []
+
+    def cell(row, column):
+        try:
+            return float(row[column])
+        except (TypeError, ValueError):
+            return None
+
+    out = []
+    for idx, row in dataframe.tail(limit).iterrows():
+        try:
+            stamp = pd.Timestamp(date_col and row[date_col] or idx)
+            date_str = str(stamp.date())
+        except Exception:
+            date_str = ""
+        o, h, l, c = cell(row, open_col), cell(row, high_col), cell(row, low_col), cell(row, close_col)
+        if None in (o, h, l, c):
+            continue
+        v = cell(row, volume_col) if volume_col is not None else None
+        out.append({"t": date_str, "o": o, "h": h, "l": l, "c": c, "v": v})
+    return out
+
+
 def get_index_history(
     symbol: str,
     period: str = "1y",
@@ -3192,6 +3239,8 @@ def get_market_lab_data(
 
     nifty_series = build_index_series("^NSEI")
     bank_nifty_series = build_index_series("^NSEBANK")
+    nifty_candles = build_index_candles("^NSEI")
+    bank_nifty_candles = build_index_candles("^NSEBANK")
 
     # --------------------------------------------------------
     # REGIME
@@ -3504,6 +3553,12 @@ def get_market_lab_data(
 
         "bank_nifty_series":
             bank_nifty_series,
+
+        "nifty_candles":
+            nifty_candles,
+
+        "bank_nifty_candles":
+            bank_nifty_candles,
 
         "breadth":
             breadth,

@@ -57,6 +57,37 @@ class TestExtractCloseSeries(unittest.TestCase):
         self.assertEqual(mld.extract_close_series(df), [])
 
 
+class TestBuildIndexCandles(unittest.TestCase):
+
+    def _df(self):
+        import pandas as pd
+        idx = pd.to_datetime(["2026-10-01", "2026-10-02", "2026-10-05"])
+        return pd.DataFrame(
+            {"Open": [10.0, 11.0, 12.0], "High": [11.0, 12.0, 13.0],
+             "Low": [9.0, 10.0, 11.0], "Close": [10.5, 11.5, 12.5],
+             "Volume": [100, 200, 300]},
+            index=idx,
+        )
+
+    def test_parses_ohlcv_with_index_dates(self):
+        with mock.patch.object(mld, "get_index_history", return_value=self._df()):
+            candles = mld.build_index_candles("^NSEI")
+        self.assertEqual(len(candles), 3)
+        self.assertEqual(candles[0]["t"], "2026-10-01")
+        self.assertEqual(candles[0]["o"], 10.0)
+        self.assertEqual(candles[-1]["c"], 12.5)
+        self.assertEqual(candles[-1]["v"], 300)
+
+    def test_empty_and_error_return_empty(self):
+        import pandas as pd
+        with mock.patch.object(mld, "get_index_history",
+                               return_value=pd.DataFrame()):
+            self.assertEqual(mld.build_index_candles("^NSEI"), [])
+        with mock.patch.object(mld, "get_index_history",
+                               side_effect=RuntimeError("down")):
+            self.assertEqual(mld.build_index_candles("^NSEI"), [])
+
+
 class TestApplyDhanOverride(unittest.TestCase):
 
     def test_overrides_when_dhan_available(self):

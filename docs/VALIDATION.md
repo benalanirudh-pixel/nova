@@ -1018,3 +1018,30 @@ widget shows an explicit "no series in report" state — never synthetic candles
 Not verified visually here: exact pixel appearance of the chart at 1920x1080
 (rendered + saved as a PNG proxy, offscreen); the axis/grid/last-price styling
 is a programmatic drawing, reviewed via geometry + the rendered PNG size only.
+## 2026-10-11 - TradingView-style candlestick charts
+
+Code changed: `market_lab/market_lab_data.py`, `market_lab/view_model.py`,
+`market_lab/widgets.py`, `market_lab_ui.py`; tests in `test_market_lab_data.py`,
+`test_view_model.py`, `test_gui_smoke.py`. No NSE-MCP path changed; candles come
+from the existing `^NSEI` / `^NSEBANK` daily history.
+
+Checks run:
+
+- Live fetch: `build_index_candles("^NSEI")` and `^NSEBANK` each returned 125
+  real daily OHLCV candles (e.g. NIFTY 2026-10-09 O 22314.95 H 22580.75
+  L 22294.75 C 22520.45 vol 296200).
+- Unit tests: `build_index_candles` (parse + index dates, empty, error),
+  `index_card` OHLC-from-candle, and dashboard candle wiring + 1M range slice
+  -> OK.
+- NSE-MCP stdio smoke: `.\venv\Scripts\python.exe test_nse_mcp.py` ->
+  "MCP SESSION: CONNECTED", 68 tools, no orphan.
+- Full offline suite (offscreen): `Ran 317 tests ... OK` (314 -> 317).
+
+Widget behavior verified offscreen: `display_report` feeds NIFTY/BANK NIFTY the
+3M slice (63 bars) to `CandleChart`; `set_chart_range("1M")` re-slices to 22
+without a refetch; BANK NIFTY OHLC now derived from its last candle.
+
+Scope: real DAILY candles (not tick data); the last bar tracks the live price
+between refreshes. True intraday needs a live feed (the Dhan intraday path when
+configured); `CandleChart` will accept that series too. The exact pixel look was
+reviewed via offscreen render + a saved PNG only. 

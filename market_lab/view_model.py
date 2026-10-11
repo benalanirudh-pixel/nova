@@ -166,6 +166,9 @@ def index_card(report, which, r5=None):
     a fabricated number.
     """
     which = which.lower()
+    candles = report.get("nifty_candles" if which == "nifty"
+                         else "bank_nifty_candles") or []
+    last = candles[-1] if candles else None
     if which == "nifty":
         name = "NIFTY 50"
         snap = report.get("nifty_snapshot") or {}
@@ -180,8 +183,16 @@ def index_card(report, which, r5=None):
         vol = _get(report, "volatility", "bank_nifty") or {}
         price = _num(vol.get("price"))
         change_pct = _num((report.get("bank_nifty_returns") or {}).get("1D"))
-        open_ = high = low = None
+        open_ = _num(last.get("o")) if last else None
+        high = _num(last.get("h")) if last else None
+        low = _num(last.get("l")) if last else None
         returns = report.get("bank_nifty_returns") or {}
+
+    # Fall back to the last candle's OHLC when a live snapshot is absent.
+    if last is not None:
+        open_ = open_ if open_ is not None else _num(last.get("o"))
+        high = high if high is not None else _num(last.get("h"))
+        low = low if low is not None else _num(last.get("l"))
 
     change_abs = None
     prev_close = None
@@ -204,6 +215,7 @@ def index_card(report, which, r5=None):
         "chart": N_A,
         "series": (report.get("nifty_series") if which == "nifty"
                    else report.get("bank_nifty_series")) or [],
+        "candles": candles,
         "derived_abs_change": change_abs is not None,
     }
 

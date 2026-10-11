@@ -521,6 +521,177 @@ class LineChart(QWidget):
 
 
 # ---------------------------------------------------------------------------
+# Candlestick chart (real OHLC series only; never synthetic)
+# ---------------------------------------------------------------------------
+
+class CandleChart(QWidget):
+    """A compact TradingView-style candlestick chart.
+
+    Draws only a real OHLC(+volume) series: grid, candles (green/red), volume
+    bars, right price axis with a last-price tag, time axis, and a crosshair
+    with an OHLC read-out on hover. If no genuine series is provided it renders
+    an explicit "no series" state. It never fabricates candles.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumSize(320, 200)
+        self.setMouseTracking(True)
+        self._candles = []          # list of {t,o,h,l,c,v}
+        self._hover_index = None
+        self.setStyleSheet("background:transparent;")
+
+    def set_candles(self, candles):
+        clean = []
+        for row in candles or []:
+            if not isinstance(row, dict):
+                continue
+            try:
+                o = float(row["o"]); h = float(row["h"])
+                l = float(row["l"]); c = float(row["c"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if h < l:
+                l, h = h, l
+            v = row.get("v")
+            try:
+                v = float(v) if v is not None else None
+            except (TypeError, ValueError):
+                v = None
+            clean.append({"t": str(row.get("t", "")), "o": o,
+                          "h": h, "l": l, "c": c, "v": v})
+        self._candles = clean
+        self._hover_index = None
+        self.update()
+
+    def _bounds(self):
+        highs = [c["h"] for c in self._candles]
+        lows = [c["l"] for c in self._candles]
+        hi = max(highs); lo = min(lows)
+        pad = (hi - lo) or max(1.0, hi * 0.001)
+        return hi + pad * 0.06, lo - pad * 0.06
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = self.rect()
+        if len(self._candles) < 1:
+            painter.setPen(QPen(QColor(MUTED)))
+            painter.drawText(r, Qt.AlignmentFlag.AlignCenter,
+                             "no series in report")
+            painter.end()
+            return
+
+        right = r.right() - 52
+        left = r.left() + 6
+        vol_h = max(16, int((r.height() - 12) * 0.18))
+        price_top = r.top() + 6
+        price_bottom = r.bottom() - 18 - vol_h
+        hi, lo = self._bounds()
+        span = (hi - lo) or 1.0
+
+        def y(value):
+            return price_bottom - (value - lo) / span * (price_bottom - price_top)
+
+        count = len(self._candles)
+        usable = max(1, right - left)
+        step = usable / count
+
+        # volume scale
+        vols = [c["v"] for c in self._candles if c["v"] is not None]
+        vmax = max(vols) if vols else 0.0
+
+        # grid + right price labels
+        painter.setPen(QPen(QColor(BORDER), 1))
+        for frac in (0.0, 0.25, 0.5, 0.75, 1.0):
+            gy = int(price_top + (price_bottom - price_top) * frac)
+            painter.setPen(QPen(QColor(BORDER)))
+            painter.drawLine(left, gy, r.right() - 2, gy)
+            label = hi - frac * (hi - lo)
+            painter.setPen(QPen(QColor(MUTED)))
+            painter.setFont(font(7, mono=True))
+            painter.drawText(r.right() - 50, gy - 6, 46, 12,
+                             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                             f"{label:,.0f}")
+
+        # time axis (a few ticks)
+        painter.setPen(QPen(QColor(MUTED)))
+        painter.setFont(font(7, mono=True))
+        for i in range(0, count, max(1, count // 4)):
+            cx = int(left + step * i + step / 2)
+            t = self._candles[i]["t"]
+            if t:
+                painter.drawText(cx - 20, r.bottom() - 16, 40, 14,
+                                 Qt.AlignmentFlag.AlignCenter, t[-6:])
+
+        # candles + volume
+        cw = max(1.5, step * 0.62)
+        for i, c in enumerate(self._candles):
+            cx = int(left + step * i + step / 2)
+            color = QColor(GREEN if c["c"] >= c["o"] else RED)
+            painter.setPen(QPen(color, 1))
+            painter.drawLine(cx, int(y(c["h"])), cx, int(y(c["l"])))
+            y_o = int(y(c["o"])); y_c = int(y(c["c"]))
+            top = min(y_o, y_c); height = max(1, abs(y_c - y_o))
+            painter.fillRect(QRectF(cx - cw / 2, top, cw, height), color)
+            # volume
+            if vmax and c["v"] is not None:
+                vh = (c["v"] / vmax) * (vol_h - 2)
+                vtop = price_bottom + 6 + vol_h - 2 - vh
+                painter.fillRect(QRectF(cx - cw / 2, vtop, cw, vh),
+                                 QColor(GREEN if c["c"] >= c["o"] else RED))
+
+        # last price tag + dashed line
+        last = self._candles[-1]
+        last_color = GREEN if last["c"] >= last["o"] else RED
+        ly = int(y(last["c"]))
+        painter.setPen(QPen(QColor(MUTED), 1))
+        painter.drawLine(left, ly, r.right() - 2, ly)
+        painter.setBrush(QColor(last_color))
+        painter.fillRect(QRectF(r.right() - 50, ly - 7, 46, 14), QColor(last_color))
+        painter.setPen(QPen(QColor(BG)))
+        painter.setFont(font(7, mono=True, bold=True))
+        painter.drawText(r.right() - 50, ly - 7, 46, 14,
+                         Qt.AlignmentFlag.AlignCenter, f"{last['c']:,.0f}")
+
+        # crosshair + OHLC read-out
+        if self._hover_index is not None:
+            i = self._hover_index
+            c = self._candles[i]
+            cx = int(left + step * i + step / 2)
+            painter.setPen(QPen(QColor(MUTED), 1, Qt.PenStyle.DashLine))
+            painter.drawLine(cx, price_top, cx, price_bottom + 6)
+            chg = (c["c"] - c["o"]) / c["o"] * 100.0 if c["o"] else 0.0
+            readout = (f"O {c['o']:,.1f}  H {c['h']:,.1f}  "
+                       f"L {c['l']:,.1f}  C {c['c']:,.1f}  "
+                       f"{chg:+.2f}%  {c['t']}")
+            painter.setPen(QPen(QColor(TEXT)))
+            painter.setFont(font(8, mono=True))
+            painter.drawText(r.left() + 8, r.top() + 6, readout)
+        painter.end()
+
+    def mouseMoveEvent(self, event):
+        r = self.rect()
+        left = r.left() + 6
+        right = r.right() - 52
+        count = len(self._candles)
+        if count >= 1 and right > left:
+            usable = right - left
+            x = event.position().x()
+            idx = int((x - left) / usable * count)
+            idx = max(0, min(count - 1, idx))
+            if idx != self._hover_index:
+                self._hover_index = idx
+                self.update()
+        super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event):
+        self._hover_index = None
+        self.update()
+        super().leaveEvent(event)
+
+
+# ---------------------------------------------------------------------------
 # Tables
 # ---------------------------------------------------------------------------
 
