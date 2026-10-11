@@ -93,6 +93,19 @@ The full refresh command is intentionally heavier:
 - Indian market MCP is launched from the active virtual environment as
   `indian-market-mcp.exe`.
 
+## Market Data Sources (analysis-only)
+
+- History/quotes come from the Indian Market MCP (primary) with a Yahoo fallback.
+- `analysis/data/dhan_feed.py` is an OPTIONAL, read-only Dhan market-DATA
+  source for historical candles (feeds the existing technical engine). It uses
+  only Dhan `charts/historical` data endpoints — **no** order/position/trade/
+  funds endpoints; Nova stays analysis-only. It is cache-first
+  (`analysis/data/cache/dhan`, 16h freshness gate) and disabled until configured.
+- Enable (never commit): a git-ignored `.env` or `dhan_config.json` in the
+  project root with `{"access_token": "<dhan-jwt>", "equity": {"RELIANCE":
+  "<securityId>", ...}}`, or env `DHAN_ACCESS_TOKEN`; base URL via `DHAN_BASE_URL`.
+  A missing token/id degrades gracefully and falls back to the MCP.
+
 ## Manifests and CI
 
 - `requirements.txt` is the locked runtime set for the local `venv`

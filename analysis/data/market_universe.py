@@ -47,6 +47,11 @@ from analysis.data.nse_feed import (
     get_stock_history as nse_get_stock_history,
 )
 
+from analysis.data.dhan_feed import (
+    get_price_history_dhan,
+    is_configured as dhan_configured,
+)
+
 
 # ============================================================
 # PATHS
@@ -82,6 +87,12 @@ REQUEST_DELAY = 0.10
 
 # Temporary Yahoo fallback.
 ENABLE_YAHOO_FALLBACK = True
+
+# Optional primary historical-data source: the Dhan market-data adapter
+# (analysis-only; cache-first). It is only attempted when an access token is
+# configured; any Dhan failure silently falls through to the existing
+# NSE MCP -> Yahoo chain, so behavior is unchanged when Dhan is disabled.
+ENABLE_DHAN = True
 
 
 # ============================================================
@@ -648,6 +659,21 @@ def get_price_history(
     symbol = nse_symbol(
         symbol
     )
+
+    # Optional primary source: Dhan market-data adapter (analysis-only,
+    # cache-first). Only attempted when configured; any failure falls through
+    # to the existing NSE MCP -> Yahoo chain so behavior is otherwise unchanged.
+    if ENABLE_DHAN and dhan_configured():
+        try:
+            return get_price_history_dhan(
+                symbol,
+                period,
+            )
+        except Exception as dhan_error:
+            print(
+                f"[DHAN FALLBACK] "
+                f"{symbol}: {dhan_error}"
+            )
 
     try:
 

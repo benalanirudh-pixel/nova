@@ -852,3 +852,47 @@ UNAVAILABLE snapshot rather than demo values.
 Not run here: a live Ollama turn through the running app (Ollama inference is
 not exercised in this environment); the deterministic prompt-branch + payload
 behavior is verified by the stubbed tests, and the launcher path is unchanged.
+
+
+## 2026-10-11 - Dhan market-data adapter (Step 1 data layer, read-only)
+
+Code added: `analysis/data/dhan_feed.py` (new); `analysis/data/market_universe.py`
+(`ENABLE_DHAN` + opt-in Dhan attempt in `get_price_history`); tests
+`tests/test_dhan_feed.py` (new, 21). `.gitignore` updated. No change to the NSE
+MCP path code (Dhan is attempted only when `ENABLE_DHAN and dhan_configured()`;
+any Dhan error falls through to the existing NSE MCP -> Yahoo chain).
+
+Analysis-only boundary: the adapter uses only Dhan market-DATA endpoints
+(`POST /v2/charts/historical`); it contains no order/position/trade/funds calls
+and no broker/execution behavior. Verified endpoints/fields against Dhan's docs
+(access-token header; securityId/exchangeSegment/instrument/fromDate/toDate
+body; parallel open/high/low/close/volume/timestamp response) — none invented.
+
+Checks run:
+
+- `ast.parse` on `analysis/data/dhan_feed.py` and `analysis/data/market_universe.py`:
+  passed.
+- `import analysis.data.market_universe` (which now imports dhan_feed) and
+  `import analysis.data.dhan_feed`: passed; `ENABLE_DHAN=True`,
+  `is_configured()=False` (no token) -> default behavior unchanged.
+- `.\venv\Scripts\python.exe -m unittest tests.test_dhan_feed -v` -> 21 OK.
+- Full offline suite (offscreen): `Ran 278 tests ... OK` (257 -> 278; 21 new).
+
+Test coverage (all offline; `requests.post`, config path and cache dir stubbed
+to temp dirs): Dhan payload -> OHLCV DataFrame (columns/index/tz), mismatched
+arrays and payload-shape errors, Dhan error code (DH-905) -> RuntimeError,
+network-exception propagation, cache round-trip + 16h staleness gate + miss,
+token via env/config, unmapped-symbol honest error, unconfigured error, and the
+`get_price_history` wiring (prefer Dhan when configured; skip when not; fall
+back to NSE MCP on Dhan failure).
+
+Not run here (no Dhan token/plan in this environment): a live Dhan historical
+fetch; and the live NSE MCP smoke (`test_nse_mcp.py`) intentionally not triggered
+because the MCP path is unchanged and additive-Dhan is disabled by default, and
+running it spawns a persistent `indian-market-mcp.exe` child.
+
+To enable for real (never commit): create git-ignored `dhan_config.json` in the
+project root, e.g. `{"access_token": "<jwt>", "equity": {"RELIANCE": "<id>"}}`
+(security IDs from Dhan's instrument/scrip master), or set env
+`DHAN_ACCESS_TOKEN`, then restart Market Lab. Cached candles land in
+`analysis/data/cache/dhan/` with a 16h freshness gate.

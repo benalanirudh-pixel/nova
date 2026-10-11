@@ -3,6 +3,55 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-11 - Dhan market-data adapter (Step 1 data layer, read-only)
+
+Adds Dhan as an optional, cache-first source of historical daily candles that
+feeds Nova's EXISTING technical engine (which already computes RSI/MACD/ATR/
+momentum locally). It fixes the recurring "[NSE FALLBACK] <SYMBOL>: no usable
+historical data" gap for indicators.
+
+- New `analysis/data/dhan_feed.py` — read-only market-data adapter.
+  - Analysis-only by design: uses ONLY Dhan data endpoints
+    (`POST /v2/charts/historical`). It NEVER calls order/position/trade/funds
+    endpoints and places no orders; no broker or execution behavior.
+  - `get_price_history_dhan(symbol, period)`: cache-first; caches daily candles
+    under `analysis/data/cache/dhan` (git-ignored) and reuses them only while
+    younger than `MAX_AGE_HOURS` (16h, matching Nova's scanner freshness gate),
+    else one live fetch.
+  - `resolve_security_id(symbol)`: maps NSE symbol -> Dhan securityId from a
+    git-ignored `dhan_config.json` `{"equity": {SYMBOL: id}}`. Never invents an
+    id and never auto-downloads the instrument master.
+  - `is_configured()`/`get_access_token()`: token from env `DHAN_ACCESS_TOKEN`
+    or `dhan_config.json {"access_token": ...}`; base URL from `DHAN_BASE_URL`
+    (default `https://api.dhan.co/v2`). Credentials/config are git-ignored.
+  - `_to_dataframe(...)`: converts Dhan parallel arrays (open/high/low/close/
+    volume/timestamp epoch) into the exact OHLCV DataFrame Nova's technical
+    engine already expects.
+- `analysis/data/market_universe.py`: `get_price_history` now tries Dhan FIRST
+  when `ENABLE_DHAN and dhan_configured()`; any Dhan failure falls through to
+  the existing NSE MCP -> Yahoo chain. With Dhan unset (the default) behavior is
+  byte-for-byte unchanged.
+
+Files changed:
+- `analysis/data/dhan_feed.py` (new)
+- `analysis/data/market_universe.py` (`ENABLE_DHAN` flag + opt-in Dhan attempt)
+- `tests/test_dhan_feed.py` (new, 21 offline tests; requests/HTTP/config/cache
+  stubbed)
+- `.gitignore` (ignore `.env`, `dhan_config.json`)
+
+Validation:
+- `ast.parse` + imports for the new module and the wired market_universe: passed.
+- `tests.test_dhan_feed` -> 21 OK (parsing, error codes, network propagation,
+  cache round-trip + 16h staleness gate + miss, config/token, unmapped symbol,
+  and get_price_history prefer / skip / fall-back-to-NSE wiring).
+- Full offline suite: `Ran 278 tests ... OK` (257 -> 278; 21 new).
+
+To enable (never commit the file): create `dhan_config.json` in the project root
+with `{"access_token": "<dhan-jwt>", "equity": {"RELIANCE": "<id>", ...}}`
+(or set env `DHAN_ACCESS_TOKEN`), restart Market Lab. Not-run here: a live Dhan
+fetch (no token/plan in this environment) and the live NSE MCP smoke — the
+existing MCP path is unchanged and preserved by the offline fall-back test.
+
 ## 2026-10-11 - Nova Analysis answers about the specific stock asked
 
 Bug: asking about a single stock in the Nova Analysis question box (or via

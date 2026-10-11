@@ -23,6 +23,10 @@ market_lab_debug.log
 analysis/data/cache/
 analysis/data/data/cache/
 
+# Dhan market-data credentials/config (NEVER commit tokens or security-id maps)
+.env
+dhan_config.json
+
 # Backtest harness cache (ignored directory and its contents)
 analysis/cache
 
