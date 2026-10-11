@@ -1123,4 +1123,43 @@ Visual verification (honest limitation): the window was rendered headless (offsc
 and a PNG proxy saved, but this environment cannot display/compare pixels, so the
 exact match to the reference screenshot still needs manual review. Deviation: the
 left rail is a wider column (~230-260px) because the sector panel is stacked beneath
-it; native window controls are used (no custom title bar). 
+it; native window controls are used (no custom title bar).
+
+
+## 2026-10-11 - Institutional UI upgrade for Sections 03-08
+
+Code changed: `market_lab_ui.py`, `market_lab/widgets.py`, `market_lab/view_model.py`,
+`tests/test_gui_smoke.py`. No backend/engine/data-source/cache/refresh change; every
+value still comes from the real report.
+
+Components added: `GroupedBarChart`; `_stat_card`/`_cards_row`; view-model summaries
+(`sector_summary`, `uptrend_summary`, `flow_series`, `risk_cards`, `factor_summary`).
+
+Checks run:
+
+- `ast.parse` on all changed files; offscreen `MarketLabWindow` build passed.
+- Real app path (`load_initial_report`) renders: 03 summary + table with 5 real
+  Perf bars; 04 summary + 10 real score meters + availability chips; 05 summary +
+  NIFTY/BANK NIFTY table + `positioning_interpretation` card + unusual-OI table;
+  06 summary + one `GroupedBarChart` (FII vs DII 5D/10D/20D) + table; 07 vol cards
+  (realized vol 20D/60D, ATR %, percentile, regime, exp move) + N/A VaR/Sharpe/
+  drawdown; 08 coverage + top + bottom tables.
+- Geometry at 1600x900: footer ends at y=866, guardrails y=866..900 pinned to the
+  bottom, no overlap; PNG proxy saved (`nova_sections_upgrade.png`, ~24 KB).
+- `tests.test_gui_smoke` -> passes (updated 03 -> 6 cols w/ Perf, 04 -> 5 cols w/
+  Meter, 08 -> >=2 tables); `tests.test_view_model` -> passes.
+- Full offline suite (offscreen): `Ran 324 tests ... OK` (unchanged count; existing
+  column-count test updated to the new, richer columns — no test removed/skipped).
+
+Data actually connected: sector 20D/RS/regime; technical score+trend + counts;
+derivatives spot/expiry/PCR/max-pain/ATM IV/walls/positioning/unusual OI; FII/DII
+5D/10D/20D + regime + streaks + coverage; risk realized-vol/ATR/percentile/regime/
+expected move; factor method/universe/as-of/top+bottom composite z.
+
+Data honestly NOT shown (backend limits): per-strike OI-distribution chart
+(option_chain in the report is only row counts), per-date FII/DII history (only
+5D/10D/20D sums + source_counts), portfolio VaR/Sharpe/drawdown, and per-factor z
+(null in report) — all rendered as notes/`N/A`, never fabricated.
+
+Manual-only: pixel match vs the reference screenshot (rendered offscreen + PNG
+proxy; this environment cannot display the window). 

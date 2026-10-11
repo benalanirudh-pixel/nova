@@ -3,6 +3,51 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-11 - Institutional UI upgrade for Sections 03-08
+
+Upgraded the six remaining Market Report sections into a cohesive, dense,
+institutional terminal (presentation only; real data + honest N/A preserved).
+
+Reusable components (market_lab/widgets.py + market_lab_ui.py): `GroupedBarChart`
+(grouped categorical bars, zero baseline, legend), reuse of `PerfBar`/`FillBar`
+as inline table bars, shared `_stat_card`/`_cards_row` summary strips, and
+view-model summaries (`sector_summary`, `uptrend_summary`, `flow_series`,
+`risk_cards`, `factor_summary`).
+
+- 03 Sector: summary strip (Strongest 20D / Weakest 20D / Sectors tracked) +
+  ranked table (#, Sector, 20D %, Perf, RS 20D, Regime) with a real centered
+  performance bar per row; no fake sparkline.
+- 04 Technical: summary cards (Stocks analyzed / Strong uptrends / Strong
+  downtrends) + Rank/Symbol/Score/Meter/Trend table with a real score meter
+  + indicator-availability chips (RSI/MACD/S-R NOT_AVAILABLE) + "score is not a
+  probability" note.
+- 05 Derivatives: summary strip (Spot/Expiry/OI PCR/Max pain) + Metric | NIFTY |
+  BANK NIFTY table + the engine's real `positioning_interpretation` insight card
+  + "Unusual OI activity" table + note (no per-strike OI chart in the report; OI
+  levels are not labeled guaranteed support/resistance).
+- 06 Institutional Flow: summary cards (FII 20D / DII 20D / Regime / Latest date)
+  + real FII-vs-DII grouped bar across 5D/10D/20D (₹ crore, zero baseline) +
+  metrics/coverage/signal table + EOD-flow note.
+- 07 Risk: cards for the real market-risk context (realized vol 20D/60D, ATR %,
+  vol percentile, regime/direction, expected daily move) + honest N/A cards for
+  VaR/Sharpe/drawdown (not computed) with an amber limitation note.
+- 08 Factor Rankings: summary strip (Factors evaluated / Stocks covered / Best
+  composite / Rank date) + factor-coverage table (QUALITY/VALUE NOT_AVAILABLE) +
+  top/bottom composite-z tables (z colored) + equal-weight method note.
+
+Files changed: market_lab_ui.py, market_lab/widgets.py, market_lab/view_model.py,
+tests/test_gui_smoke.py (updated column counts for new columns).
+
+Validation: ast.parse on all files; offscreen render of the real report shows
+03 (5 perf bars), 04 (10 score meters), 05 (summary+interpretation+unusual
+tables), 06 (GroupedBarChart FII/DII), 07 (vol cards + N/A), 08 (coverage+top+
+bottom); footer/guardrails pinned with no overlap at 1600x900. Full offline
+suite -> Ran 324 tests ... OK.
+
+Honest limitations: no per-strike OI-distribution chart and no per-date FII/DII
+history exist in the saved report, so those are notes/N-A rather than synthetic
+charts. Pixel verification is manual (offscreen render + PNG proxy only).
+
 ## 2026-10-11 - Replace factor panel with an honest "Top Uptrend Stocks" screen
 
 Requested: remove the factor-ranking panel and show the most-uptrend stocks.

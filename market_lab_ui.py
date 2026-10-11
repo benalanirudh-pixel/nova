@@ -1157,40 +1157,88 @@ class MarketLabWindow(QMainWindow):
         if not rows:
             return W.make_label(
                 "Sector data unavailable in this report.", 10, MUTED)
-        table = W.make_table(["#", "Sector", "20D %", "RS 20D", "Regime"],
+
+        summ = vm.sector_summary(report)
+        strongest, weakest = summ["strongest"], summ["weakest"]
+        cards = [
+            self._stat_card("STRONGEST (20D)",
+                            f"{strongest['name']}  {fmt_pct(strongest['return_20d'])}"
+                            if strongest else vm.N_A,
+                            GREEN if strongest else None),
+            self._stat_card("WEAKEST (20D)",
+                            f"{weakest['name']}  {fmt_pct(weakest['return_20d'])}"
+                            if weakest else vm.N_A,
+                            RED if weakest else None),
+            self._stat_card("SECTORS TRACKED", summ["count"]),
+        ]
+
+        table = W.make_table(["#", "Sector", "20D %", "Perf", "RS 20D", "Regime"],
                              stretch_column=1)
         W.fill_table(table, [
-            [i, r["name"], fmt_pct(r["return_20d"]),
+            [i, r["name"], fmt_pct(r["return_20d"]), "",
              fmt_num(r["relative_strength_20d"], 1), r["regime"]]
             for i, r in enumerate(rows, 1)])
+        scale = max([abs(r["return_20d"]) for r in rows
+                     if isinstance(r["return_20d"], (int, float))] or [1.0]) or 1.0
         for i, r in enumerate(rows):
             self._paint_cell(table, i, 0, MUTED, center=True)
             self._paint_cell(table, i, 2, W.sign_color(r["return_20d"]))
-            self._paint_cell(table, i, 3, W.sign_color(r["relative_strength_20d"]))
-            self._paint_cell(table, i, 4, self._regime_color(r["regime"]), center=True)
-        return table
+            self._paint_cell(table, i, 4, W.sign_color(r["relative_strength_20d"]))
+            self._paint_cell(table, i, 5, self._regime_color(r["regime"]), center=True)
+            bar = W.PerfBar()
+            bar.set_value(r["return_20d"], scale)
+            table.setCellWidget(i, 3, bar)
+        return self._box([self._cards_row(cards), table])
 
     def _technical_widget(self, report):
         t = vm.technical_block(report)
+        summ = vm.uptrend_summary(report)
         rows = t["top_stocks"]
-        table = W.make_table(["Rank", "Symbol", "Score", "Trend"], stretch_column=1)
+
+        cards = [
+            self._stat_card("STOCKS ANALYZED", f"{summ['analyzed']:,}"),
+            self._stat_card("STRONG UPTRENDS", summ["strong_uptrends"], GREEN,
+                            f"of {summ['shorted']} shown"),
+            self._stat_card("STRONG DOWNTRENDS", summ["strong_downtrends"], RED,
+                            f"of {summ['shorted']} shown"),
+        ]
+
+        table = W.make_table(["Rank", "Symbol", "Score", "Meter", "Trend"],
+                             stretch_column=1)
         W.fill_table(table, [
-            [r["rank"], r["symbol"], fmt_num(r["technical_score"], 1), r["trend"]]
+            [r["rank"], r["symbol"], fmt_num(r["technical_score"], 1), "",
+             r["trend"]]
             for r in rows])
         for i, r in enumerate(rows):
+            score = r.get("technical_score")
             self._paint_cell(table, i, 0, MUTED, center=True)
-            score = fmt_num(r["technical_score"], 1)
-            self._paint_cell(
-                table, i, 2, CYAN if score not in (vm.N_A, "") else TEXT)
-            self._paint_cell(table, i, 3, self._trend_color(r["trend"]))
+            self._paint_cell(table, i, 2, CYAN if isinstance(score, (int, float)) else MUTED)
+            self._paint_cell(table, i, 4, self._trend_color(r["trend"]))
+            meter = W.FillBar()
+            meter.set_fraction((score / 100.0) if isinstance(score, (int, float)) else 0.0,
+                               CYAN)
+            table.setCellWidget(i, 3, meter)
+
+        # Indicator availability (honest; per-stock lists are not in the report).
+        avail = QWidget()
+        avail_row = QHBoxLayout(avail)
+        avail_row.setContentsMargins(0, 0, 0, 0)
+        avail_row.setSpacing(8)
+        for name, state in (("RSI (oversold/overbought)", t["rsi_oversold"]),
+                            ("MACD crossovers", t["macd_crossovers"]),
+                            ("Support/Resistance", t["support_resistance"])):
+            ok = str(state).upper() != "N/A"
+            avail_row.addWidget(W.stat_chip(f"{name}: {'AVAILABLE' if ok else state}",
+                                            GREEN if ok else AMBER))
+        avail_row.addStretch()
         note = W.make_label(
-            f"RSI oversold {t['rsi_oversold']} • RSI overbought {t['rsi_overbought']} • "
-            f"MACD crossovers {t['macd_crossovers']} • support/resistance {t['support_resistance']}",
-            9, MUTED)
-        note.setToolTip(
-            "Per-stock RSI/MACD lists and support/resistance are not stored in "
-            "the saved report; shown honestly as N/A.")
-        return self._box([table, note])
+            "Per-stock RSI/MACD/support-resistance lists are not stored in the "
+            "saved report and are shown as N/A. A score of 100 is a scanner "
+            "score, not a probability of gain.", 9, MUTED)
+        note.setWordWrap(True)
+        note.setToolTip("These indicator lists are not part of the saved report; "
+                        "an honest N/A is shown instead of fabricated signals.")
+        return self._box([self._cards_row(cards), table, avail, note])
 
     def _derivatives_widget(self, report):
         n = vm.derivatives_block(report, "nifty")
@@ -1198,6 +1246,14 @@ class MarketLabWindow(QMainWindow):
         if not (n.get("available") or b.get("available")):
             return W.make_label(
                 "Derivatives data unavailable in this report.", 10, MUTED)
+
+        cards = [
+            self._stat_card("NIFTY SPOT", fmt_price(n.get("spot")) if n.get("available") else vm.N_A),
+            self._stat_card("EXPIRY", n.get("expiry", vm.N_A) if n.get("available") else vm.N_A),
+            self._stat_card("NIFTY OI PCR", fmt_num(n.get("oi_pcr"), 3) if n.get("available") else vm.N_A,
+                            CYAN, "OI PCR = put OI / call OI"),
+            self._stat_card("NIFTY MAX PAIN", fmt_points(n.get("max_pain")) if n.get("available") else vm.N_A),
+        ]
 
         def cell(d, key, formatter):
             return formatter(d.get(key)) if d.get("available") else vm.N_A
@@ -1212,53 +1268,128 @@ class MarketLabWindow(QMainWindow):
                             cell(b, "volume_pcr", lambda v: fmt_num(v, 3))],
             ["Max Pain", cell(n, "max_pain", fmt_points),
                           cell(b, "max_pain", fmt_points)],
+            ["ATM IV", cell(n, "atm_iv", lambda v: fmt_num(v)),
+                        cell(b, "atm_iv", lambda v: fmt_num(v))],
             ["Put / Call wall",
              f"{n.get('put_wall', vm.N_A)} / {n.get('call_wall', vm.N_A)}" if n.get("available") else vm.N_A,
              f"{b.get('put_wall', vm.N_A)} / {b.get('call_wall', vm.N_A)}" if b.get("available") else vm.N_A],
-            ["ATM IV", cell(n, "atm_iv", lambda v: fmt_num(v)),
-                        cell(b, "atm_iv", lambda v: fmt_num(v))],
         ])
+
+        pieces = [self._cards_row(cards), table]
+
+        # Backend-generated options interpretation (real engine output).
+        interp = n.get("interpretation") or b.get("interpretation")
+        if isinstance(interp, str) and interp and interp != vm.N_A:
+            inner_frame, inner_layout = W.panel("Positioning interpretation")
+            inner_layout.addWidget(W.make_label(interp, 9, TEXT))
+            inner_layout.addWidget(W.make_label(
+                f"Engine output • {n.get('timestamp', vm.N_A)}", 8, MUTED))
+            pieces.append(inner_frame)
+
+        # Unusual open-interest activity (real strikes).
+        unusual = n.get("unusual_activity") or []
+        if unusual:
+            ut = W.make_table(["Type", "Strike", "OI", "Vol", "State"],
+                              stretch_column=4)
+            W.fill_table(ut, [
+                [u.get("type", vm.N_A), fmt_points(u.get("strike")),
+                 f"{int(u['oi']):,}" if isinstance(u.get("oi"), (int, float)) else vm.N_A,
+                 f"{int(u['vol']):,}" if isinstance(u.get("vol"), (int, float)) else vm.N_A,
+                 u.get("state", vm.N_A)]
+                for u in unusual[:8]])
+            pieces.append(W.make_label("UNUSUAL OI ACTIVITY (strike-level)", 9, MUTED, True))
+            pieces.append(ut)
+
         note = W.make_label(
-            f"Top OI-build/reduction is shown at the strike level in the NSE "
-            f"option chain; a per-stock OI-build list is not in the saved "
-            f"report ({n.get('stock_oi_buildup_list')}).", 9, MUTED)
+            "OI concentrations/depth are not labeled guaranteed support or "
+            "resistance. A per-strike OI-distribution chart is not stored in the "
+            "saved report, so it is not drawn.", 9, AMBER)
         note.setWordWrap(True)
-        return self._box([table, note])
+        pieces.append(note)
+        return self._box(pieces)
 
     def _flow_widget(self, report):
         f = vm.flow_block(report)
         if not f["available"]:
             return W.make_label(
                 "Institutional flow unavailable in this report.", 10, MUTED)
-        coverage = (
-            f"{f['primary_verified']}/{f['target_sessions']} sessions verified"
-            if f.get("primary_verified") is not None else vm.N_A)
-        rows = [
+        series = vm.flow_series(report)
+        unit = series["unit"]
+        cards = [
+            self._stat_card("FII NET 20D", f"{fmt_crore(f['fii_20d'])} cr",
+                            W.sign_color(f["fii_20d"])),
+            self._stat_card("DII NET 20D", f"{fmt_crore(f['dii_20d'])} cr",
+                            W.sign_color(f["dii_20d"])),
+            self._stat_card("FLOW REGIME", f["flow_regime"], CYAN),
+            self._stat_card("LATEST DATE", f["latest_date"]),
+        ]
+
+        chart = W.GroupedBarChart(height=150)
+        chart.set_data(series["categories"], [
+            {"label": "FII", "color": CYAN, "values": series["fii"]},
+            {"label": "DII", "color": GREEN, "values": series["dii"]},
+        ])
+
+        table = self._kv_table([
             ["Flow regime", f["flow_regime"]],
-            ["FII net 20D (₹ cr)", fmt_crore(f["fii_20d"])],
-            ["DII net 20D (₹ cr)", fmt_crore(f["dii_20d"])],
             ["FII net 5D (₹ cr)", fmt_crore(f["fii_5d"])],
             ["DII net 5D (₹ cr)", fmt_crore(f["dii_5d"])],
-            ["Primary coverage", coverage],
+            ["FII net 10D (₹ cr)", fmt_crore(f["fii_10d"])],
+            ["DII net 10D (₹ cr)", fmt_crore(f["dii_10d"])],
+            ["FII net 20D (₹ cr)", fmt_crore(f["fii_20d"])],
+            ["DII net 20D (₹ cr)", fmt_crore(f["dii_20d"])],
+            ["Latest date", f["latest_date"]],
+            ["Primary coverage",
+             (f"{f['primary_verified']}/{f['target_sessions']} sessions verified"
+              if f.get("primary_verified") is not None else vm.N_A)],
             ["Signal eligible",
              ("YES" if f["signal_allowed"] else f"NO — {f['signal_reason']}")],
-        ]
-        table = self._kv_table(rows, value_field="INR crore")
-        for i, key in enumerate(["fii_20d", "dii_20d", "fii_5d", "dii_5d"], start=1):
-            self._paint_cell(table, i, 1, W.sign_color(f[key]))
-        last = table.rowCount() - 1
-        self._paint_cell(table, last, 1,
-                         GREEN if f["signal_allowed"] else AMBER)
-        return table
+        ], value_field="INR crore")
+        for i, key in enumerate(["x", "fii_5d", "dii_5d", "fii_10d", "dii_10d",
+                                 "fii_20d", "dii_20d"], start=1):
+            if key in f:
+                self._paint_cell(table, i, 1, W.sign_color(f[key]))
+
+        fii_streak = f.get("fii_streak") or [None, None]
+        dii_streak = f.get("dii_streak") or [None, None]
+        note = W.make_label(
+            f"FII {fii_streak[0]} for {fii_streak[1]}d • DII {dii_streak[0]} for "
+            f"{dii_streak[1]}d • unit: {unit}. Cash-market participant flows "
+            f"(end-of-day), not proprietary order-book data. Net flow across "
+            f"5D/10D/20D horizons (₹ crore), zero baseline at the center.",
+            9, MUTED)
+        note.setWordWrap(True)
+        note.setToolTip("Delayed end-of-day participant activity; not real-time "
+                        "institutional transactions.")
+        return self._box([self._cards_row(cards), chart, table, note])
 
     def _factor_widget(self, report):
-        fb = vm.factor_block(report)
-        head = W.make_label(
-            f"method: {fb['method']} • universe: {fb['universe_size']} • "
-            f"as of: {fb['as_of']}", 9, MUTED)
-        pieces = [head]
-        for title, data in (("TOP 10 (composite z)", fb["top"]),
-                             ("BOTTOM 10 (composite z)", fb["bottom"])):
+        summ = vm.factor_summary(report)
+        cards = [
+            self._stat_card("FACTORS EVALUATED", summ["factors_evaluated"]),
+            self._stat_card("STOCKS COVERED", f"{summ['stocks']:,}"
+                            if isinstance(summ["stocks"], (int, float)) else vm.N_A),
+            self._stat_card("BEST (COMPOSITE Z)", summ["best_symbol"], GREEN),
+            self._stat_card("RANK DATE", summ["as_of"]),
+        ]
+        pieces = [self._cards_row(cards)]
+
+        avail = W.make_table(["Factor", "Availability"], stretch_column=0)
+        W.fill_table(avail, [[f, "EVALUATED (z shown: "
+                                + ("yes" if summ["per_factor_z_available"] else "no") + ")"]
+                             for f in summ["factors_available"]] +
+                             [[f, "NOT_AVAILABLE"]
+                              for f in summ["factors_unavailable"]])
+        for r in range(avail.rowCount()):
+            cell = avail.item(r, 1)
+            if cell is not None:
+                cell.setForeground(QColor(
+                    MUTED if cell.text().startswith("NOT_AVAILABLE") else GREEN))
+        pieces.append(W.make_label("FACTOR COVERAGE", 9, MUTED, True))
+        pieces.append(avail)
+
+        for title, data in (("TOP 10 (composite z)", summ["top"]),
+                            ("BOTTOM 10 (composite z)", summ["bottom"])):
             if not data:
                 continue
             table = W.make_table(["Rank", "Symbol", "Composite Z", "Price"],
@@ -1271,13 +1402,33 @@ class MarketLabWindow(QMainWindow):
                 self._paint_cell(table, i, 2, W.sign_color(r["composite_z"]))
             pieces.append(W.make_label(title, 9, MUTED, True))
             pieces.append(table)
-        for factor, reason in fb["factors_unavailable"].items():
-            pieces.append(W.make_label(f"{factor}: NOT_AVAILABLE — {reason}",
-                                       9, AMBER))
-        if len(pieces) == 1:
-            pieces.append(W.make_label(
-                "Factor rankings unavailable in this report.", 10, MUTED))
+
+        pieces.append(W.make_label(
+            f"Method: {summ['method']}. Per-factor z is not populated in this "
+            "report, so per-factor score bars are not shown; only the "
+            "equal-weight composite z (real) is displayed. QUALITY/VALUE "
+            "fundamentals are NOT computed by Nova.", 9, AMBER))
         return self._box(pieces)
+
+    # ---- reusable summary cards for section panels ----
+
+    def _stat_card(self, title, value, color=None, note=None):
+        frame, layout = W.panel(title)
+        layout.setSpacing(2)
+        layout.addWidget(W.make_label(str(value), 20, color or TEXT,
+                                      bold=True, mono=True))
+        if note:
+            layout.addWidget(W.make_label(note, 8, MUTED))
+        return frame
+
+    def _cards_row(self, cards, spacing=10):
+        row = QWidget()
+        h = QHBoxLayout(row)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(spacing)
+        for card in cards:
+            h.addWidget(card, 1)
+        return row
 
     def build_overview(self):
         scroll = QScrollArea()
@@ -1770,25 +1921,33 @@ class MarketLabWindow(QMainWindow):
 
         # --- 07 Risk metrics (market-risk context; portfolio stats not computed) ---
         rk = vm.risk_block(report)
+        rc = vm.risk_cards(report)
         def _risk(sec):
-            provided = rk["provided"]
+            cards = [
+                self._stat_card("REALIZED VOL 20D",
+                                f"{fmt_num(rc['realized_vol_20d'])}%" if rc["realized_vol_20d"] is not None else vm.N_A),
+                self._stat_card("REALIZED VOL 60D",
+                                f"{fmt_num(rc['realized_vol_60d'])}%" if rc["realized_vol_60d"] is not None else vm.N_A),
+                self._stat_card("ATR %", fmt_num(rc["atr_pct"])),
+                self._stat_card("VOL PERCENTILE", fmt_num(rc["vol_percentile"], 1),
+                                None, "1y percentile of realized volatility"),
+                self._stat_card("VOL REGIME", rc["vol_regime"],
+                                AMBER if str(rc["vol_regime"]).upper() in ("HIGH", "ELEVATED") else None,
+                                f"direction: {rc['vol_direction']}"),
+                self._stat_card("EXP DAILY MOVE", f"{fmt_num(rc['expected_daily_move'])}%"),
+            ]
+            sec.add(self._cards_row(cards))
             sec.add(self._kv_table([
-                ["1-day VaR 95%", rk["var_95"]],
-                ["Sharpe ratio", rk["sharpe"]],
-                ["Max drawdown 52w", rk["max_drawdown_52w"]],
-                ["Current drawdown", rk["current_drawdown"]],
-                ["NIFTY ATR %", fmt_num(provided["atr_pct"])],
-                ["NIFTY realized vol 20D", fmt_num(provided["realized_volatility_20d"]) + "%"],
-                ["Volatility percentile", fmt_num(provided["volatility_percentile"], 1)],
-                ["Volatility regime", provided["volatility_regime"]],
+                ["1-day VaR 95%", rc["var_95"]],
+                ["Sharpe ratio", rc["sharpe"]],
+                ["Max drawdown 52w", rc["max_drawdown_52w"]],
             ]))
             sec.add(W.make_label(rk["note"], 9, AMBER))
         self._fill_section("07", "CONTEXT_ONLY", _risk)
 
-        # --- 08 Factor rankings (top/bottom composite z, colorized) ---
-        fb2 = vm.factor_block(report)
+        # --- 08 Factor rankings (summary + availability + top/bottom composite) ---
         self._fill_section(
-            "08", "AVAILABLE" if fb2["status"] == "AVAILABLE" else "NOT_AVAILABLE",
+            "08", "AVAILABLE" if vm.factor_block(report)["status"] == "AVAILABLE" else "NOT_AVAILABLE",
             lambda s: s.add(self._factor_widget(report)))
 
         # --- 09 Earnings calendar ---

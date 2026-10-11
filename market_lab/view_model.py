@@ -245,6 +245,88 @@ def _rsi_condition(value):
     return "NEUTRAL"
 
 
+# ---------------------------------------------------------------------------
+# Section summaries (03 sector, 04 technical uptrends, 05/06/07/08 panels)
+# ---------------------------------------------------------------------------
+
+def sector_summary(report):
+    rows = sector_rows(report, limit=25)
+    sector = report.get("sector_intelligence") or {}
+    valid = [r for r in rows if isinstance(r["return_20d"], (int, float))]
+    strongest = max(valid, key=lambda r: r["return_20d"]) if valid else None
+    weakest = min(valid, key=lambda r: r["return_20d"]) if valid else None
+    return {
+        "count": sector.get("count", len(rows) if rows else N_A),
+        "strongest": strongest,
+        "weakest": weakest,
+    }
+
+
+def uptrend_summary(report):
+    stocks = report.get("top_technical_stocks") or []
+    analyzed = report.get("stocks_analyzed", len(stocks))
+    strong_up = sum(1 for s in stocks
+                    if isinstance(s, dict)
+                    and str(s.get("trend", "")).upper() == "STRONG_UPTREND")
+    strong_down = sum(1 for s in stocks
+                      if isinstance(s, dict)
+                      and str(s.get("trend", "")).upper() == "STRONG_DOWNTREND")
+    return {
+        "analyzed": analyzed,
+        "shorted": len(stocks),
+        "strong_uptrends": strong_up,
+        "strong_downtrends": strong_down,
+        "indicators": {"RSI": N_A, "MACD": N_A, "S/R": N_A},
+    }
+
+
+def flow_series(report):
+    """Real FII/DII net flows by horizon (for a grouped bar). No per-date
+    series exists in the report, so this uses the engine's 5D/10D/20D sums."""
+    f = flow_block(report)
+    return {
+        "categories": ["5D", "10D", "20D"],
+        "fii": [f["fii_5d"], f["fii_10d"], f["fii_20d"]],
+        "dii": [f["dii_5d"], f["dii_10d"], f["dii_20d"]],
+        "unit": f.get("unit", "INR crore"),
+        "regime": f.get("flow_regime", N_A),
+        "streaks": {"fii": f.get("fii_streak"), "dii": f.get("dii_streak")},
+    }
+
+
+def risk_cards(report):
+    risk = report.get("risk_context") or {}
+    nifty = _get(risk, "instruments", "nifty") or {}
+    return {
+        "realized_vol_20d": _num(nifty.get("realized_volatility_20d")),
+        "realized_vol_60d": _num(nifty.get("realized_volatility_60d")),
+        "atr_pct": _num(nifty.get("atr_pct")),
+        "vol_percentile": _num(nifty.get("volatility_percentile")),
+        "vol_regime": nifty.get("volatility_regime", N_A),
+        "vol_direction": nifty.get("volatility_direction", N_A),
+        "expected_daily_move": _num(nifty.get("expected_daily_move_percent")),
+        "var_95": N_A, "sharpe": N_A, "max_drawdown_52w": N_A,
+        "note": "Market-risk context only (realized vol/ATR); portfolio VaR/"
+                "Sharpe/drawdown are not computed by Nova.",
+    }
+
+
+def factor_summary(report):
+    fb = factor_block(report)
+    best = fb["top"][0]["symbol"] if fb["top"] else N_A
+    return {
+        "factors_evaluated": len(fb["factors_available"]),
+        "factors_available": fb["factors_available"],
+        "factors_unavailable": fb["factors_unavailable"],
+        "stocks": fb.get("universe_size", N_A),
+        "as_of": fb.get("as_of", N_A),
+        "method": fb.get("method", N_A),
+        "per_factor_z_available": fb.get("per_factor_z_available"),
+        "best_symbol": best,
+        "top": fb["top"], "bottom": fb["bottom"],
+    }
+
+
 def indicator_cards(report, which="nifty"):
     """RSI/MACD/ATR/VOL for an index. ATR/VOL come from the report's volatility
     engine; RSI/MACD are computed from the index's REAL daily candles using
@@ -471,7 +553,10 @@ def derivatives_block(report, which="nifty"):
         "resistance": (leg.get("support_resistance") or {}).get("resistance", N_A),
         "atm_iv": _num(iv.get("atm_iv")),
         "unusual_activity": unusual,
+        "unusual_count": len(unusual),
+        "interpretation": leg.get("positioning_interpretation", N_A),
         "timestamp": leg.get("timestamp", N_A),
+        "strike_window": (leg.get("option_chain") or {}).get("strike_window", N_A),
         "stock_oi_buildup_list": N_A,  # per-stock OI build list not in report
     }
 

@@ -776,6 +776,98 @@ class StackBar(QWidget):
 
 
 # ---------------------------------------------------------------------------
+# Grouped bar chart (real categorical series; zero baseline + legend)
+# ---------------------------------------------------------------------------
+
+class GroupedBarChart(QWidget):
+    """Compact grouped bars across categories for one or more series, with a
+    zero baseline and a legend. Values are shown only if present; any non-numeric
+    or missing value is skipped (bar height 0) rather than fabricated."""
+
+    def __init__(self, height=180, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(height)
+        self._categories = []
+        self._series = []   # [{label, color, values:[...]}]
+
+    def set_data(self, categories, series):
+        self._categories = list(categories or [])
+        clean = []
+        for s in series or []:
+            values = []
+            for v in s.get("values", []):
+                try:
+                    values.append(float(v))
+                except (TypeError, ValueError):
+                    values.append(0.0)
+            clean.append({"label": s.get("label", ""),
+                          "color": s.get("color", MUTED), "values": values})
+        self._series = clean
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = self.rect()
+        if not self._categories or not self._series:
+            painter.setPen(QPen(QColor(MUTED)))
+            painter.drawText(r, Qt.AlignmentFlag.AlignCenter,
+                             "no series")
+            painter.end()
+            return
+
+        legend_h = 16
+        plot = r.adjusted(8, 8, -8, -(legend_h + 6))
+        values = [v for s in self._series for v in s["values"]]
+        hi = max([abs(v) for v in values] or [1.0]) * 1.12
+        zero_y = plot.top() + plot.height() / 2
+
+        # zero baseline + gridlines
+        painter.setPen(QPen(QColor(SECONDARY), 1))
+        painter.drawLine(plot.left(), int(zero_y), plot.right(), int(zero_y))
+
+        n_cat = len(self._categories)
+        n_series = len(self._series)
+        group_w = plot.width() / n_cat
+        bar_w = max(4.0, (group_w * 0.7) / n_series)
+        half = plot.height() / 2
+
+        for ci in range(n_cat):
+            cx0 = plot.left() + group_w * ci + (group_w - bar_w * n_series) / 2
+            for si, s in enumerate(self._series):
+                value = s["values"][ci] if ci < len(s["values"]) else 0.0
+                frac = max(-1.0, min(1.0, value / hi))
+                h = frac * half
+                x = cx0 + bar_w * si
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QColor(s["color"]))
+                if value >= 0:
+                    painter.drawRect(QRectF(x, zero_y - h, bar_w - 1, h))
+                else:
+                    painter.drawRect(QRectF(x, zero_y, bar_w - 1, -h))
+            # category label
+            painter.setPen(QPen(QColor(SECONDARY)))
+            painter.setFont(font(8))
+            painter.drawText(
+                int(plot.left() + group_w * ci), int(plot.bottom() + 2),
+                int(group_w), 14, Qt.AlignmentFlag.AlignCenter,
+                str(self._categories[ci]))
+
+        # legend
+        lx = plot.left()
+        painter.setFont(font(8))
+        for s in self._series:
+            painter.setBrush(QColor(s["color"]))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRect(QRectF(lx, r.bottom() - legend_h, 8, 8))
+            painter.setPen(QPen(QColor(SECONDARY)))
+            painter.drawText(lx + 12, r.bottom() - legend_h - 2, 140, 14,
+                             Qt.AlignmentFlag.AlignVCenter, str(s["label"]))
+            lx += 150
+        painter.end()
+
+
+# ---------------------------------------------------------------------------
 # Tables
 # ---------------------------------------------------------------------------
 

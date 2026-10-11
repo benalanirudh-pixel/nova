@@ -984,14 +984,14 @@ class TestRedesign(unittest.TestCase):
 
         s03 = first_table("03")
         self.assertIsNotNone(s03)
-        self.assertEqual(s03.columnCount(), 5)            # #, Sector, 20D%, RS, Regime
+        self.assertEqual(s03.columnCount(), 6)            # #, Sector, 20D%, Perf, RS, Regime
         self.assertEqual(s03.rowCount(), 2)               # two real sectors
         s04 = first_table("04")
-        self.assertEqual(s04.columnCount(), 4)            # Rank, Symbol, Score, Trend
+        self.assertEqual(s04.columnCount(), 5)            # Rank, Symbol, Score, Meter, Trend
         s05 = first_table("05")
         self.assertEqual(s05.columnCount(), 3)            # Metric, NIFTY, BANK NIFTY
         s06 = first_table("06")
         self.assertEqual(s06.columnCount(), 2)            # Metric, INR crore
-        # Section 08 has top AND bottom tables.
+        # Section 08 has factor-coverage + top + bottom tables.
         s08 = win.report_sections["08"].body.findChildren(QTableWidget)
-        self.assertEqual(len(s08), 2)
+        self.assertGreaterEqual(len(s08), 2)
