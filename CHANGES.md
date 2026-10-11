@@ -3,6 +3,23 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-11 - Added pyqtgraph + qt-material (deps)
+
+Installed into the local venv for richer charting/theming (available to the
+Stock Analysis charts and general UI):
+
+- `pyqtgraph==0.14.0` — verified: `pyqtgraph.PlotWidget()` constructs offscreen
+  (intended for candlestick/RSI/MACD panels).
+- `qt-material==2.17` — verified: `qt_material.build_stylesheet("dark_teal.xml")`
+  returns a ~30k-char QSS and applies to a QApplication (API is
+  `build_stylesheet` in v2.x, not `load_stylesheet`).
+
+Regenerated `requirements.txt` (109 pkgs, plain UTF-8, no BOM) and mirrored it in
+`pyproject.toml`; `tests/test_packaging.py` confirms the two stay in sync.
+No application code changed yet — the packages are available but not yet wired
+into widgets (charts remain the existing lightweight QPainter components).
+Full offline suite: `Ran 339 tests ... OK`.
+
 ## 2026-10-11 - AI Stock Analysis terminal (per-stock; any symbol)
 
 Added a stock-specific analysis mode: enter ANY supported NSE symbol and get a
