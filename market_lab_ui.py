@@ -1681,20 +1681,22 @@ class MarketLabWindow(QMainWindow):
             "interpretation; conclusions are not validated predictions.")
         self.stock_report = QPlainTextEdit()
         self.stock_report.setReadOnly(True)
-        self.stock_report.setPlainText(result.get("ai", ""))
+        self.stock_report.setLineWrapMode(
+            QPlainTextEdit.LineWrapMode.WidgetWidth)
+        self._set_stock_ai(result.get("ai", "") or "", symbol)
         report_layout.addWidget(self.stock_report, 1)
         layout.addWidget(report_frame, 1)
 
         # Honest N/A cards for unavailable stock-level analysis
         na_cards = [
             self._stat_card("FUNDAMENTALS", "UNAVAILABLE", MUTED,
-                            "not computed by Nova"),
+                            "no fundamentals source in Nova"),
             self._stat_card("INSTITUTIONAL", "UNAVAILABLE", MUTED,
-                            "stock-level holdings not in report"),
+                            "stock holdings not available (only market-wide FII/DII)"),
             self._stat_card("DERIVATIVES", "UNAVAILABLE", MUTED,
-                            "stock options not wired"),
+                            "stock option chain not available"),
             self._stat_card("SUPPORT/RES", "UNAVAILABLE", MUTED,
-                            "levels not computed"),
+                            "levels not calculated by the engine"),
         ]
         layout.addWidget(self._cards_row(na_cards))
 
@@ -1721,6 +1723,27 @@ class MarketLabWindow(QMainWindow):
             "These are MARKET-WIDE figures, not this stock's own activity.",
             8, AMBER))
         layout.addWidget(ctx_frame)
+
+    def _set_stock_ai(self, text, symbol=None):
+        """Show the AI report; on an AI error, preserve the previous successful
+        report for the same symbol (with its original content) instead of
+        replacing it with only an error/disclaimer."""
+        text = text or ""
+        is_error = (
+            text.startswith("STOCK ANALYSIS AI ERROR")
+            or text.startswith("MARKET LAB AI ERROR")
+        )
+        prev = getattr(self, "_last_stock_report", None)
+        if is_error and prev and prev.get("symbol") == symbol and prev.get("text"):
+            self.stock_report.setPlainText(prev["text"])
+            self.stock_status.setText(
+                f"AI report failed; showing the previous good report "
+                f"for {symbol}.")
+            self.stock_status.setStyleSheet(f"color:{AMBER};")
+            return
+        self.stock_report.setPlainText(text)
+        if not is_error and text:
+            self._last_stock_report = {"symbol": symbol, "text": text}
 
     def _stock_identity_panel(self, metrics):
         frame, layout = W.panel("Selected security")

@@ -1103,6 +1103,26 @@ class TestPyQtGraphAndIcons(unittest.TestCase):
         chart.set_data([])  # must not raise
         self.assertEqual(set(chart.plots), {"price", "volume", "rsi", "macd"})
 
+    @unittest.skipIf(not getattr(widgets_module, "PG_AVAILABLE", False),
+                     "pyqtgraph not installed")
+    def test_pg_panels_are_stacked_and_share_time_axis(self):
+        candles = [
+            {"t": "2026-09-%02d" % ((i % 28) + 1), "o": 100 + i, "h": 105 + i,
+             "l": 99 + i, "c": 103 + (i % 4), "v": 100 + i}
+            for i in range(40)
+        ]
+        chart = widgets_module.PgCandleChart()
+        chart.set_data(candles, rsi=[50 + (i % 4) for i in range(40)],
+                       macd=[0.5 * i for i in range(40)],
+                       signal=[0.4 * i for i in range(40)],
+                       hist=[0.1 * i for i in range(40)])
+        grid = chart.win.ci.layout
+        self.assertEqual((grid.rowCount(), grid.columnCount()), (4, 1))
+        # All four plots must share one x-range (shared datetime axis).
+        ranges = {tuple(round(v, 0) for v in p.getViewBox().viewRange()[0])
+                  for p in chart.plots.values()}
+        self.assertEqual(len(ranges), 1)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

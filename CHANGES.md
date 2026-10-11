@@ -3,10 +3,36 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
-# CHANGES.md
+## 2026-10-11 - Fix Stock Analysis chart layout (vertical stack + shared time axis) and AI report rendering
 
-This file tracks context, workflow, and behavior changes important for future
-coding agents.
+Root cause of the broken chart: `GraphicsLayoutWidget.addPlot()` called with no
+row/col added the four panels as **4 columns in 1 row** (narrow horizontal
+strips) instead of a vertical stack, and the ViewBoxes were never auto-ranged,
+so x stuck at the default `[0, 1]`.
+
+Fixes in `market_lab/widgets.py` (`PgCandleChart`):
+- Panels are now added as **4 rows x 1 column** with row stretch factors (price
+  dominant ~6, volume/RSI/MACD ~2 each) and an Expanding size policy, so the
+  price chart occupies the full chart-column width.
+- **Shared datetime axis**: the price plot uses a `DateAxisItem`; volume/RSI/MACD
+  are `setXLink`-ed to it and the price plot is `autoRange`-ed, so all four share
+  one epoch time range (verified identical x-range across panels).
+- BarGraphItem widths and the candlestick body width are expressed in real time
+  units (seconds), so volume/MACD bars align to the time axis.
+
+Fixes in `market_lab_ui.py` (Stock Analysis page):
+- AI report panel now wraps lines, and `_set_stock_ai()` preserves the previous
+  successful report for the same symbol when a new AI call fails (instead of
+  replacing it with only an error/disclaimer).
+- Unavailable panels now state precise reasons (fundamentals source missing,
+  stock-level holdings unavailable, stock option chain unavailable, S/R not
+  calculated).
+
+Verified: offscreen render -> 4 rows x 1 col, all panels full width (622px),
+identical x-range (shared time axis), price 218px tall; AI panel holds the full
+report (~4.2k chars). `tests.test_gui_smoke.TestPyQtGraphAndIcons` -> 4 OK incl.
+a new `test_pg_panels_are_stacked_and_share_time_axis`. Full offline suite:
+`Ran 345 tests ... OK`.
 
 ## 2026-10-11 - PyQtGraph stock chart + Lucide-style icons (Stock Analysis)
 

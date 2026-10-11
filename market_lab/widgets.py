@@ -1051,6 +1051,7 @@ try:
     import pyqtgraph as pg
     from pyqtgraph.Qt import QtCore as _PGQtCore
     from pyqtgraph.Qt import QtGui as _PGQtGui
+    from PySide6.QtWidgets import QSizePolicy as _PGSizePolicy
 
     PG_AVAILABLE = True
 except Exception:  # pragma: no cover
@@ -1058,6 +1059,21 @@ except Exception:  # pragma: no cover
 
 
 if PG_AVAILABLE:
+
+    def _to_epoch(value):
+        import datetime as _dt
+
+        try:
+            s = str(value).strip()
+            if len(s) == 10 and "-" in s:
+                dt = _dt.datetime.strptime(s, "%Y-%m-%d")
+            else:
+                dt = _dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=_dt.timezone.utc)
+            return dt.timestamp()
+        except Exception:
+            return None
 
     class _CandlestickItem(pg.GraphicsObject):
         """Minimal candlestick drawn in data coordinates (rises green, falls red)."""
@@ -1070,17 +1086,15 @@ if PG_AVAILABLE:
         def _generate_picture(self):
             self.picture = _PGQtGui.QPicture()
             p = _PGQtGui.QPainter(self.picture)
-            if len(self.data) >= 2:
-                w = (self.data[1][0] - self.data[0][0]) / 3.0
-            else:
-                w = 0.35
-            for (t, open_, close, low, high) in self.data:
+            xs = sorted({d[0] for d in self.data})
+            w = (xs[1] - xs[0]) / 3.0 if len(xs) >= 2 else 3600.0
+            for (x, open_, close, low, high) in self.data:
                 color = QColor(GREEN if close >= open_ else RED)
                 p.setPen(pg.mkPen(color))
-                p.drawLine(_PGQtCore.QPointF(t, low), _PGQtCore.QPointF(t, high))
+                p.drawLine(_PGQtCore.QPointF(x, low), _PGQtCore.QPointF(x, high))
                 p.setBrush(pg.mkBrush(color))
-                p.drawRect(_PGQtCore.QRectF(
-                    t - w, min(open_, close), 2 * w, abs(close - open_) or 0.1))
+                body = abs(close - open_) or max(w * 0.05, 1e-6)
+                p.drawRect(_PGQtCore.QRectF(x - w, min(open_, close), 2 * w, body))
             p.end()
 
         def paint(self, painter, *args):
@@ -1090,103 +1104,141 @@ if PG_AVAILABLE:
             return _PGQtCore.QRectF(self.picture.boundingRect())
 
     class PgCandleChart(QWidget):
-        """Price candles + MA overlays, volume, RSI and MACD panels.
+        """Price candles + MA overlays, volume, RSI and MACD panels stacked
+        vertically and sharing one datetime axis.
 
         `set_data(candles, rsi, macd, signal, hist)` takes only real series;
-        missing/short series are simply not drawn. Falls back to nothing rather
-        than fabricating bars.
+        missing/short series are simply not drawn. Never fabricates bars.
         """
+
+        _ROWS = ("price", "volume", "rsi", "macd")
 
         def __init__(self, parent=None):
             super().__init__(parent)
+            self.setSizePolicy(_PGSizePolicy.Expanding, _PGSizePolicy.Expanding)
             layout = QVBoxLayout(self)
             layout.setContentsMargins(0, 0, 0, 0)
             self.win = pg.GraphicsLayoutWidget()
+            self.win.setSizePolicy(_PGSizePolicy.Expanding, _PGSizePolicy.Expanding)
             layout.addWidget(self.win)
             self.plots = {}
             self._build()
 
         def _build(self):
             self.win.clear()
+            date_axis = pg.DateAxisItem(orientation="bottom")
             self.plots = {
-                "price": self.win.addPlot(),
-                "volume": self.win.addPlot(),
-                "rsi": self.win.addPlot(),
-                "macd": self.win.addPlot(),
+                "price": self.win.addPlot(row=0, col=0,
+                                          axisItems={"bottom": date_axis}),
+                "volume": self.win.addPlot(row=1, col=0),
+                "rsi": self.win.addPlot(row=2, col=0),
+                "macd": self.win.addPlot(row=3, col=0),
             }
-            self.plots["price"].showGrid(x=True, y=True, alpha=0.2)
-            self.plots["price"].setLabel("left", "Price")
-            self.plots["volume"].setMaximumHeight(70)
-            self.plots["volume"].showGrid(x=False, y=True, alpha=0.2)
-            self.plots["volume"].setLabel("left", "Vol")
-            self.plots["rsi"].setMaximumHeight(70)
-            self.plots["rsi"].showGrid(x=False, y=True, alpha=0.2)
+            grid = self.win.ci.layout
+            grid.setRowStretchFactor(0, 6)   # price dominates
+            grid.setRowStretchFactor(1, 2)
+            grid.setRowStretchFactor(2, 2)
+            grid.setRowStretchFactor(3, 2)
+
+            price = self.plots["price"]
+            price.showGrid(x=True, y=True, alpha=0.2)
+            price.setLabel("left", "Price")
+
+            for name, label, cap in (("volume", "Volume", 96),
+                                      ("rsi", "RSI 14", 96),
+                                      ("macd", "MACD", 120)):
+                p = self.plots[name]
+                p.showGrid(x=False, y=True, alpha=0.2)
+                p.setLabel("left", label)
+                p.setMaximumHeight(cap)
+                p.setXLink(price)
+                p.getAxis("bottom").setStyle(showValues=False)
+
             self.plots["rsi"].setYRange(0, 100)
-            self.plots["rsi"].setLabel("left", "RSI")
-            self.plots["rsi"].addLine(y=70, pen=pg.mkPen(AMBER,
-                                    style=_PGQtCore.Qt.DashLine))
-            self.plots["rsi"].addLine(y=30, pen=pg.mkPen(AMBER,
-                                    style=_PGQtCore.Qt.DashLine))
-            self.plots["macd"].setMaximumHeight(70)
-            self.plots["macd"].showGrid(x=False, y=True, alpha=0.2)
-            self.plots["macd"].setLabel("left", "MACD")
+            self.plots["rsi"].addLine(
+                y=70, pen=pg.mkPen(AMBER, style=_PGQtCore.Qt.DashLine))
+            self.plots["rsi"].addLine(
+                y=30, pen=pg.mkPen(AMBER, style=_PGQtCore.Qt.DashLine))
             self.plots["macd"].addLine(y=0, pen=pg.mkPen(SECONDARY))
 
-        def _series(self, values, n):
+        def _series(self, values, xs):
             out = []
-            for i in range(min(n, len(values))):
-                v = values[i]
+            for x, v in zip(xs, values):
                 if v is None:
                     continue
                 try:
-                    out.append((i, float(v)))
+                    out.append((x, float(v)))
                 except (TypeError, ValueError):
                     continue
             return out
 
         def set_data(self, candles, rsi=None, macd=None, signal=None, hist=None):
-            candles = candles or []
+            candles = list(candles or [])
             n = len(candles)
             self._build()
             if n == 0:
                 return
 
-            opens = [c.get("o") for c in candles]
-            closes = [c.get("c") for c in candles]
-            data = [(i, opens[i], closes[i], c.get("l"), c.get("h"))
-                    for i, c in enumerate(candles)]
-            self.plots["price"].addItem(_CandlestickItem(data))
+            xs = []
+            fallback = 1_600_000_000.0
+            for i, c in enumerate(candles):
+                e = _to_epoch(c.get("t"))
+                if e is None:
+                    e = fallback + i * 86400.0
+                xs.append(e)
+            step = (xs[1] - xs[0]) if n > 1 else 86400.0
+            if step <= 0:
+                step = 86400.0
+
+            body_data = []
+            for i, c in enumerate(candles):
+                o, cl, lo, hi = c.get("o"), c.get("c"), c.get("l"), c.get("h")
+                if None in (o, cl, lo, hi):
+                    continue
+                body_data.append((xs[i], float(o), float(cl), float(lo), float(hi)))
+            if body_data:
+                self.plots["price"].addItem(_CandlestickItem(body_data))
 
             for key, color in (("ma20", CYAN), ("ma50", AMBER), ("ma200", PURPLE)):
-                sel = self._series([c.get(key) for c in candles], n)
+                sel = self._series([c.get(key) for c in candles], xs)
                 if len(sel) >= 2:
                     self.plots["price"].plot(
-                        [p[0] for p in sel], [p[1] for p in sel],
+                        [s[0] for s in sel], [s[1] for s in sel],
                         pen=pg.mkPen(color, width=1.4))
 
-            volumes = [c.get("v") or 0 for c in candles]
-            if any(volumes):
+            opens = [c.get("o") or 0 for c in candles]
+            closes = [c.get("c") or 0 for c in candles]
+            vols = [c.get("v") or 0 for c in candles]
+            if any(vols):
                 self.plots["volume"].addItem(pg.BarGraphItem(
-                    x=list(range(n)), height=volumes, width=0.6,
+                    x=xs, height=vols, width=step * 0.7,
                     brushes=[pg.mkBrush(GREEN if closes[i] >= opens[i] else RED)
                               for i in range(n)]))
 
-            for name, values, color in (
-                ("rsi", rsi or [], CYAN),
-                ("macd", macd or [], CYAN),
-                ("signal", signal or [], AMBER),
-            ):
+            for name, values, color in (("rsi", rsi or [], CYAN),
+                                        ("macd", macd or [], CYAN),
+                                        ("signal", signal or [], AMBER)):
                 target = "macd" if name == "signal" else name
-                sel = self._series(values, n)
+                sel = self._series(list(values)[:n], xs)
                 if len(sel) >= 2:
                     self.plots[target].plot(
-                        [p[0] for p in sel], [p[1] for p in sel],
+                        [s[0] for s in sel], [s[1] for s in sel],
                         pen=pg.mkPen(color, width=1.4))
 
             if hist:
-                heights = [float(v) if v is not None else 0 for v in list(hist)[:n]]
-                if len(heights) == n:
+                h = [float(hist[i]) if hist[i] is not None else 0
+                     for i in range(min(n, len(hist)))]
+                if len(h) == n:
                     self.plots["macd"].addItem(pg.BarGraphItem(
-                        x=list(range(n)), height=heights, width=0.6,
-                        brushes=[pg.mkBrush(GREEN if h >= 0 else RED)
-                                 for h in heights]))
+                        x=xs, height=h, width=step * 0.6,
+                        brushes=[pg.mkBrush(GREEN if v >= 0 else RED)
+                                 for v in h]))
+
+            # Fit the shared time axis to the real data. The price plot owns
+            # the X range; volume/RSI/MACD are X-linked so they follow it.
+            price = self.plots["price"]
+            price.enableAutoRange(axis=pg.ViewBox.XYAxes)
+            price.autoRange()
+            for name in ("volume", "macd"):
+                self.plots[name].enableAutoRange(axis=pg.ViewBox.YAxis)
+                self.plots[name].autoRange()
