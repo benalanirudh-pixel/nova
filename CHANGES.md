@@ -3,6 +3,48 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+# CHANGES.md
+
+This file tracks context, workflow, and behavior changes important for future
+coding agents.
+
+## 2026-10-11 - PyQtGraph stock chart + Lucide-style icons (Stock Analysis)
+
+Uses the newly installed `pyqtgraph` for the Stock Analysis technical chart and
+ships a small inline Lucide-style SVG icon set (no new dependency; QTsvg-based).
+
+- `market_lab/widgets.py`: `PgCandleChart` — a pyqtgraph panel with **price
+  candles + MA20/50/200 overlays, volume, RSI (14) with 30/70 guide lines, and
+  MACD + signal + histogram**, real series only (short/missing series are simply
+  not drawn). Ships a minimal `_CandlestickItem`. `PG_AVAILABLE` flag lets the
+  UI fall back to the existing QPainter `CandleChart` if pyqtgraph is absent.
+- `market_lab/icons.py` (new): 16 inline Lucide-style SVG icons rendered via
+  QtSvg (`icon_pixmap`/`make_icon`/`svg_markup`); `icon_available` falls back to
+  text-only when QtSvg is missing.
+- `market_lab/stock_adapter.py`: `stock_oscillators(candles)` — real RSI/MACD
+  series from the same candles via `technical_engine.calculate_rsi/calculate_macd`
+  (no new math).
+- `market_lab_ui.py`: the Stock Analysis page renders `PgCandleChart` with the
+  RSI/MACD series when pyqtgraph is available (else the lightweight chart), the
+  worker now returns oscillators, and the controls gain Lucide icons (search +
+  analyze).
+
+Deliberately NOT applied: qt-material — it forces its own palette and is
+incompatible with Nova's existing NOVA theme tokens, so the custom QSS theme is
+kept (as instructed: only if compatible).
+
+Files changed: `market_lab_ui.py`, `market_lab/widgets.py`,
+`market_lab/stock_adapter.py`, `market_lab/icons.py` (new),
+`tests/test_gui_smoke.py` (+`TestPyQtGraphAndIcons`), `tests/test_stock_adapter.py`
+(+`TestOscillators`).
+
+Validation: `ast.parse` ok; offscreen render of `PgCandleChart` (price/volume/RSI/
+MACD) and the full Stock Analysis page (uses `PgCandleChart`, PNG proxy saved);
+`tests.test_gui_smoke` -> 46 OK incl. chart+icon tests; `tests.test_stock_adapter`
+-> oscillator tests OK. Full offline suite: `Ran 345 tests ... OK` (339 -> 345; +6).
+
+No backend/Ollama/cache/data change; no mock data introduced anywhere.
+
 ## 2026-10-11 - Added pyqtgraph + qt-material (deps)
 
 Installed into the local venv for richer charting/theming (available to the

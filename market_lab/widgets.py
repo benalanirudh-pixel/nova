@@ -1041,3 +1041,152 @@ class GuardrailsBar(QFrame):
 
     def set_ops(self, text):
         self._ops.setText(str(text))
+
+
+# ---------------------------------------------------------------------------
+# PyQtGraph chart: price candles + volume + RSI + MACD (real series only)
+# ---------------------------------------------------------------------------
+
+try:
+    import pyqtgraph as pg
+    from pyqtgraph.Qt import QtCore as _PGQtCore
+    from pyqtgraph.Qt import QtGui as _PGQtGui
+
+    PG_AVAILABLE = True
+except Exception:  # pragma: no cover
+    PG_AVAILABLE = False
+
+
+if PG_AVAILABLE:
+
+    class _CandlestickItem(pg.GraphicsObject):
+        """Minimal candlestick drawn in data coordinates (rises green, falls red)."""
+
+        def __init__(self, data):
+            pg.GraphicsObject.__init__(self)
+            self.data = data
+            self._generate_picture()
+
+        def _generate_picture(self):
+            self.picture = _PGQtGui.QPicture()
+            p = _PGQtGui.QPainter(self.picture)
+            if len(self.data) >= 2:
+                w = (self.data[1][0] - self.data[0][0]) / 3.0
+            else:
+                w = 0.35
+            for (t, open_, close, low, high) in self.data:
+                color = QColor(GREEN if close >= open_ else RED)
+                p.setPen(pg.mkPen(color))
+                p.drawLine(_PGQtCore.QPointF(t, low), _PGQtCore.QPointF(t, high))
+                p.setBrush(pg.mkBrush(color))
+                p.drawRect(_PGQtCore.QRectF(
+                    t - w, min(open_, close), 2 * w, abs(close - open_) or 0.1))
+            p.end()
+
+        def paint(self, painter, *args):
+            painter.drawPicture(0, 0, self.picture)
+
+        def boundingRect(self):
+            return _PGQtCore.QRectF(self.picture.boundingRect())
+
+    class PgCandleChart(QWidget):
+        """Price candles + MA overlays, volume, RSI and MACD panels.
+
+        `set_data(candles, rsi, macd, signal, hist)` takes only real series;
+        missing/short series are simply not drawn. Falls back to nothing rather
+        than fabricating bars.
+        """
+
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            layout = QVBoxLayout(self)
+            layout.setContentsMargins(0, 0, 0, 0)
+            self.win = pg.GraphicsLayoutWidget()
+            layout.addWidget(self.win)
+            self.plots = {}
+            self._build()
+
+        def _build(self):
+            self.win.clear()
+            self.plots = {
+                "price": self.win.addPlot(),
+                "volume": self.win.addPlot(),
+                "rsi": self.win.addPlot(),
+                "macd": self.win.addPlot(),
+            }
+            self.plots["price"].showGrid(x=True, y=True, alpha=0.2)
+            self.plots["price"].setLabel("left", "Price")
+            self.plots["volume"].setMaximumHeight(70)
+            self.plots["volume"].showGrid(x=False, y=True, alpha=0.2)
+            self.plots["volume"].setLabel("left", "Vol")
+            self.plots["rsi"].setMaximumHeight(70)
+            self.plots["rsi"].showGrid(x=False, y=True, alpha=0.2)
+            self.plots["rsi"].setYRange(0, 100)
+            self.plots["rsi"].setLabel("left", "RSI")
+            self.plots["rsi"].addLine(y=70, pen=pg.mkPen(AMBER,
+                                    style=_PGQtCore.Qt.DashLine))
+            self.plots["rsi"].addLine(y=30, pen=pg.mkPen(AMBER,
+                                    style=_PGQtCore.Qt.DashLine))
+            self.plots["macd"].setMaximumHeight(70)
+            self.plots["macd"].showGrid(x=False, y=True, alpha=0.2)
+            self.plots["macd"].setLabel("left", "MACD")
+            self.plots["macd"].addLine(y=0, pen=pg.mkPen(SECONDARY))
+
+        def _series(self, values, n):
+            out = []
+            for i in range(min(n, len(values))):
+                v = values[i]
+                if v is None:
+                    continue
+                try:
+                    out.append((i, float(v)))
+                except (TypeError, ValueError):
+                    continue
+            return out
+
+        def set_data(self, candles, rsi=None, macd=None, signal=None, hist=None):
+            candles = candles or []
+            n = len(candles)
+            self._build()
+            if n == 0:
+                return
+
+            opens = [c.get("o") for c in candles]
+            closes = [c.get("c") for c in candles]
+            data = [(i, opens[i], closes[i], c.get("l"), c.get("h"))
+                    for i, c in enumerate(candles)]
+            self.plots["price"].addItem(_CandlestickItem(data))
+
+            for key, color in (("ma20", CYAN), ("ma50", AMBER), ("ma200", PURPLE)):
+                sel = self._series([c.get(key) for c in candles], n)
+                if len(sel) >= 2:
+                    self.plots["price"].plot(
+                        [p[0] for p in sel], [p[1] for p in sel],
+                        pen=pg.mkPen(color, width=1.4))
+
+            volumes = [c.get("v") or 0 for c in candles]
+            if any(volumes):
+                self.plots["volume"].addItem(pg.BarGraphItem(
+                    x=list(range(n)), height=volumes, width=0.6,
+                    brushes=[pg.mkBrush(GREEN if closes[i] >= opens[i] else RED)
+                              for i in range(n)]))
+
+            for name, values, color in (
+                ("rsi", rsi or [], CYAN),
+                ("macd", macd or [], CYAN),
+                ("signal", signal or [], AMBER),
+            ):
+                target = "macd" if name == "signal" else name
+                sel = self._series(values, n)
+                if len(sel) >= 2:
+                    self.plots[target].plot(
+                        [p[0] for p in sel], [p[1] for p in sel],
+                        pen=pg.mkPen(color, width=1.4))
+
+            if hist:
+                heights = [float(v) if v is not None else 0 for v in list(hist)[:n]]
+                if len(heights) == n:
+                    self.plots["macd"].addItem(pg.BarGraphItem(
+                        x=list(range(n)), height=heights, width=0.6,
+                        brushes=[pg.mkBrush(GREEN if h >= 0 else RED)
+                                 for h in heights]))

@@ -82,6 +82,30 @@ class TestStockCandles(unittest.TestCase):
             self.assertEqual(stock_adapter.stock_candles("RELIANCE"), [])
 
 
+class TestOscillators(unittest.TestCase):
+
+    def test_computes_real_rsi_macd_from_candles(self):
+        candles = [
+            {"t": f"d{i}", "o": 100, "h": 105, "l": 99,
+             "c": 100.0 + (i % 5) + i * 0.1, "v": 1}
+            for i in range(40)
+        ]
+        osc = stock_adapter.stock_oscillators(candles)
+        self.assertEqual(len(osc["rsi"]), 40)
+        self.assertEqual(len(osc["macd"]), 40)
+        self.assertEqual(len(osc["signal"]), 40)
+
+    def test_short_history_returns_empty(self):
+        candles = [{"t": "d0", "o": 1, "h": 1, "l": 1, "c": 1, "v": 1}
+                   for _ in range(5)]
+        osc = stock_adapter.stock_oscillators(candles)
+        self.assertEqual(osc["rsi"], [])
+        self.assertEqual(osc["macd"], [])
+
+    def test_none_history_is_safe(self):
+        self.assertEqual(stock_adapter.stock_oscillators(None)["rsi"], [])
+
+
 class TestKpiAndQuality(unittest.TestCase):
 
     def test_kpi_tiles(self):

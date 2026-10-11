@@ -39,6 +39,7 @@ from market_lab.market_lab_brain import analyze_market_lab, analyze_stock_report
 from market_lab import view_model as vm
 from market_lab import widgets as W
 from market_lab import stock_adapter
+from market_lab import icons as icons_module
 
 
 # ============================================================
@@ -1483,6 +1484,11 @@ class MarketLabWindow(QMainWindow):
         )
         row = QHBoxLayout()
         row.setSpacing(10)
+        search_icon_pm = icons_module.icon_pixmap("search", MUTED, 16)
+        if search_icon_pm is not None:
+            icon_label = QLabel()
+            icon_label.setPixmap(search_icon_pm)
+            row.addWidget(icon_label)
         row.addWidget(W.make_label("SYMBOL", 9, MUTED, True))
         self.stock_symbol_input = QLineEdit()
         self.stock_symbol_input.setFixedWidth(220)
@@ -1503,6 +1509,8 @@ class MarketLabWindow(QMainWindow):
         row.addWidget(self.stock_range)
         self.stock_analyze_btn = make_button("ANALYZE", True)
         self.stock_analyze_btn.clicked.connect(self.run_stock_analysis)
+        self.stock_analyze_btn.setIcon(
+            icons_module.make_icon("zap", BG, 14))
         row.addWidget(self.stock_analyze_btn)
         row.addStretch()
         cl.addLayout(row)
@@ -1577,10 +1585,12 @@ class MarketLabWindow(QMainWindow):
     def _stock_worker(self, symbol, mode_key, period, report):
         metrics = stock_adapter.stock_metrics(symbol)
         candles = stock_adapter.stock_candles(symbol, period=period)
+        osc = stock_adapter.stock_oscillators(candles)
         ai = analyze_stock_report(symbol, metrics or {}, candles,
                                   report or {}, mode_key)
         return {"ok": bool(isinstance(metrics, dict) and metrics.get("price") is not None),
-                "symbol": symbol, "metrics": metrics, "candles": candles, "ai": ai}
+                "symbol": symbol, "metrics": metrics, "candles": candles,
+                "osc": osc, "ai": ai}
 
     def stock_report_placeholder(self):
         layout = getattr(self, "stock_body_layout", None)
@@ -1640,19 +1650,27 @@ class MarketLabWindow(QMainWindow):
         ]
         layout.addWidget(self._cards_row(cards))
 
-        # Chart (real candles + MA overlays)
-        chart = W.CandleChart()
-        chart.setMinimumHeight(320)
-        chart.set_candles(candles)
-        overlays = []
-        for key, color in (("ma20", W.CYAN), ("ma50", W.AMBER), ("ma200", W.PURPLE)):
-            overlays.append({"values": [c.get(key) for c in candles], "color": color})
-        chart.set_overlays(overlays)
+        # Chart (real candles + MA overlays; PyQtGraph price/volume/RSI/MACD
+        # when available, otherwise the lightweight QPainter candle chart).
         chart_frame, chart_layout = W.panel(
             "Price (daily OHLC)",
-            "Candles + MA20/50/200 from real history. Legend: cyan MA20, "
-            "amber MA50, violet MA200. Hover for OHLC + change. Tooltips on "
-            "the RSI/MACD/ATR cards. Not a forecast.")
+            "Candles + volume + RSI/MACD from real history. Hover the price "
+            "panel for OHLC/change. Not a forecast.")
+        if getattr(W, "PG_AVAILABLE", False):
+            chart = W.PgCandleChart()
+            chart.setMinimumHeight(420)
+            osc = result.get("osc") or {}
+            chart.set_data(candles, osc.get("rsi"), osc.get("macd"),
+                           osc.get("signal"), osc.get("hist"))
+        else:
+            chart = W.CandleChart()
+            chart.setMinimumHeight(320)
+            chart.set_candles(candles)
+            overlays = []
+            for key, color in (("ma20", CYAN), ("ma50", AMBER), ("ma200", PURPLE)):
+                overlays.append({"values": [c.get(key) for c in candles],
+                                 "color": color})
+            chart.set_overlays(overlays)
         chart_layout.addWidget(chart, 1)
         layout.addWidget(chart_frame, 1)
 

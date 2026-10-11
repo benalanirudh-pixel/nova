@@ -67,6 +67,13 @@ except ImportError:  # pragma: no cover - depends on the local install
     MarketLabWindow = None
     Worker = None
 
+try:
+    from market_lab import icons as icons_module
+    from market_lab import widgets as widgets_module
+except ImportError:  # pragma: no cover - depends on the local install
+    icons_module = None
+    widgets_module = None
+
 
 QT_AVAILABLE = QApplication is not None and MarketLabWindow is not None
 
@@ -1052,3 +1059,50 @@ class TestRedesign(unittest.TestCase):
         # Section 08 has factor-coverage + top + bottom tables.
         s08 = win.report_sections["08"].body.findChildren(QTableWidget)
         self.assertGreaterEqual(len(s08), 2)
+
+
+@unittest.skipIf(not QT_AVAILABLE, "PySide6 (Qt) is not installed")
+class TestPyQtGraphAndIcons(unittest.TestCase):
+    """PyQtGraph candle chart and the inline Lucide-style icons."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    def _candles(self):
+        candles = []
+        for i in range(60):
+            candles.append({
+                "t": f"d{i}", "o": 100 + i, "h": 105 + i, "l": 99 + i,
+                "c": 103 + (i % 5), "v": 1000 + i, "ma20": 104.0, "ma50": 103.0})
+        return candles
+
+    def test_icons_render(self):
+        if not getattr(icons_module, "icon_available", False):
+            self.skipTest("QtSvg not available")
+        markup = icons_module.svg_markup("search", "#00D9F5")
+        self.assertIn("stroke=\"#00D9F5\"", markup)
+        self.assertIsNotNone(
+            icons_module.icon_pixmap("trending-up", "#00E6A0", 16))
+
+    @unittest.skipIf(not getattr(widgets_module, "PG_AVAILABLE", False),
+                     "pyqtgraph not installed")
+    def test_pg_candle_chart_builds(self):
+        chart = widgets_module.PgCandleChart()
+        chart.set_data(self._candles(),
+                       rsi=[50 + (i % 5) for i in range(60)],
+                       macd=[0.5 * i for i in range(60)],
+                       signal=[0.4 * i for i in range(60)],
+                       hist=[0.1 * i for i in range(60)])
+        self.assertEqual(set(chart.plots), {"price", "volume", "rsi", "macd"})
+
+    @unittest.skipIf(not getattr(widgets_module, "PG_AVAILABLE", False),
+                     "pyqtgraph not installed")
+    def test_pg_candle_chart_empty_is_safe(self):
+        chart = widgets_module.PgCandleChart()
+        chart.set_data([])  # must not raise
+        self.assertEqual(set(chart.plots), {"price", "volume", "rsi", "macd"})
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

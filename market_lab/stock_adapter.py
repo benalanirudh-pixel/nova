@@ -112,6 +112,31 @@ def stock_candles(symbol: str, period: str = "6mo", limit: int = 130):
         return []
 
 
+def stock_oscillators(candles, limit=130):
+    """Real RSI/MACD series computed from the same candles via technical_engine
+    (no new math). Returns {"rsi":[...], "macd":[...], "signal":[...],
+    "hist":[...]} aligned to candles; empty lists on any failure."""
+    try:
+        import pandas as pd
+        from analysis.data.technical_engine import calculate_macd, calculate_rsi
+
+        closes = [float(c["c"]) for c in (candles or [])[:limit]
+                  if isinstance(c, dict) and c.get("c") is not None]
+        if len(closes) < 20:
+            return {"rsi": [], "macd": [], "signal": [], "hist": []}
+        series = pd.Series(closes)
+        rsi = calculate_rsi(series, 14).tolist()
+        macd, signal, hist = calculate_macd(series)
+        return {
+            "rsi": rsi,
+            "macd": macd.tolist(),
+            "signal": signal.tolist(),
+            "hist": hist.tolist(),
+        }
+    except Exception:
+        return {"rsi": [], "macd": [], "signal": [], "hist": []}
+
+
 def kpi_tiles(metrics: dict):
     """Compact stock KPI values from the metrics (or honest N/A)."""
     if not isinstance(metrics, dict):

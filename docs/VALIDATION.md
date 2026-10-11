@@ -1207,3 +1207,27 @@ clearly-labeled secondary panel.
 Not run here: a live Ollama turn through the UI (Ollama available; verified the
 focused prompt with a stubbed chat and the disclaimer; a real turn is manual),
 and the 1600x900 pixel comparison to the reference (render + PNG proxy only). 
+  
+## 2026-10-11 - PyQtGraph stock chart + Lucide-style icons
+Code changed: market_lab_ui.py, market_lab/widgets.py, market_lab/stock_adapter.py, market_lab/icons.py (new); tests in test_gui_smoke.py (+TestPyQtGraphAndIcons) and test_stock_adapter.py (+TestOscillators). No backend/engine/cache/Ollama/data change.  
+  
+Code changed: market_lab_ui.py, market_lab/widgets.py, market_lab/stock_adapter.py, market_lab/icons.py (new); tests in test_gui_smoke.py (+TestPyQtGraphAndIcons) and test_stock_adapter.py (+TestOscillators). No backend/engine/cache/Ollama/data change.
+
+Checks run:
+
+- `ast.parse` on all changed files; offscreen `PmoneygCandleChart` build: 4 plots (price, volume, rsi, macd) and a PNG proxy saved (~9 KB); full Stock Analysis page render uses `PgCandleChart` (page PNG ~26 KB).
+- `tests.test_gui_smoke` -> 46 OK (incl. `TestPyQtGraphAndIcons`: icons render, PgCandleChart builds, empty-data safe) and `tests.test_stock_adapter` -> oscillator tests OK.
+- Full offline suite (offscreen): `Run 345 tests ... OK` (339 -> 345; +6).
+
+Real data connected: candles + MAs from `get_price_history`; RSI/MACD/signal/hist
+computed from the same candles via `technical_engine` (no new math). No synthetic
+bars are ever drawn; short/missing series are omitted.
+
+Not applied (compatibility): qt-material — its palette conflicts with the existing
+NOVA theme tokens, so the custom QSS theme is retained (per the "only if
+compatible" instruction).
+
+Manual-only: the 1600x900 visual comparison against the reference screenshot
+(rendered headless + PNG proxy; this environment cannot display the window).
+  
+ 
