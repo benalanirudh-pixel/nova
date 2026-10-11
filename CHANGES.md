@@ -3,6 +3,38 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-11 - Dhan Step 4: opt-in BANK NIFTY + India VIX live override
+
+Extends the Dhan live-snapshot wiring to the volatility section, same guarded/
+opt-in pattern (read-only, analysis-only; unchanged when Dhan is off).
+
+- `market_lab/market_lab_data.py`: added `_apply_dhan_volatility_overrides()` and
+  applied it as `volatility = _apply_dhan_volatility_overrides(load_volatility_snapshot())`.
+  - BANK NIFTY: sets `volatility.bank_nifty.price` (+ `source: DHAN_LIVE`,
+    `last_trade_time`); the engine's ATR / realized-vol / regime fields are
+    preserved.
+  - India VIX: sets `volatility.india_vix.value` and `change_percent`
+    (+ `source: DHAN_LIVE`, `last_trade_time`, and a `note` recording the split);
+    the engine's `percentile_1y` / `regime` / `direction` are preserved (Dhan has
+    none). Missing legs are created on demand.
+  - Unconfigured / unavailable / any error returns the original volatility dict
+    unchanged (identity preserved).
+
+Files changed:
+- `market_lab/market_lab_data.py`
+- `tests/test_market_lab_data.py` (+7)
+
+Validation:
+- `ast.parse` on `market_lab/market_lab_data.py`: passed.
+- `tests.test_market_lab_data` -> 12 OK (NIFTY override + BANK/VIX volatility
+  override, engine-field preservation, no-mutation, identity on no-override /
+  unavailable / error / non-dict, missing-leg creation).
+- Full offline suite: `Ran 308 tests ... OK` (301 -> 308; 7 new).
+
+Not run here: a live Dhan call (no token/plan). BANK NIFTY/VIX Dhan values land
+in the report only when configured; percentile/regime continue to come from the
+volatility engine.
+
 ## 2026-10-11 - Dhan Step 3: opt-in NIFTY/BANK NIFTY/VIX live snapshot
 
 Wires the Dhan market-feed quote into the report generator as an OPTIONAL,

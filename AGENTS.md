@@ -112,8 +112,10 @@ The full refresh command is intentionally heavier:
   they are not yet wired into report generation.
 - When a Dhan token is configured, `market_lab_data._apply_dhan_override()`
   replaces the report's `nifty_snapshot` with the live Dhan quote (labeled
-  `source: DHAN_LIVE`); unconfigured/error leaves the existing NSE/Yahoo
-  snapshot unchanged.
+  `source: DHAN_LIVE`); `_apply_dhan_volatility_overrides()` overrides
+  `volatility.bank_nifty.price` and `volatility.india_vix.value`/`change_percent`
+  (engine ATR/vol/percentile/regime are preserved). Unconfigured/error leaves the
+  existing NSE/Yahoo/volatility values unchanged.
 
 ## Manifests and CI
 

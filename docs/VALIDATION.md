@@ -959,3 +959,31 @@ Not run here: a live Dhan call (no token/plan in this environment). BANK NIFTY
 and India VIX snapshots are produced by the same converter but are not yet
 injected into their report sections — a guarded follow-up; NIFTY is wired now
 as the single lowest-risk injection point the UI and Section 01 consume.
+
+
+## 2026-10-11 - Dhan Step 4: opt-in BANK NIFTY + India VIX live override
+
+Code changed: `market_lab/market_lab_data.py`; tests `tests/test_market_lab_data.py`
+(+7). No NSE-MCP / volatility-engine code touched; guarded and default-off.
+
+Behavior: `_apply_dhan_volatility_overrides(volatility)` returns the original
+when Dhan is unconfigured / neither BANK NIFTY nor VIX is available / any error
+(identity preserved). When configured, it merges into a copy:
+- `volatility.bank_nifty.price` = Dhan last price (+ `source: DHAN_LIVE`,
+  `last_trade_time`); the engine's ATR / realized-vol / regime are preserved.
+- `volatility.india_vix.value` and `change_percent` = Dhan (+ note); the
+  engine's `percentile_1y` / `regime` / `direction` are preserved (Dhan has
+  no percentile/regime). Missing legs are created on demand.
+
+Checks run:
+
+- `ast.parse` on `market_lab/market_lab_data.py`: passed.
+- `.\venv\Scripts\python.exe -m unittest tests.test_market_lab_data -v`
+  -> `Ran 12 tests ... OK` (NIFTY override + BANK/VIX volatility override,
+  engine-field preservation, no-mutation, identity on no-override /
+  unavailable / error / non-dict, missing-leg creation).
+- Full offline suite (offscreen): `Ran 308 tests ... OK` (301 -> 308; 7 new).
+
+Not run here: a live Dhan call (no token/plan). BANK NIFTY/VIX Dhan values land
+in the report only when configured; percentile/regime still come from the
+volatility engine.

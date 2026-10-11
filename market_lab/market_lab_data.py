@@ -1513,6 +1513,60 @@ def _apply_dhan_override(nifty_snapshot: dict[str, Any]) -> dict[str, Any]:
     return nifty_snapshot
 
 
+def _apply_dhan_volatility_overrides(volatility: dict[str, Any]) -> dict[str, Any]:
+    """Optionally override BANK NIFTY price and India VIX value/change with a
+    live Dhan quote. Analysis-only, opt-in.
+
+    - BANK NIFTY: sets bank_nifty.price (+ source DHAN_LIVE); the engine's ATR /
+      realized-vol / regime fields are preserved.
+    - India VIX: sets india_vix.value and change_percent; the engine's
+      percentile_1y / regime / direction are preserved (Dhan has none) and a
+      note records the split source.
+    Unconfigured / unavailable / any error returns the original unchanged.
+    """
+    if not isinstance(volatility, dict):
+        return volatility
+    try:
+        overrides = _dhan_index_overrides()
+    except Exception:
+        overrides = {}
+    if not isinstance(overrides, dict) or not overrides:
+        return volatility
+
+    bank = overrides.get("bank_nifty")
+    vix = overrides.get("india_vix")
+    bank_ok = isinstance(bank, dict) and bank.get("available") and bank.get("price") is not None
+    vix_ok = isinstance(vix, dict) and vix.get("available") and vix.get("value") is not None
+    if not bank_ok and not vix_ok:
+        return volatility
+
+    merged = dict(volatility)
+
+    if bank_ok:
+        leg = dict(merged.get("bank_nifty") or {})
+        leg["price"] = bank.get("price")
+        leg["source"] = "DHAN_LIVE"
+        if bank.get("last_trade_time") is not None:
+            leg["last_trade_time"] = bank.get("last_trade_time")
+        merged["bank_nifty"] = leg
+
+    if vix_ok:
+        leg = dict(merged.get("india_vix") or {})
+        leg["available"] = True
+        leg["value"] = vix.get("value")
+        if vix.get("change_percent") is not None:
+            leg["change_percent"] = vix.get("change_percent")
+        leg["source"] = "DHAN_LIVE"
+        leg["note"] = (
+            "value/change from Dhan; 1y percentile/regime from volatility engine"
+        )
+        if vix.get("last_trade_time") is not None:
+            leg["last_trade_time"] = vix.get("last_trade_time")
+        merged["india_vix"] = leg
+
+    return merged
+
+
 def get_nifty_snapshot() -> dict[str, Any]:
 
     dataframe = get_index_history(
@@ -3144,7 +3198,9 @@ def get_market_lab_data(
     # --------------------------------------------------------
 
     volatility = (
-        load_volatility_snapshot()
+        _apply_dhan_volatility_overrides(
+            load_volatility_snapshot()
+        )
     )
 
     # --------------------------------------------------------
