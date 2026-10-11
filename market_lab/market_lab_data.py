@@ -1478,6 +1478,41 @@ def calculate_index_returns(
 # NIFTY SNAPSHOT
 # ============================================================
 
+def _dhan_index_overrides() -> dict[str, Any]:
+    """Optional live index snapshots from the Dhan adapter (read-only).
+
+    Returns {} when Dhan is unconfigured or any call fails, so report
+    generation falls back to the existing NSE/Yahoo engines unchanged.
+    """
+    try:
+        from analysis.data.dhan_feed import (
+            is_configured,
+            get_report_index_snapshot,
+        )
+
+        if not is_configured():
+            return {}
+        snapshot = get_report_index_snapshot()
+        return snapshot if isinstance(snapshot, dict) else {}
+    except Exception:
+        return {}
+
+
+def _apply_dhan_override(nifty_snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Override the NIFTY snapshot with a live Dhan quote when available.
+
+    Analysis-only, opt-in: when Dhan is unconfigured or returns no usable NIFTY
+    quote, the original snapshot is returned unchanged.
+    """
+    try:
+        dhan_nifty = _dhan_index_overrides().get("nifty")
+    except Exception:
+        dhan_nifty = None
+    if isinstance(dhan_nifty, dict) and dhan_nifty.get("available"):
+        return dhan_nifty
+    return nifty_snapshot
+
+
 def get_nifty_snapshot() -> dict[str, Any]:
 
     dataframe = get_index_history(
@@ -3099,7 +3134,9 @@ def get_market_lab_data(
     )
 
     nifty_snapshot = (
-        get_nifty_snapshot()
+        _apply_dhan_override(
+            get_nifty_snapshot()
+        )
     )
 
     # --------------------------------------------------------

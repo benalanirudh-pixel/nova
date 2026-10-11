@@ -355,6 +355,61 @@ class TestQuotes(_DhanTestBase):
         self.assertTrue(out["RELIANCE"]["available"])
 
 
+class TestReportIndexSnapshot(_DhanTestBase):
+
+    def test_index_entry_to_snapshot_derives_change(self):
+        entry = {"available": True, "last_price": 22520.4, "net_change": 296.5,
+                 "open": 22315, "high": 22580, "low": 22295, "close": 22520.4}
+        snap = dhan._index_entry_to_snapshot(entry)
+        self.assertTrue(snap["available"])
+        self.assertEqual(snap["price"], 22520.4)
+        self.assertEqual(snap["source"], "DHAN_LIVE")
+        self.assertEqual(snap["previous_close"], 22520.4 - 296.5)
+        self.assertAlmostEqual(snap["change_percent"], 296.5 / (22520.4 - 296.5) * 100, places=3)
+        self.assertEqual(snap["high"], 22580)
+
+    def test_index_entry_unavailable(self):
+        self.assertEqual(dhan._index_entry_to_snapshot({"available": False}),
+                         {"available": False})
+        self.assertEqual(dhan._index_entry_to_snapshot(None), {"available": False})
+
+    def test_index_entry_no_netchange_still_available(self):
+        snap = dhan._index_entry_to_snapshot({"available": True, "last_price": 100.0})
+        self.assertTrue(snap["available"])
+        self.assertIsNone(snap["change_percent"])
+        self.assertIsNone(snap["previous_close"])
+
+    def test_get_report_index_snapshot_unconfigured(self):
+        import os
+        with mock.patch.dict("os.environ", {}, clear=False):
+            os.environ.pop("DHAN_ACCESS_TOKEN", None)
+            self.assertEqual(dhan.get_report_index_snapshot(), {})
+
+    def test_get_report_index_snapshot_maps_keys(self):
+        quote = {
+            "NIFTY": {"available": True, "last_price": 22520.4, "net_change": 296.5,
+                      "open": 22315, "high": 22580, "low": 22295},
+            "BANKNIFTY": {"available": True, "last_price": 55256.65,
+                          "net_change": 745.0, "open": 1, "high": 2, "low": 3},
+            "INDIAVIX": {"available": True, "last_price": 14.38, "net_change": -0.9,
+                         "open": 1, "high": 2, "low": 3},
+        }
+        with mock.patch.dict("os.environ", {"DHAN_ACCESS_TOKEN": "t"}), \
+             mock.patch.object(dhan, "get_index_quote", return_value=quote):
+            out = dhan.get_report_index_snapshot()
+        self.assertTrue(out["nifty"]["available"])
+        self.assertTrue(out["bank_nifty"]["available"])
+        self.assertEqual(out["india_vix"]["value"], 14.38)
+        self.assertEqual(out["india_vix"]["source"], "DHAN_LIVE")
+        self.assertAlmostEqual(out["india_vix"]["change_percent"],
+                               -0.9 / (14.38 + 0.9) * 100, places=3)
+
+    def test_get_report_index_snapshot_quote_failure_is_empty(self):
+        with mock.patch.dict("os.environ", {"DHAN_ACCESS_TOKEN": "t"}), \
+             mock.patch.object(dhan, "get_index_quote", side_effect=RuntimeError("down")):
+            self.assertEqual(dhan.get_report_index_snapshot(), {})
+
+
 class TestWiring(_DhanTestBase):
 
     def _nse_stub(self, sentinel):

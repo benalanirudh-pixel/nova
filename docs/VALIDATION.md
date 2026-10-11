@@ -931,3 +931,31 @@ a live NIFTY/BANKNIFTY/VIX snapshot through Dhan in `market_lab_data` is a
 separate market-data step (would re-run the NSE-MCP smoke per WORKFLOW). Index
 IDs default to common Dhan IDs (13/25/26) and are overridable via config; verify
 them against your Dhan scrip master.
+
+
+## 2026-10-11 - Dhan Step 3: opt-in NIFTY snapshot override
+
+Code changed: `analysis/data/dhan_feed.py` and `market_lab/market_lab_data.py`;
+tests `tests/test_dhan_feed.py` (+6) and `tests/test_market_lab_data.py` (new,
++5). No NSE-MCP / Yahoo code touched; the override is guarded and default-off.
+
+Behavior: `_dhan_index_overrides()` returns `{}` when Dhan is unconfigured, so
+`_apply_dhan_override()` returns the original snapshot unchanged (byte-identical
+default path). When configured and a NIFTY quote is available, `nifty_snapshot`
+is replaced by the Dhan-derived snapshot (labeled `source: DHAN_LIVE`); an
+unavailable entry or any error keeps the original NSE/Yahoo snapshot.
+
+Checks run:
+
+- `ast.parse` + `import` for both modules: passed.
+- `.\venv\Scripts\python.exe -m unittest tests.test_dhan_feed tests.test_market_lab_data`
+  -> `Ran 44 tests ... OK`.
+- NSE-MCP stdio smoke: `.\venv\Scripts\python.exe test_nse_mcp.py` ->
+  "MCP SESSION: CONNECTED", 68 tools listed, exit 0; no orphaned
+  `indian-market-mcp.exe` process afterward. NSE path verified unchanged.
+- Full offline suite (offscreen): `Ran 301 tests ... OK` (290 -> 301; 11 new).
+
+Not run here: a live Dhan call (no token/plan in this environment). BANK NIFTY
+and India VIX snapshots are produced by the same converter but are not yet
+injected into their report sections — a guarded follow-up; NIFTY is wired now
+as the single lowest-risk injection point the UI and Section 01 consume.

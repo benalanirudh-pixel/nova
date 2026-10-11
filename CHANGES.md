@@ -3,6 +3,42 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-11 - Dhan Step 3: opt-in NIFTY/BANK NIFTY/VIX live snapshot
+
+Wires the Dhan market-feed quote into the report generator as an OPTIONAL,
+guarded source for the index snapshot — still read-only/analysis-only; NSE MCP
+and Yahoo fallbacks are byte-identical when Dhan is unconfigured.
+
+- `analysis/data/dhan_feed.py`: added `_index_entry_to_snapshot(entry)` (pure:
+  converts one quote entry into a report-compatible NIFTY snapshot, deriving
+  change_percent/previous_close from last_price + net_change, labeled
+  `source: DHAN_LIVE`; unavailable entry -> `{"available": False}`) and
+  `get_report_index_snapshot()` (keys `nifty`/`bank_nifty`/`india_vix`; `{}` when
+  Dhan is unconfigured or the quote fails).
+- `market_lab/market_lab_data.py`: added `_dhan_index_overrides()` (guarded
+  wrapper; `{}` when unconfigured/on any error) and `_apply_dhan_override()`
+  (returns the Dhan NIFTY snapshot only when it is `available`, else the original
+  snapshot unchanged). `nifty_snapshot = _apply_dhan_override(get_nifty_snapshot())`.
+  Default (Dhan off) behavior is unchanged.
+
+BANK NIFTY and India VIX snapshots are produced by the same converter and are
+ready to wire into their report sections as a follow-up; NIFTY is wired now
+(the single, lowest-risk injection point the UI + Section 01 consume).
+
+Files changed:
+- `analysis/data/dhan_feed.py`, `market_lab/market_lab_data.py`
+- `tests/test_dhan_feed.py` (+6), `tests/test_market_lab_data.py` (new, 5)
+
+Validation:
+- `ast.parse` + imports for both modules: passed.
+- `tests.test_dhan_feed tests.test_market_lab_data` -> 44 OK.
+- NSE-MCP stdio smoke: `test_nse_mcp.py` -> MCP SESSION CONNECTED, 68 tools,
+  no orphaned `indian-market-mcp.exe`; NSE path unchanged.
+- Full offline suite: `Ran 301 tests ... OK` (290 -> 301; 11 new).
+
+Not run here: any live Dhan call (no token/plan). BANK NIFTY/VIX wiring and a
+real end-to-end Dhan snapshot require a configured token to verify.
+
 ## 2026-10-11 - Dhan Step 2: auto security-id map + live index/equity quotes
 
 Extends `analysis/data/dhan_feed.py` (still read-only, analysis-only — no

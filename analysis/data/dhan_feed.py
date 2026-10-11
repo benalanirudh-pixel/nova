@@ -338,6 +338,72 @@ def _safe(value):
     return number
 
 
+def _index_entry_to_snapshot(entry) -> dict:
+    """Convert one get_index_quote() entry into a report-compatible NIFTY
+    snapshot dict. Derives change_percent/previous_close from last_price and
+    net_change (arithmetic on Dhan values, labeled as source DHAN_LIVE). If the
+    entry is unavailable, returns {"available": False} — never invents prices.
+    """
+    if not isinstance(entry, dict) or not entry.get("available"):
+        return {"available": False}
+
+    last_price = _safe(entry.get("last_price"))
+    net_change = _safe(entry.get("net_change"))
+    change_percent = None
+    previous_close = None
+    if last_price is not None and net_change is not None:
+        previous_close = last_price - net_change
+        if previous_close not in (None, 0):
+            change_percent = (net_change / previous_close) * 100.0
+
+    return {
+        "available": True,
+        "price": last_price,
+        "change_percent": change_percent,
+        "change_abs": net_change,
+        "previous_close": previous_close,
+        "open": _safe(entry.get("open")),
+        "high": _safe(entry.get("high")),
+        "low": _safe(entry.get("low")),
+        "source": "DHAN_LIVE",
+        "last_trade_time": entry.get("last_trade_time"),
+    }
+
+
+def get_report_index_snapshot(
+    names=("NIFTY", "BANKNIFTY", "INDIAVIX"),
+) -> dict:
+    """Live index snapshots in a report-ish shape (keys: nifty, bank_nifty,
+    india_vix). Returns {} when Dhan is unconfigured or the quote fails, so
+    callers fall back to the existing NSE/Yahoo engines unchanged."""
+    if not is_configured():
+        return {}
+    try:
+        quote = get_index_quote(names)
+    except Exception:
+        return {}
+    if not isinstance(quote, dict) or not quote:
+        return {}
+
+    key_map = {"NIFTY": "nifty", "BANKNIFTY": "bank_nifty", "INDIAVIX": "india_vix"}
+    out = {}
+    for name in names:
+        key = key_map.get(name, name.lower())
+        entry = quote.get(name, {})
+        snapshot = _index_entry_to_snapshot(entry)
+        if key == "india_vix" and snapshot.get("available"):
+            # VIX value is the index level; keep a compact VIX shape.
+            snapshot = {
+                "available": True,
+                "value": snapshot.get("price"),
+                "change_percent": snapshot.get("change_percent"),
+                "source": "DHAN_LIVE",
+                "last_trade_time": snapshot.get("last_trade_time"),
+            }
+        out[key] = snapshot
+    return out
+
+
 # --------------------------------------------------------------------------
 # HTTP (Dhan market-data endpoints only)
 # --------------------------------------------------------------------------
