@@ -15,6 +15,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import math
+import re
 from typing import Any
 
 import ollama
@@ -104,6 +105,27 @@ SPECIFIC QUESTIONS
 If the user asks a narrow question, answer it first. Include other
 sections only when relevant. For broad assessment requests, use all
 applicable coverage requirements above.
+
+SINGLE-STOCK QUESTIONS
+If the user names one specific stock (the report provides a "focus_symbol"
+block for it), answer about THAT stock and center the response on it.
+Do NOT emit the broad multi-section market template for a single-stock
+question. Use the focus_symbol data (live per-stock snapshot plus any
+factor/technical membership) as the primary evidence, and add only the
+minimum market/sector context that is relevant to the question. If a
+per-stock field is missing or the live snapshot is unavailable, say so
+explicitly and answer only with what is verifiable; never substitute
+market-wide numbers for that stock, and never invent prices, levels,
+targets, or probabilities. Suggested single-stock structure:
+
+SINGLE-STOCK ANALYSIS: <SYMBOL>
+1. What was asked
+2. Verified per-stock facts (price, change, RSI, MACD, trend, EMAs,
+   momentum, company name — only fields actually present)
+3. Factor/technical context from the report (rank/composite z if present;
+   state plainly if the stock is not in the stored factor extremes)
+4. Brief relevant market/sector context
+5. Data limitations and freshness
 
 STRICT EVIDENCE RULES
 - Use only data and labels contained in the supplied report.
@@ -216,16 +238,183 @@ def _limit_list(value: Any, limit: int = 10) -> Any:
     return value
 
 
+# Words that are clearly not a single stock symbol, so they never trigger a
+# single-stock answer (broad market / instrument / instruction words).
+_NON_SYMBOL_WORDS = {
+    "NIFTY", "BANKNIFTY", "NIFTY50", "SENSEX", "BANK", "MARKET", "MARKETS",
+    "STOCK", "STOCKS", "EQUITY", "EQUITIES", "INDEX", "INDICES", "INDIAN",
+    "INDIA", "NSE", "BSE", "ANALYZE", "ANALYSIS", "SUMMARY", "OVERVIEW",
+    "TELL", "ABOUT", "WHAT", "WHICH", "HOW", "SHOW", "GIVE", "GUIDE",
+    "TREND", "TRENDS", "PRICE", "PRICES", "LEVEL", "LEVELS", "REGIME",
+    "BREADTH", "SECTOR", "SECTORS", "CPI", "WPI", "PPI", "GDP", "RBI",
+    "VERDICT", "OPINION", "GOOD", "BAD", "BUY", "SELL", "HOLD", "IS", "IT",
+    "THE", "FOR", "AND", "WITH", "ME", "TOP", "BEST", "WORST", "TODAY",
+    "NOW", "RISK", "FLOW", "FLOWS", "FII", "DII", "VIX", "TECHNICALS",
+    "MOMENTUM", "MACD", "RSI", "ATR", "VOL", "VOLUME", "REPORT", "SESSION",
+}
+_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9&._-]{1,19}")
+
+
+def _known_symbols() -> set | None:
+    """Return the cached NSE symbol universe (upper), or None if unavailable.
+    Offline: reads the cached equity master; never triggers a download."""
+    try:
+        from analysis.data.symbol_master import load_master
+
+        master = load_master()
+        if master is None or "symbol" not in master:
+            return None
+        return set(master["symbol"].astype(str).str.upper())
+    except Exception:
+        return None
+
+
+def _extract_focus_symbol(query: str) -> str:
+    """Detect the single NSE stock the user is asking about, or ''.
+
+    Deterministic and offline: a candidate token is accepted only when it is
+    a real symbol in the cached equity master. Benchmarks/instruments and
+    instruction words never trigger it (that stays a broad assessment). If
+    the master cache is unavailable, fall back to an explicitly UPPERCASE
+    ticker-shaped token so the feature still works without inventing data.
+    """
+    if not isinstance(query, str) or not query.strip():
+        return ""
+
+    tokens = _TOKEN_RE.findall(query)
+    candidates = []
+    for tok in tokens:
+        upper = tok.upper()
+        if upper in _NON_SYMBOL_WORDS:
+            continue
+        candidates.append((tok, upper))
+
+    if not candidates:
+        return ""
+
+    known = _known_symbols()
+    if known:
+        for _, upper in candidates:
+            if upper in known:
+                return upper
+        return ""  # no real symbol named -> stay broad
+
+    # Fallback (no master cache): accept an explicitly uppercase token.
+    for tok, upper in candidates:
+        if tok.isupper() and len(upper) >= 2:
+            return upper
+    return ""
+
+
+def _focus_payload(symbol: str, report: dict[str, Any]) -> dict[str, Any]:
+    """Assemble verifiable per-stock evidence for the requested symbol.
+
+    Live per-stock snapshot comes from the existing watchlist engine (which
+    returns status UNAVAILABLE with a reason on any failure instead of demo
+    values). Factor/technical membership is read from the report itself. No
+    values are fabricated anywhere.
+    """
+    focus: dict[str, Any] = {"requested_symbol": symbol}
+
+    try:
+        from analysis.data.watchlist_engine import refresh_watch_symbol
+
+        live = refresh_watch_symbol(symbol)
+    except Exception as exc:
+        live = {
+            "status": "UNAVAILABLE",
+            "reason": f"{type(exc).__name__}: {exc}",
+            "symbol": symbol,
+        }
+    focus["live_snapshot"] = _json_safe(live)
+
+    try:
+        from analysis.data.symbol_master import get_security
+
+        security = get_security(symbol)
+        if security:
+            focus["company_name"] = str(
+                security.get("company_name")
+                or security.get("name")
+                or ""
+            ).strip()
+    except Exception:
+        pass
+
+    symbol_upper = symbol.upper()
+
+    membership = {"in_stored_extremes": False}
+    factors = report.get("research_factors")
+    if isinstance(factors, dict):
+        for side, key in (("top", "top_ranked"), ("bottom", "bottom_ranked")):
+            for item in factors.get(key, []) or []:
+                if isinstance(item, dict) and str(
+                    item.get("symbol", "")
+                ).upper() == symbol_upper:
+                    membership = {
+                        "in_stored_extremes": True,
+                        "side": side,
+                        "rank": item.get("rank"),
+                        "composite_z": item.get("composite_z"),
+                    }
+                    break
+            if membership["in_stored_extremes"]:
+                break
+    focus["factor_membership"] = membership
+
+    technical = {"in_top_technical": False}
+    for item in report.get("top_technical_stocks", []) or []:
+        if isinstance(item, dict) and str(
+            item.get("symbol", "")
+        ).upper() == symbol_upper:
+            technical = {
+                "in_top_technical": True,
+                "technical_score": item.get("technical_score"),
+                "trend": item.get("trend"),
+            }
+            break
+    focus["technical_membership"] = technical
+
+    return _json_safe(focus)
+
+
+def _compact_factors(report: dict[str, Any]) -> dict[str, Any] | None:
+    """A small, JSON-safe factor summary (top/bottom 5) for prompt context."""
+    factors = report.get("research_factors")
+    if not isinstance(factors, dict):
+        return None
+
+    def rows(key):
+        out = []
+        for item in (factors.get(key) or [])[:5]:
+            if isinstance(item, dict):
+                out.append({
+                    "rank": item.get("rank"),
+                    "symbol": item.get("symbol"),
+                    "composite_z": item.get("composite_z"),
+                })
+        return out
+
+    return {
+        "status": factors.get("status"),
+        "method": factors.get("method"),
+        "universe_size": factors.get("universe_size"),
+        "top_ranked": rows("top_ranked"),
+        "bottom_ranked": rows("bottom_ranked"),
+    }
+
+
 def _build_analysis_payload(
     report: dict[str, Any],
+    focus: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Build a structured AI payload from the existing report.
 
     Preserve the original engine's values and labels. Only the
-    display-oriented technical-stock list is capped.
+    display-oriented technical-stock list is capped. When the user asks
+    about a specific stock, `focus` carries that symbol's verified evidence.
     """
-
     ai_context = report.get("ai_context")
 
     if not isinstance(ai_context, dict):
@@ -262,6 +451,16 @@ def _build_analysis_payload(
         "decision_policy": report.get("decision_policy"),
         "ai_context": ai_context,
     }
+
+    # Compact factor summary so the model can place a single stock in the
+    # cross-sectional ranking without expanding the whole report.
+    compact_factors = _compact_factors(report)
+    if compact_factors is not None:
+        payload["research_factors"] = compact_factors
+
+    # Single-stock focus (only when the user named a real stock).
+    if focus is not None:
+        payload["focus_symbol"] = focus
 
     return payload
 
@@ -309,17 +508,6 @@ def analyze_market_lab(
                 "a usable report. No analysis was generated."
             )
 
-        payload = _json_safe(
-            _build_analysis_payload(report)
-        )
-
-        report_json = json.dumps(
-            payload,
-            ensure_ascii=False,
-            allow_nan=False,
-            separators=(",", ":"),
-        )
-
     except Exception as exc:
         return (
             "MARKET LAB DATA ERROR: "
@@ -334,28 +522,90 @@ def analyze_market_lab(
         else ""
     )
 
+    default_question = (
+        "Provide an integrated assessment of the available "
+        "market evidence. Cover NIFTY and BANK NIFTY separately, "
+        "then breadth, volatility, sectors, derivatives, "
+        "institutional flows, conflicts, and data limitations."
+    )
+
+    # Step 2a: If a specific stock was named, gather verified per-stock
+    # evidence so the answer is about that stock, not the whole market.
+    focus_symbol = _extract_focus_symbol(user_question) if user_question else ""
+    focus = None
+    if focus_symbol:
+        try:
+            focus = _focus_payload(focus_symbol, report)
+        except Exception as exc:
+            focus = {
+                "requested_symbol": focus_symbol,
+                "reason": f"focus lookup failed: {type(exc).__name__}: {exc}",
+            }
+
+    try:
+        payload = _json_safe(
+            _build_analysis_payload(report, focus=focus)
+        )
+
+        report_json = json.dumps(
+            payload,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        )
+    except Exception as exc:
+        return (
+            "MARKET LAB DATA ERROR: "
+            f"{type(exc).__name__}: {exc}. "
+            "The analysis was not completed."
+        )
+
     if not user_question:
-        user_question = (
-            "Provide an integrated assessment of the available "
-            "market evidence. Cover NIFTY and BANK NIFTY separately, "
-            "then breadth, volatility, sectors, derivatives, "
-            "institutional flows, conflicts, and data limitations."
+        user_question = default_question
+
+    focus_json = None
+    if focus is not None:
+        focus_json = json.dumps(
+            focus,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
         )
 
     # Step 3: Keep the source report explicit in the prompt.
-    user_message = (
-        "USER QUESTION:\n"
-        f"{user_question}\n\n"
-        "IMPORTANT DATA RULES:\n"
-        "- The JSON below is the source of truth.\n"
-        "- Preserve values, signs, units, dates, and periods exactly.\n"
-        "- Do not silently convert or recalculate reported values.\n"
-        "- Cover both benchmarks for a broad market assessment.\n"
-        "- Do not repeat the same analysis in multiple sections.\n"
-        "- Flag conflicts and missing fields instead of guessing.\n\n"
-        "MARKET LAB REPORT JSON:\n"
-        f"{report_json}"
-    )
+    if focus_json:
+        # Single-stock question: answer about that stock; do not dump the
+        # broad market template.
+        user_message = (
+            "USER QUESTION:\n"
+            f"{user_question}\n\n"
+            "Answer about the requested stock using the FOCUS STOCK JSON "
+            "below as the primary evidence. Do NOT emit the broad "
+            "multi-section market template for this single-stock question. "
+            "Add only brief, relevant market/sector context. If a per-stock "
+            "field is missing or the live snapshot is UNAVAILABLE, say so "
+            "explicitly; never substitute market-wide numbers for this "
+            "stock and never invent prices, levels, targets or "
+            "probabilities. Preserve values, units and dates exactly.\n\n"
+            "FOCUS STOCK JSON:\n"
+            f"{focus_json}\n\n"
+            "MARKET LAB REPORT JSON:\n"
+            f"{report_json}"
+        )
+    else:
+        user_message = (
+            "USER QUESTION:\n"
+            f"{user_question}\n\n"
+            "IMPORTANT DATA RULES:\n"
+            "- The JSON below is the source of truth.\n"
+            "- Preserve values, signs, units, dates, and periods exactly.\n"
+            "- Do not silently convert or recalculate reported values.\n"
+            "- Cover both benchmarks for a broad market assessment.\n"
+            "- Do not repeat the same analysis in multiple sections.\n"
+            "- Flag conflicts and missing fields instead of guessing.\n\n"
+            "MARKET LAB REPORT JSON:\n"
+            f"{report_json}"
+        )
 
     messages = [
         {
@@ -390,9 +640,14 @@ def analyze_market_lab(
         generated = report.get("generated", "Not reported")
         market = report.get("market", "Not reported")
 
+        focus_line = (
+            f"Focus: {focus_symbol}\n" if focus_symbol else ""
+        )
+
         return (
             "NOVA MARKET LAB ANALYSIS\n"
             f"Report generated: {generated}\n"
+            f"{focus_line}"
             f"Market: {market}\n\n"
             f"{content}\n\n"
             "LIMITATION: This is an interpretation of the supplied "

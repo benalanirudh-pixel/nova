@@ -818,3 +818,37 @@ Not verified: human pixel review vs the reference screenshot — this environmen
 cannot capture/display the rendered window (only geometry + a saved PNG proxy),
 so aesthetic judgments (spacing balance, chart aesthetics) remain a manual
 step. FULL REFRESH not triggered here.
+
+
+## 2026-10-11 - Nova Analysis answers about the specific stock asked
+
+Code changed: `market_lab/market_lab_brain.py` (single-stock focus path);
+tests `tests/test_market_lab_brain.py` (new, 15). No engine, data-source, or
+report-schema change; `market_lab_ui.py` already forwards the question box
+text as the `query`, so no UI change was needed.
+
+Checks run:
+
+- `ast.parse` on `market_lab/market_lab_brain.py` and the new test file:
+  passed.
+- `.\venv\Scripts\python.exe -m unittest tests.test_market_lab_brain -v`
+  -> `Ran 15 tests in ... OK` (symbol master, watchlist engine and `ollama.chat`
+  stubbed; coverage: focus detection incl. benchmark/unknown tokens and the
+  uppercase fallback, focus payload availability/honesty + `_json_safe`, payload
+  shaping, focused vs broad prompt branching, data-error path).
+- Real, un-stubbed checks against the cached symbol master:
+  `_extract_focus_symbol` -> "tell me about RELIANCE" = RELIANCE;
+  "what about bank nifty" and "market overview" = "" (broad);
+  `_focus_payload("RELIANCE", <latest cached report>)` returned a real
+  watchlist snapshot (price present, RSI, trend STRONG_DOWNTREND), company name,
+  and honest factor/technical membership (not in stored extremes).
+- Full offline suite: `Ran 257 tests ... OK` (242 -> 257; 15 new).
+
+Known limitation (documented): focus detection matches ticker tokens, not
+company names, so "infosys" does not resolve to `INFY` — the user types the
+ticker. Weekend/live data unavailability is surfaced honestly as an
+UNAVAILABLE snapshot rather than demo values.
+
+Not run here: a live Ollama turn through the running app (Ollama inference is
+not exercised in this environment); the deterministic prompt-branch + payload
+behavior is verified by the stubbed tests, and the launcher path is unchanged.

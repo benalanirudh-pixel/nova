@@ -3,6 +3,53 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-11 - Nova Analysis answers about the specific stock asked
+
+Bug: asking about a single stock in the Nova Analysis question box (or via
+`get_market_lab_analysis("...")`) produced a generic whole-market template and
+ignored the stock. Fixed in `market_lab/market_lab_brain.py`:
+
+- `_extract_focus_symbol(query)` detects the one NSE stock named, offline, by
+  validating candidate tokens against the cached symbol master
+  (`analysis/data/symbol_master.load_master`). Benchmarks/instructions
+  (NIFTY, BANK NIFTY, market, breadth, ...) and unknown words never trigger it,
+  so a broad question still yields the full assessment.
+- `_focus_payload(symbol, report)` gathers verifiable per-stock evidence: a
+  live snapshot from the existing watchlist engine
+  (`refresh_watch_symbol`; returns status UNAVAILABLE with a reason on any
+  failure — never demo values), company name from the cached master, and the
+  stock's factor/technical membership from the report (only the stored
+  top/bottom extremes and top-technical list are checked; "not in extremes"
+  is stated plainly). All values are preserved as-reported; nothing invented.
+- `_build_analysis_payload(report, focus=...)` now includes a `focus_symbol`
+  block and a compact `research_factors` summary (top/bottom 5) so the model
+  can place the stock without the whole report.
+- `analyze_market_lab` branches the prompt: when a stock is named it uses a
+  focused directive ("answer about the requested stock; do not emit the broad
+  market template; say when a field is missing instead of substituting
+  market-wide numbers") and prepends `FOCUS STOCK JSON`; otherwise the
+  previous broad prompt/system behavior is unchanged. The returned header now
+  shows `Focus: <SYMBOL>`. A SYSTEM_PROMPT "SINGLE-STOCK QUESTIONS" section
+  was added.
+- Analysis-only invariants unchanged: read-only, no broker/orders, no
+  fabricated data.
+
+Known limitation: detection matches ticker tokens, not company names, so
+"infosys" does not resolve to `INFY` (type the ticker). If the week's live
+snapshot is unavailable, the answer says so honestly.
+
+Validation:
+
+- `tests/test_market_lab_brain.py` (new, 15 offline tests; symbol master,
+  watchlist engine and ollama stubbed) covers detection, focus payload,
+  payload shaping, prompt branching and data-error handling.
+- Real (un-stubbed) checks against the cached master: "tell me about
+  RELIANCE" -> RELIANCE; "bank nifty"/"market overview" -> "" (broad);
+  `_focus_payload("RELIANCE", <cached report>)` returned a real snapshot
+  (price present, RSI, trend) + company name + honest factor/technical
+  membership.
+- Full offline suite: `Ran 257 tests ... OK` (242 -> 257; 15 new).
+
 ## 2026-10-10 - Market Lab terminal visual refinement (Step 5)
 
 Visual polish of the new terminal. No backend, engine, data-source, or
