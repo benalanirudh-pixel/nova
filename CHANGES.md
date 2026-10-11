@@ -3,6 +3,36 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-11 - Market Report sections 03-08 redesigned (aligned/colorized, dense)
+
+Applied the same premium treatment used for Sections 01/02 to the remaining
+Market Report sections (presentation only; real data + honesty preserved):
+
+- 03 Sector Intelligence: ranked table `#, Sector, 20D %, RS 20D, Regime`;
+  right-aligned numerics, centered rank/regime, 20D % and RS 20D colored by sign,
+  regime as a centered colored badge (POSITIVE green / NEGATIVE red / else muted).
+  New `_paint_cell` / `_regime_color` helpers. No per-sector sparkline column
+  (no genuine per-sector series) - honest, per the reference rule.
+- 04 Technical Analysis: `Rank, Symbol, Score, Trend` with colored trend
+  (uptrend/bullish green, downtrend/bearish red) and cyan score emphasis; the
+  RSI/MACD/support-resistance note carries a tooltip explaining the honest N/A.
+- 05 Derivatives Intelligence: compact `Metric | NIFTY | BANK NIFTY` table (spot,
+  expiry, OI PCR, volume PCR, max pain, put/call wall, ATM IV) with an honest note
+  that per-stock OI-build lists are not in the saved report.
+- 06 Institutional Flow: `Metric | INR crore` with FII/DII 20D/5D colored by sign
+  and the signal-eligibility cell green/amber.
+- 08 Factor Rankings: TOP 10 and BOTTOM 10 composite-z tables, z colored by sign,
+  QUALITY/VALUE shown honestly as NOT_AVAILABLE.
+- 07 Risk and 09/10 unchanged (07 note colorized amber).
+
+Files changed: `market_lab_ui.py`, `tests/test_gui_smoke.py`
+(+`test_remaining_sections_render_tables`).
+
+Validation: `ast.parse` ok; real cached report renders 03 (5x5), 04 (10x4),
+05 (7x3), 06 (7x2), 08 (10x10 x2 tables) with no errors;
+`tests.test_gui_smoke.TestRedesign` -> 5 OK; full offline suite ->
+`Ran 324 tests ... OK` (323 -> 324; +1).
+
 ## 2026-10-11 - Sidebar: remove disabled "Unavailable" nav items
 
 `market_lab_ui.py`: removed the disabled Indices/Sectors/Stocks/Screeners/

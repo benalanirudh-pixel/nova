@@ -945,3 +945,51 @@ class TestRedesign(unittest.TestCase):
         bars = win.report_sections["02"].body.findChildren(_W.StackBar)
         self.assertEqual(len(bars), 1)
         self.assertEqual(len(bars[0]._segments), 2)  # advances + declines
+
+    def test_remaining_sections_render_tables(self):
+        rich = {
+            "market": "NSE",
+            "generated": "2026-10-11T00:00:00+00:00",
+            "sector_intelligence": {
+                "available": True,
+                "top_sectors": [
+                    {"sector": "IT", "return_20d": 4.2, "relative_strength_20d": 8.1, "regime": "POSITIVE"},
+                    {"sector": "METAL", "return_20d": -1.5, "relative_strength_20d": -2.0, "regime": "NEGATIVE"},
+                ],
+            },
+            "top_technical_stocks": [
+                {"symbol": "AAA", "technical_score": 99.0, "trend": "STRONG_UPTREND"},
+            ],
+            "derivatives": {
+                "available": True,
+                "nifty": {"available": True, "underlying": {"spot": 22520.45},
+                          "pcr": {"oi_pcr": 1.1}, "max_pain": {"strike": 22500}},
+            },
+            "institutional_flow": {"available": True, "metrics": {"fii_20d": -100.0}},
+            "research_factors": {
+                "status": "AVAILABLE",
+                "top_ranked": [{"rank": 1, "symbol": "UEL", "composite_z": 1.4, "price": 214.0}],
+                "bottom_ranked": [{"rank": 1, "symbol": "ATALREAL", "composite_z": -1.3, "price": 11.0}],
+            },
+        }
+        win = self._window()
+        win.display_report(rich, 0.0, cached=True)
+
+        from PySide6.QtWidgets import QTableWidget
+        def first_table(num):
+            tables = win.report_sections[num].body.findChildren(QTableWidget)
+            return tables[0] if tables else None
+
+        s03 = first_table("03")
+        self.assertIsNotNone(s03)
+        self.assertEqual(s03.columnCount(), 5)            # #, Sector, 20D%, RS, Regime
+        self.assertEqual(s03.rowCount(), 2)               # two real sectors
+        s04 = first_table("04")
+        self.assertEqual(s04.columnCount(), 4)            # Rank, Symbol, Score, Trend
+        s05 = first_table("05")
+        self.assertEqual(s05.columnCount(), 3)            # Metric, NIFTY, BANK NIFTY
+        s06 = first_table("06")
+        self.assertEqual(s06.columnCount(), 2)            # Metric, INR crore
+        # Section 08 has top AND bottom tables.
+        s08 = win.report_sections["08"].body.findChildren(QTableWidget)
+        self.assertEqual(len(s08), 2)

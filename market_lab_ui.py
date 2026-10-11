@@ -1104,6 +1104,181 @@ class MarketLabWindow(QMainWindow):
     def _macro_availability(report):
         return "AVAILABLE" if vm.macro(report).get("market_regime") else vm.N_A
 
+    # ---- table cell painting helpers (color + alignment) ----
+
+    @staticmethod
+    def _paint_cell(table, row, col, color, center=False):
+        item = table.item(row, col)
+        if item is None:
+            return
+        item.setForeground(QColor(color))
+        if center:
+            item.setTextAlignment(
+                Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+            )
+        else:
+            item.setTextAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            )
+
+    @staticmethod
+    def _regime_color(regime):
+        r = str(regime).upper()
+        if r in ("POSITIVE", "STRONG", "BULLISH", "UPTREND", "STRONG_UPTREND"):
+            return GREEN
+        if r in ("NEGATIVE", "WEAK", "BEARISH", "DOWNTREND", "STRONG_DOWNTREND"):
+            return RED
+        return MUTED
+
+    @staticmethod
+    def _trend_color(trend):
+        t = str(trend).upper()
+        if "UPTREND" in t or "BULL" in t:
+            return GREEN
+        if "DOWNTREND" in t or "BEAR" in t:
+            return RED
+        return MUTED
+
+    def _box(self, widgets):
+        from PySide6.QtWidgets import QWidget as _QW
+        box = _QW()
+        lay = QVBoxLayout(box)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(8)
+        for w in widgets:
+            lay.addWidget(w)
+        return box
+
+    # ---- Section widgets (03 Sector, 04 Technical, 05 Derivatives,
+    #      06 Flow, 08 Factor Rankings) ----
+
+    def _sector_table(self, report):
+        rows = vm.sector_rows(report, limit=25)
+        if not rows:
+            return W.make_label(
+                "Sector data unavailable in this report.", 10, MUTED)
+        table = W.make_table(["#", "Sector", "20D %", "RS 20D", "Regime"],
+                             stretch_column=1)
+        W.fill_table(table, [
+            [i, r["name"], fmt_pct(r["return_20d"]),
+             fmt_num(r["relative_strength_20d"], 1), r["regime"]]
+            for i, r in enumerate(rows, 1)])
+        for i, r in enumerate(rows):
+            self._paint_cell(table, i, 0, MUTED, center=True)
+            self._paint_cell(table, i, 2, W.sign_color(r["return_20d"]))
+            self._paint_cell(table, i, 3, W.sign_color(r["relative_strength_20d"]))
+            self._paint_cell(table, i, 4, self._regime_color(r["regime"]), center=True)
+        return table
+
+    def _technical_widget(self, report):
+        t = vm.technical_block(report)
+        rows = t["top_stocks"]
+        table = W.make_table(["Rank", "Symbol", "Score", "Trend"], stretch_column=1)
+        W.fill_table(table, [
+            [r["rank"], r["symbol"], fmt_num(r["technical_score"], 1), r["trend"]]
+            for r in rows])
+        for i, r in enumerate(rows):
+            self._paint_cell(table, i, 0, MUTED, center=True)
+            score = fmt_num(r["technical_score"], 1)
+            self._paint_cell(
+                table, i, 2, CYAN if score not in (vm.N_A, "") else TEXT)
+            self._paint_cell(table, i, 3, self._trend_color(r["trend"]))
+        note = W.make_label(
+            f"RSI oversold {t['rsi_oversold']} • RSI overbought {t['rsi_overbought']} • "
+            f"MACD crossovers {t['macd_crossovers']} • support/resistance {t['support_resistance']}",
+            9, MUTED)
+        note.setToolTip(
+            "Per-stock RSI/MACD lists and support/resistance are not stored in "
+            "the saved report; shown honestly as N/A.")
+        return self._box([table, note])
+
+    def _derivatives_widget(self, report):
+        n = vm.derivatives_block(report, "nifty")
+        b = vm.derivatives_block(report, "bank_nifty")
+        if not (n.get("available") or b.get("available")):
+            return W.make_label(
+                "Derivatives data unavailable in this report.", 10, MUTED)
+
+        def cell(d, key, formatter):
+            return formatter(d.get(key)) if d.get("available") else vm.N_A
+
+        table = W.make_table(["Metric", "NIFTY", "BANK NIFTY"], stretch_column=0)
+        W.fill_table(table, [
+            ["Spot", cell(n, "spot", fmt_price), cell(b, "spot", fmt_price)],
+            ["Expiry", cell(n, "expiry", lambda v: v), cell(b, "expiry", lambda v: v)],
+            ["OI PCR", cell(n, "oi_pcr", lambda v: fmt_num(v, 3)),
+                       cell(b, "oi_pcr", lambda v: fmt_num(v, 3))],
+            ["Volume PCR", cell(n, "volume_pcr", lambda v: fmt_num(v, 3)),
+                            cell(b, "volume_pcr", lambda v: fmt_num(v, 3))],
+            ["Max Pain", cell(n, "max_pain", fmt_points),
+                          cell(b, "max_pain", fmt_points)],
+            ["Put / Call wall",
+             f"{n.get('put_wall', vm.N_A)} / {n.get('call_wall', vm.N_A)}" if n.get("available") else vm.N_A,
+             f"{b.get('put_wall', vm.N_A)} / {b.get('call_wall', vm.N_A)}" if b.get("available") else vm.N_A],
+            ["ATM IV", cell(n, "atm_iv", lambda v: fmt_num(v)),
+                        cell(b, "atm_iv", lambda v: fmt_num(v))],
+        ])
+        note = W.make_label(
+            f"Top OI-build/reduction is shown at the strike level in the NSE "
+            f"option chain; a per-stock OI-build list is not in the saved "
+            f"report ({n.get('stock_oi_buildup_list')}).", 9, MUTED)
+        note.setWordWrap(True)
+        return self._box([table, note])
+
+    def _flow_widget(self, report):
+        f = vm.flow_block(report)
+        if not f["available"]:
+            return W.make_label(
+                "Institutional flow unavailable in this report.", 10, MUTED)
+        coverage = (
+            f"{f['primary_verified']}/{f['target_sessions']} sessions verified"
+            if f.get("primary_verified") is not None else vm.N_A)
+        rows = [
+            ["Flow regime", f["flow_regime"]],
+            ["FII net 20D (₹ cr)", fmt_crore(f["fii_20d"])],
+            ["DII net 20D (₹ cr)", fmt_crore(f["dii_20d"])],
+            ["FII net 5D (₹ cr)", fmt_crore(f["fii_5d"])],
+            ["DII net 5D (₹ cr)", fmt_crore(f["dii_5d"])],
+            ["Primary coverage", coverage],
+            ["Signal eligible",
+             ("YES" if f["signal_allowed"] else f"NO — {f['signal_reason']}")],
+        ]
+        table = self._kv_table(rows, value_field="INR crore")
+        for i, key in enumerate(["fii_20d", "dii_20d", "fii_5d", "dii_5d"], start=1):
+            self._paint_cell(table, i, 1, W.sign_color(f[key]))
+        last = table.rowCount() - 1
+        self._paint_cell(table, last, 1,
+                         GREEN if f["signal_allowed"] else AMBER)
+        return table
+
+    def _factor_widget(self, report):
+        fb = vm.factor_block(report)
+        head = W.make_label(
+            f"method: {fb['method']} • universe: {fb['universe_size']} • "
+            f"as of: {fb['as_of']}", 9, MUTED)
+        pieces = [head]
+        for title, data in (("TOP 10 (composite z)", fb["top"]),
+                             ("BOTTOM 10 (composite z)", fb["bottom"])):
+            if not data:
+                continue
+            table = W.make_table(["Rank", "Symbol", "Composite Z", "Price"],
+                                 stretch_column=1)
+            W.fill_table(table, [
+                [r["rank"], r["symbol"], fmt_num(r["composite_z"], 3),
+                 fmt_price(r["price"])] for r in data])
+            for i, r in enumerate(data):
+                self._paint_cell(table, i, 0, MUTED, center=True)
+                self._paint_cell(table, i, 2, W.sign_color(r["composite_z"]))
+            pieces.append(W.make_label(title, 9, MUTED, True))
+            pieces.append(table)
+        for factor, reason in fb["factors_unavailable"].items():
+            pieces.append(W.make_label(f"{factor}: NOT_AVAILABLE — {reason}",
+                                       9, AMBER))
+        if len(pieces) == 1:
+            pieces.append(W.make_label(
+                "Factor rankings unavailable in this report.", 10, MUTED))
+        return self._box(pieces)
+
     def build_overview(self):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -1587,64 +1762,29 @@ class MarketLabWindow(QMainWindow):
             "02", "AVAILABLE", lambda s: s.add(self._breadth_panel(report))
         )
 
-        # --- 03 Sector ---
-        sectors = vm.sector_rows(report, limit=20)
-        self._fill_section("03", "AVAILABLE" if sectors else "NOT_AVAILABLE",
-            lambda s: s.add(self._list_table(
-                ["Sector", "20D %", "RS 20D", "Regime"],
-                [[r["name"], fmt_pct(r["return_20d"]),
-                  fmt_num(r["relative_strength_20d"], 1), r["regime"]] for r in sectors],
-                stretch=0)))
+        # --- 03 Sector intelligence (ranked, colorized table) ---
+        sectors = vm.sector_rows(report, limit=25)
+        self._fill_section(
+            "03", "AVAILABLE" if sectors else "NOT_AVAILABLE",
+            lambda s: s.add(self._sector_table(report)))
 
-        # --- 04 Technical ---
-        t = vm.technical_block(report)
-        def _technical(sec):
-            sec.add(self._list_table(
-                ["Rank", "Symbol", "Score", "Trend"],
-                [[r["rank"], r["symbol"], fmt_num(r["technical_score"], 1), r["trend"]]
-                 for r in t["top_stocks"]]))
-            sec.add(W.make_label(
-                f"RSI oversold {t['rsi_oversold']} • RSI overbought {t['rsi_overbought']} • "
-                f"MACD crossovers {t['macd_crossovers']} • support/resistance {t['support_resistance']}",
-                9, MUTED))
-        self._fill_section("04", "PARTIAL", _technical)
+        # --- 04 Technical analysis (ranked table, colored score/trend) ---
+        self._fill_section(
+            "04", "PARTIAL",
+            lambda s: s.add(self._technical_widget(report)))
 
-        # --- 05 Derivatives ---
-        def _deriv(sec):
-            for which, label in (("nifty", "NIFTY"), ("bank_nifty", "BANK NIFTY")):
-                d = vm.derivatives_block(report, which)
-                if not d.get("available"):
-                    sec.add(W.make_label(f"{label}: derivatives N/A", 10, MUTED))
-                    continue
-                sec.add(self._kv_table([
-                    [f"{label} spot", fmt_price(d["spot"])],
-                    [f"{label} expiry", d["expiry"]],
-                    [f"{label} OI PCR", fmt_num(d["oi_pcr"], 3)],
-                    [f"{label} volume PCR", fmt_num(d["volume_pcr"], 3)],
-                    [f"{label} max pain", fmt_points(d["max_pain"])],
-                    [f"{label} put/call wall", f"{d['put_wall']} / {d['call_wall']}"],
-                    [f"{label} ATM IV", fmt_num(d["atm_iv"])],
-                    [f"{label} top OI-build stocks", d["stock_oi_buildup_list"]],
-                ], value_field="Value"))
-        self._fill_section("05", "AVAILABLE", _deriv)
+        # --- 05 Derivatives intelligence (compact NIFTY vs BANK NIFTY) ---
+        self._fill_section(
+            "05", "AVAILABLE",
+            lambda s: s.add(self._derivatives_widget(report)))
 
-        # --- 06 Institutional flow ---
+        # --- 06 Institutional flow (colorized FII/DII) ---
         f = vm.flow_block(report)
-        def _flow(sec):
-            coverage = (f"{f['primary_verified']}/{f['target_sessions']} sessions verified"
-                        if f.get("primary_verified") is not None else vm.N_A)
-            sec.add(self._kv_table([
-                ["Flow regime", f["flow_regime"]],
-                ["FII net 20D (cr)", fmt_crore(f["fii_20d"])],
-                ["DII net 20D (cr)", fmt_crore(f["dii_20d"])],
-                ["FII net 5D (cr)", fmt_crore(f["fii_5d"])],
-                ["DII net 5D (cr)", fmt_crore(f["dii_5d"])],
-                ["Primary coverage", coverage],
-                ["Signal eligible", ("YES" if f["signal_allowed"] else f"NO — {f['signal_reason']}")],
-            ]))
-        self._fill_section("06", "AVAILABLE" if f["available"] else "NOT_AVAILABLE", _flow)
+        self._fill_section(
+            "06", "AVAILABLE" if f["available"] else "NOT_AVAILABLE",
+            lambda s: s.add(self._flow_widget(report)))
 
-        # --- 07 Risk metrics ---
+        # --- 07 Risk metrics (market-risk context; portfolio stats not computed) ---
         rk = vm.risk_block(report)
         def _risk(sec):
             provided = rk["provided"]
@@ -1658,22 +1798,14 @@ class MarketLabWindow(QMainWindow):
                 ["Volatility percentile", fmt_num(provided["volatility_percentile"], 1)],
                 ["Volatility regime", provided["volatility_regime"]],
             ]))
-            sec.add(W.make_label(rk["note"], 9, MUTED))
+            sec.add(W.make_label(rk["note"], 9, AMBER))
         self._fill_section("07", "CONTEXT_ONLY", _risk)
 
-        # --- 08 Factor rankings ---
+        # --- 08 Factor rankings (top/bottom composite z, colorized) ---
         fb2 = vm.factor_block(report)
-        def _factor(sec):
-            sec.add(W.make_label(
-                f"method: {fb2['method']} • universe: {fb2['universe_size']} • "
-                f"as of: {fb2['as_of']}", 9, MUTED))
-            sec.add(self._list_table(
-                ["Rank", "Symbol", "Composite Z", "Price"],
-                [[r["rank"], r["symbol"], fmt_num(r["composite_z"], 3), fmt_price(r["price"])]
-                 for r in fb2["top"]]))
-            for factor, reason in fb2["factors_unavailable"].items():
-                sec.add(W.make_label(f"{factor}: NOT_AVAILABLE — {reason}", 9, MUTED))
-        self._fill_section("08", "AVAILABLE" if fb2["status"] == "AVAILABLE" else "NOT_AVAILABLE", _factor)
+        self._fill_section(
+            "08", "AVAILABLE" if fb2["status"] == "AVAILABLE" else "NOT_AVAILABLE",
+            lambda s: s.add(self._factor_widget(report)))
 
         # --- 09 Earnings calendar ---
         e = vm.earnings_block(report)
