@@ -12,6 +12,8 @@ generic; the window in market_lab_ui.py wires them to real data.
 
 from __future__ import annotations
 
+import math
+
 from PySide6.QtCore import Qt, QRectF, QPointF
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
@@ -24,6 +26,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
+    QSizePolicy,
 )
 
 
@@ -1060,27 +1063,20 @@ except Exception:  # pragma: no cover
 
 if PG_AVAILABLE:
 
-    def _to_epoch(value):
-        import datetime as _dt
-
-        try:
-            s = str(value).strip()
-            if len(s) == 10 and "-" in s:
-                dt = _dt.datetime.strptime(s, "%Y-%m-%d")
-            else:
-                dt = _dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=_dt.timezone.utc)
-            return dt.timestamp()
-        except Exception:
-            return None
+    def _finite(value):
+        return isinstance(value, (int, float)) and math.isfinite(value)
 
     class _CandlestickItem(pg.GraphicsObject):
-        """Minimal candlestick drawn in data coordinates (rises green, falls red)."""
+        """Minimal candlestick drawn in data coordinates (rises green, falls red).
+
+        Expects finite (x, open, close, low, high) tuples; invalid rows are
+        skipped here as a second line of defence.
+        """
 
         def __init__(self, data):
             pg.GraphicsObject.__init__(self)
-            self.data = data
+            self.data = [d for d in data
+                         if all(_finite(v) for v in (d[0], d[1], d[2], d[3], d[4]))]
             self._generate_picture()
 
         def _generate_picture(self):
@@ -1154,91 +1150,119 @@ if PG_AVAILABLE:
                 p.setXLink(price)
                 p.getAxis("bottom").setStyle(showValues=False)
 
-            self.plots["rsi"].setYRange(0, 100)
+            self.plots["rsi"].setYRange(0, 100, padding=0.02)
+            self.plots["rsi"].enableAutoRange(axis=pg.ViewBox.YAxis, enable=False)
             self.plots["rsi"].addLine(
                 y=70, pen=pg.mkPen(AMBER, style=_PGQtCore.Qt.DashLine))
             self.plots["rsi"].addLine(
                 y=30, pen=pg.mkPen(AMBER, style=_PGQtCore.Qt.DashLine))
             self.plots["macd"].addLine(y=0, pen=pg.mkPen(SECONDARY))
 
-        def _series(self, values, xs):
-            out = []
-            for x, v in zip(xs, values):
-                if v is None:
-                    continue
-                try:
-                    out.append((x, float(v)))
-                except (TypeError, ValueError):
-                    continue
-            return out
+        @staticmethod
+        def _finite(value):
+            return isinstance(value, (int, float)) and math.isfinite(value)
 
         def set_data(self, candles, rsi=None, macd=None, signal=None, hist=None):
             candles = list(candles or [])
-            n = len(candles)
+            rsi = list(rsi or [])
+            macd = list(macd or [])
+            signal = list(signal or [])
+            hist = list(hist or [])
             self._build()
-            if n == 0:
+            if not candles:
                 return
 
-            xs = []
-            fallback = 1_600_000_000.0
-            for i, c in enumerate(candles):
-                e = _to_epoch(c.get("t"))
-                if e is None:
-                    e = fallback + i * 86400.0
-                xs.append(e)
-            step = (xs[1] - xs[0]) if n > 1 else 86400.0
+            # Validate + order the candles (drops non-dict/bad-date/future/
+            # duplicate/bad-OHLC rows) and keep original indices so RSI/MACD
+            # stay aligned. Never fabricates dates or bars.
+            from market_lab import stock_adapter
+
+            kept, report = stock_adapter.validate_candles(candles)
+            if report.get("bad_ohlc") or report.get("future") or report.get("bad_date"):
+                print(f"[CHART DATA] dropped rows in chart input: {report}")
+            if not kept:
+                return
+
+            xs = [e for _, e, _ in kept]
+            min_x, max_x = xs[0], xs[-1]
+            step = (max_x - min_x) / (len(kept) - 1) if len(kept) > 1 else 86400.0
             if step <= 0:
                 step = 86400.0
 
-            body_data = []
-            for i, c in enumerate(candles):
-                o, cl, lo, hi = c.get("o"), c.get("c"), c.get("l"), c.get("h")
-                if None in (o, cl, lo, hi):
-                    continue
-                body_data.append((xs[i], float(o), float(cl), float(lo), float(hi)))
+            # Candles
+            body_data = [
+                (e, float(c["o"]), float(c["c"]), float(c["l"]), float(c["h"]))
+                for _, e, c in kept
+            ]
             if body_data:
                 self.plots["price"].addItem(_CandlestickItem(body_data))
 
+            # Moving averages (only finite, aligned to the candle epoch).
             for key, color in (("ma20", CYAN), ("ma50", AMBER), ("ma200", PURPLE)):
-                sel = self._series([c.get(key) for c in candles], xs)
-                if len(sel) >= 2:
+                points = [
+                    (e, float(c[key]))
+                    for _, e, c in kept
+                    if self._finite(c.get(key))
+                ]
+                if len(points) >= 2:
                     self.plots["price"].plot(
-                        [s[0] for s in sel], [s[1] for s in sel],
+                        [p[0] for p in points], [p[1] for p in points],
                         pen=pg.mkPen(color, width=1.4))
 
-            opens = [c.get("o") or 0 for c in candles]
-            closes = [c.get("c") or 0 for c in candles]
-            vols = [c.get("v") or 0 for c in candles]
-            if any(vols):
+            # Volume (own axis; non-finite -> 0, never plotted on the price axis).
+            vol_heights = []
+            for i, e, c in kept:
+                v = c.get("v")
+                vol_heights.append(float(v) if self._finite(v) else 0.0)
+            if any(h > 0 for h in vol_heights):
                 self.plots["volume"].addItem(pg.BarGraphItem(
-                    x=xs, height=vols, width=step * 0.7,
-                    brushes=[pg.mkBrush(GREEN if closes[i] >= opens[i] else RED)
-                              for i in range(n)]))
+                    x=xs, height=vol_heights, width=step * 0.7,
+                    brushes=[
+                        pg.mkBrush(GREEN if c["c"] >= c["o"] else RED)
+                        for _, e, c in kept
+                    ]))
 
-            for name, values, color in (("rsi", rsi or [], CYAN),
-                                        ("macd", macd or [], CYAN),
-                                        ("signal", signal or [], AMBER)):
-                target = "macd" if name == "signal" else name
-                sel = self._series(list(values)[:n], xs)
-                if len(sel) >= 2:
-                    self.plots[target].plot(
-                        [s[0] for s in sel], [s[1] for s in sel],
+            # RSI (only finite points; y is pinned to 0-100 by _build).
+            rsi_points = [
+                (e, float(rsi[i]))
+                for i, e, c in kept
+                if i < len(rsi) and self._finite(rsi[i])
+            ]
+            if len(rsi_points) >= 2:
+                self.plots["rsi"].plot(
+                    [p[0] for p in rsi_points], [p[1] for p in rsi_points],
+                    pen=pg.mkPen(CYAN, width=1.4))
+
+            # MACD line + signal line (own y-axis).
+            for values, color in ((macd, CYAN), (signal, AMBER)):
+                points = [
+                    (e, float(values[i]))
+                    for i, e, c in kept
+                    if i < len(values) and self._finite(values[i])
+                ]
+                if len(points) >= 2:
+                    self.plots["macd"].plot(
+                        [p[0] for p in points], [p[1] for p in points],
                         pen=pg.mkPen(color, width=1.4))
 
+            # MACD histogram (bars from zero; non-finite warm-up -> 0).
             if hist:
-                h = [float(hist[i]) if hist[i] is not None else 0
-                     for i in range(min(n, len(hist)))]
-                if len(h) == n:
-                    self.plots["macd"].addItem(pg.BarGraphItem(
-                        x=xs, height=h, width=step * 0.6,
-                        brushes=[pg.mkBrush(GREEN if v >= 0 else RED)
-                                 for v in h]))
+                hist_heights = [
+                    (float(hist[i]) if i < len(hist) and self._finite(hist[i])
+                     else 0.0)
+                    for i, e, c in kept
+                ]
+                self.plots["macd"].addItem(pg.BarGraphItem(
+                    x=xs, height=hist_heights, width=step * 0.6,
+                    brushes=[pg.mkBrush(GREEN if h >= 0 else RED)
+                              for h in hist_heights]))
 
-            # Fit the shared time axis to the real data. The price plot owns
-            # the X range; volume/RSI/MACD are X-linked so they follow it.
+            # Shared time axis: price owns X, pin it to the validated range so
+            # the axis never extends into an unsupported future period.
             price = self.plots["price"]
             price.enableAutoRange(axis=pg.ViewBox.XYAxes)
             price.autoRange()
+            price.setXRange(min_x, max_x, padding=0.02)
             for name in ("volume", "macd"):
                 self.plots[name].enableAutoRange(axis=pg.ViewBox.YAxis)
                 self.plots[name].autoRange()

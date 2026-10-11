@@ -3,7 +3,35 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
-## 2026-10-11 - Fix Stock Analysis chart layout (vertical stack + shared time axis) and AI report rendering
+## 2026-10-11 - Fix corrupted stock chart (non-finite + future-date validation)
+
+Root cause of the corrupted chart: the plot received **NaN warm-up values**
+from `calculate_rsi`/`calculate_macd` (first 14/26 bars) and used a **fallback
+epoch** for unparsed dates, so pyqtgraph rendered vertical spikes and the
+auto-ranging viewboxes exploded (RSI \u00b150000, huge green candles, MACD
+lines). The source data itself was clean (RELIANCE RSI 28-85, MACD -29..6, no
+bad OHLC, no future dates), so this was a rendering/validation gap.
+
+Fixes:
+- `market_lab/stock_adapter.py`: new `to_epoch()` and `validate_candles()`
+  which return the candles sorted chronologically with future-dated (> now +
+  1 day), unparseable, duplicate, and non-finite/inconsistent-OHLC rows
+  dropped, while preserving original indices so RSI/MACD stay aligned. A
+  diagnostic `report` counts each drop.
+- `market_lab/widgets.py` (`PgCandleChart`): `set_data()` now runs
+  `validate_candles`, plots **only finite points** for candles/MAs/RSI/MACD
+  (histogram warm-up -> 0), and **pins the shared time axis** to the validated
+  min/max range so nothing extends into the future; RSI Y is locked to 0-100;
+  volume/MACD keep independent Y axes.
+
+Regression tests: `tests/test_stock_adapter.py` (+`TestValidateCandles`:
+sorting, dedupe, alignment, future/bad-date/bad-OHLC drop) and
+`tests/test_gui_smoke.py` (+`test_pg_skips_nonfinite_and_future`: NaN warm-up
+and a future candle must not raise or blow up the axes).
+
+Verified with real RELIANCE data: shared axis 2026-04-09 -> 2026-10-09, price
+~1134-1500, volume own axis 0-46M, RSI -2..102, MACD -32.7..9.1; a suspicious
+input (`[CHART DATA] dropped rows: future=1`) is logged.
 
 Root cause of the broken chart: `GraphicsLayoutWidget.addPlot()` called with no
 row/col added the four panels as **4 columns in 1 row** (narrow horizontal

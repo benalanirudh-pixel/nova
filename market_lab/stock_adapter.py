@@ -22,11 +22,84 @@ Keep heavy calls (analyze_stock, get_price_history, Ollama) off the UI thread.
 
 from __future__ import annotations
 
+import datetime as _dt
+import math
+import time
 from typing import Any
 
 from market_lab import view_model as vm
 
 N_A = vm.N_A
+
+
+def to_epoch(value):
+    """Parse a candle timestamp to epoch seconds, or None.
+
+    Accepts 'YYYY-MM-DD' or ISO-8601. Naive stamps are treated as UTC.
+    """
+    try:
+        s = str(value).strip()
+        if len(s) == 10 and "-" in s:
+            dt = _dt.datetime.strptime(s, "%Y-%m-%d")
+        else:
+            dt = _dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=_dt.timezone.utc)
+        return dt.timestamp()
+    except Exception:
+        return None
+
+
+def validate_candles(candles, now_ts=None):
+    """Sanitize and order candles for plotting, preserving alignment indices.
+
+    Returns (kept, report) where kept is a list of (original_index, epoch,
+    candle) sorted by epoch and free of: non-dict rows, unparseable dates,
+    future-dated rows (later than now + 1 day), duplicate dates, and rows with
+    non-finite or inconsistent OHLC. `report` counts each drop for diagnostics.
+    The original_index lets the caller keep RSI/MACD arrays aligned.
+    """
+    now_ts = time.time() if now_ts is None else float(now_ts)
+    horizon = now_ts + 86400.0
+    seen = set()
+    rows = []
+    report = {
+        "total": len(candles or []),
+        "not_dict": 0,
+        "bad_date": 0,
+        "future": 0,
+        "duplicate": 0,
+        "bad_ohlc": 0,
+    }
+    for i, c in enumerate(candles or []):
+        if not isinstance(c, dict):
+            report["not_dict"] += 1
+            continue
+        e = to_epoch(c.get("t"))
+        if e is None:
+            report["bad_date"] += 1
+            continue
+        if e > horizon:
+            report["future"] += 1
+            continue
+        if e in seen:
+            report["duplicate"] += 1
+            continue
+        o, h, l, cl = (c.get("o"), c.get("h"), c.get("l"), c.get("c"))
+        vals = (o, h, l, cl)
+        if None in vals or not all(
+            isinstance(x, (int, float)) and math.isfinite(x) for x in vals
+        ):
+            report["bad_ohlc"] += 1
+            continue
+        if l > o or l > cl or h < o or h < cl or h < l:
+            report["bad_ohlc"] += 1
+            continue
+        seen.add(e)
+        rows.append((e, i, c))
+    rows.sort(key=lambda t: t[0])
+    kept = [(i, e, c) for e, i, c in rows]
+    return kept, report
 
 
 def resolve_symbol(query: str):

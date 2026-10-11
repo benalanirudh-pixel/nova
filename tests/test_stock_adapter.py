@@ -140,5 +140,71 @@ class TestKpiAndQuality(unittest.TestCase):
         self.assertEqual(ctx["india_vix"], 14.38)
 
 
+class TestValidateCandles(unittest.TestCase):
+
+    def _c(self, t, o, h, l, cl, v=1.0):
+        return {"t": t, "o": o, "h": h, "l": l, "c": cl, "v": v}
+
+    def test_to_epoch(self):
+        self.assertIsNotNone(stock_adapter.to_epoch("2026-10-09"))
+        self.assertIsNotNone(stock_adapter.to_epoch("2026-10-09T10:30:00+00:00"))
+        self.assertIsNone(stock_adapter.to_epoch("not-a-date"))
+        self.assertIsNone(stock_adapter.to_epoch(None))
+
+    def test_sorted_and_deduped_with_alignment(self):
+        candles = [
+            self._c("2026-10-05", 10, 12, 9, 11),
+            self._c("2026-10-02", 10, 12, 9, 11),  # older, out of order
+            self._c("2026-10-05", 10, 12, 9, 11),  # duplicate date
+        ]
+        kept, report = stock_adapter.validate_candles(candles, now_ts=1_800_000_000)
+        epochs = [e for _, e, _ in kept]
+        self.assertEqual(epochs, sorted(epochs))          # chronological
+        self.assertEqual(report["duplicate"], 1)
+        self.assertEqual(len(kept), 2)
+        # original indices preserved so RSI/MACD stay aligned
+        self.assertEqual({i for i, _, _ in kept}, {0, 1})
+
+    def test_future_rows_dropped(self):
+        now = 1_800_000_000
+        candles = [
+            self._c("2026-10-09", 10, 12, 9, 11),
+            self._c("2099-01-01", 10, 12, 9, 11),  # future
+        ]
+        kept, report = stock_adapter.validate_candles(candles, now_ts=now)
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(report["future"], 1)
+
+    def test_bad_ohlc_dropped(self):
+        candles = [
+            self._c("2026-10-09", 10, 12, 9, 11),          # valid
+            self._c("2026-10-08", 10, 12, 15, 11),         # low > open
+            self._c("2026-10-07", 10, 8, 9, 11),           # high < open
+            self._c("2026-10-06", 10, 12, None, 11),        # missing low
+        ]
+        kept, report = stock_adapter.validate_candles(candles, now_ts=1_800_000_000)
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(report["bad_ohlc"], 3)
+
+    def test_bad_and_missing_dates_dropped(self):
+        candles = [
+            self._c("2026-10-09", 10, 12, 9, 11),
+            {"o": 1, "h": 1, "l": 1, "c": 1, "v": 1},       # no date
+            "not-a-candle",                                   # not a dict
+        ]
+        kept, report = stock_adapter.validate_candles(candles, now_ts=1_800_000_000)
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(report["bad_date"], 1)
+        self.assertEqual(report["not_dict"], 1)
+
+    def test_alignment_maps_oscillators(self):
+        candles = [self._c(f"2026-10-{d:02d}", 100, 101, 99, 100)
+                   for d in range(1, 4)]
+        rsi = [10.0, 50.0, 90.0]      # index-aligned to candles
+        kept, _ = stock_adapter.validate_candles(candles, now_ts=1_800_000_000)
+        plot_points = [(e, rsi[i]) for i, e, _ in kept]
+        self.assertEqual([v for _, v in plot_points], [10.0, 50.0, 90.0])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

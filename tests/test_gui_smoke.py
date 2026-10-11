@@ -1123,6 +1123,32 @@ class TestPyQtGraphAndIcons(unittest.TestCase):
                   for p in chart.plots.values()}
         self.assertEqual(len(ranges), 1)
 
+    @unittest.skipIf(not getattr(widgets_module, "PG_AVAILABLE", False),
+                     "pyqtgraph not installed")
+    def test_pg_skips_nonfinite_and_future(self):
+        import math
+        # 3 valid daily candles + 1 future-dated; RSI has NaN warm-up.
+        candles = [
+            {"t": "2026-10-07", "o": 100, "h": 105, "l": 99, "c": 103, "v": 10},
+            {"t": "2026-10-08", "o": 103, "h": 108, "l": 102, "c": 107, "v": 12},
+            {"t": "2026-10-09", "o": 107, "h": 110, "l": 106, "c": 109, "v": 15},
+            {"t": "2099-01-01", "o": 1, "h": 2, "l": 0, "c": 1, "v": 999},  # future
+        ]
+        rsi = [float("nan"), float("nan"), 55.0, 60.0]
+        macd = [float("nan"), 1.0, 2.0, 3.0]
+        chart = widgets_module.PgCandleChart()
+        # Must not raise and must not let NaN/future blow up the axis.
+        chart.set_data(candles, rsi=rsi, macd=macd, signal=[], hist=[])
+        price_range = chart.plots["price"].getViewBox().viewRange()[0]
+        lo, hi = price_range
+        self.assertTrue(math.isfinite(lo) and math.isfinite(hi))
+        # The far-future candle must not extend the visible axis.
+        self.assertLess(hi, 3_000_000_000.0)  # well before year 2065
+        # RSI axis stays near 0-100 despite NaN warm-up in the input.
+        rsi_range = chart.plots["rsi"].getViewBox().viewRange()[1]
+        self.assertLessEqual(rsi_range[1], 105.0)
+        self.assertGreaterEqual(rsi_range[0], -5.0)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

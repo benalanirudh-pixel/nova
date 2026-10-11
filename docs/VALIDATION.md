@@ -1229,5 +1229,34 @@ compatible" instruction).
 
 Manual-only: the 1600x900 visual comparison against the reference screenshot
 (rendered headless + PNG proxy; this environment cannot display the window).
+
+
+## 2026-10-11 - Fix corrupted stock chart (non-finite + future-date validation)
+
+Root cause: NaN warm-up values from `calculate_rsi`/`calculate_macd` and a
+fallback epoch for unparsed dates were passed to pyqtgraph, producing vertical
+spikes and view-box explosion (RSI ±50000, huge DIY candles, MACD lines). The
+source data was clean; the defect was rendering/validation.
+
+Code changed: `market_lab/stock_adapter.py` (`to_epoch`, `validate_candles`),
+`market_lab/widgets.py` (`PgCandleChart.set_data` validation + x pinning + RSI
+0-100 lock), tests in `tests/test_stock_adapter.py` (+6) and
+`tests/test_gui_smoke.py` (+1).
+
+Checks run:
+
+- `tests.test_stock_adapter` -> `TestValidateCandles` OK (sorting, dedupe,
+  original-index alignment, future/bad-date/bad-OHLC drops with diagnostics).
+- `tests.test_gui_smoke.TestPyQtGraphAndIcons` -> OK incl.
+  `test_pg_skips_nonfinite_and_future` (NaN warm-up + future candle must not
+  raise; price axis stays finite and pre-2065; RSI axis bounded ~[-5, 105]).
+- Real RELIANCE render: shared x-axis 2026-04-09 -> 2026-10-09; price y
+  ~1134-1500; volume y 0-46M (own axis); RSI y -2..102; MACD y -32.7..9.1
+  (own axis). Suspicious input logged: `[CHART DATA] dropped rows: future=1`.
+- Full offline suite (offscreen): `Ran 353 tests ... OK` (all pass).
+
+Guardrails: no synthetic candles/bars; invalid series are dropped with an
+explicit diagnostic rather than plotted; the chart never fabricates dates or
+prices.
   
  
