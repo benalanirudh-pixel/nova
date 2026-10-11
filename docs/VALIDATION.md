@@ -896,3 +896,38 @@ project root, e.g. `{"access_token": "<jwt>", "equity": {"RELIANCE": "<id>"}}`
 (security IDs from Dhan's instrument/scrip master), or set env
 `DHAN_ACCESS_TOKEN`, then restart Market Lab. Cached candles land in
 `analysis/data/cache/dhan/` with a 16h freshness gate.
+
+
+## 2026-10-11 - Dhan Step 2: auto security-id map + live quotes
+
+Code changed: `analysis/data/dhan_feed.py`; tests `tests/test_dhan_feed.py`
+(+12 -> 33 total). No report-generation / engine wiring; functions are exposed
+as adapter primitives for a later, separate integration.
+
+Endpoints verified against Dhan docs before coding (none invented): market
+quote `POST /v2/marketfeed/quote` (segments incl. `IDX_I`; fields last_price,
+net_change, ohlc, last_trade_time), LTP `POST /v2/marketfeed/ltp`, and the
+public instrument master CSV `https://images.dhan.co/api-data/api-scrip-master.csv`
+(compact CSV with Security ID + trading symbol).
+
+Checks run:
+
+- `ast.parse` on `analysis/data/dhan_feed.py` and the test file: passed.
+- `.\venv\Scripts\python.exe -m unittest tests.test_dhan_feed -v` -> 33 OK
+  (was 21; +12): instrument-master parse (NSE equity only), header-spelling
+  tolerance, non-NSE/non-equity filtering, zero-rows error, 16h cache gate,
+  resolve fallback to cached map + config override, `get_index_quote` parse
+  (last_price/net_change/OHLC, config index override, unconfigured -> {},
+  missing data -> available False), `get_last_price` LTP parse, and
+  `get_price_history_dhan` auto-build-on-miss via a stubbed master CSV.
+- Full offline suite (offscreen): `Ran 290 tests ... OK` (278 -> 290; 12 new).
+
+Analysis-only unchanged: adapter uses only Dhan data endpoints; no
+order/position/trade/funds/broker/execution calls were added.
+
+Not run here: any live Dhan request (no token/data plan in this environment).
+Market-feed/LTP functions are NOT yet consumed by the report engines — enabling
+a live NIFTY/BANKNIFTY/VIX snapshot through Dhan in `market_lab_data` is a
+separate market-data step (would re-run the NSE-MCP smoke per WORKFLOW). Index
+IDs default to common Dhan IDs (13/25/26) and are overridable via config; verify
+them against your Dhan scrip master.

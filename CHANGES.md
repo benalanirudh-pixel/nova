@@ -3,6 +3,47 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-11 - Dhan Step 2: auto security-id map + live index/equity quotes
+
+Extends `analysis/data/dhan_feed.py` (still read-only, analysis-only — no
+order/position/trade/funds endpoints):
+
+- **Auto security-id map** from Dhan's PUBLIC instrument master CSV
+  (`https://images.dhan.co/api-data/api-scrip-master.csv`, no token needed):
+  `build_security_map()` parses NSE EQUITY symbol -> securityId (tolerant to the
+  CSV's header spellings) and caches it in `analysis/data/cache/dhan/
+  security_map.json` with the same 16h freshness gate. `resolve_security_id`
+  now falls back to this cached map, and `get_price_history_dhan` builds it
+  automatically (best-effort, guarded) on a miss — so symbols no longer need
+  manual `dhan_config.json` mapping. Config `equity` overrides still win.
+- **Live quotes** via `POST /v2/marketfeed/quote` (IDX_I) and
+  `POST /v2/marketfeed/ltp` (NSE_EQ): `get_index_quote(["NIFTY","BANKNIFTY",
+  "INDIAVIX"])` returns live last_price/net_change/OHLC with `available` flags
+  (missing data is `available: False`, never invented); `get_last_price(symbols)`
+  returns LTP for equities. Index IDs default to common Dhan IDs
+  (NIFTY 13, BANKNIFTY 25, INDIAVIX 26) and are overridable via
+  `dhan_config.json {"index": {...}}`. `_post` now sends an optional `client-id`
+  header from env `DHAN_CLIENT_ID` (required by some quote calls).
+
+Endpoints verified against Dhan docs (not invented). No market-feed/LTP is
+wired into report generation yet — they are exposed as adapter functions the
+engines can call; wiring into the Market Lab snapshot is a separate, guarded
+step.
+
+Files changed:
+- `analysis/data/dhan_feed.py` (master map + quote functions + client-id)
+- `tests/test_dhan_feed.py` (12 new: master parse/filter/zero-rows/cache-gate,
+  resolve fallback + config override, index/ltp quote parsing, unconfigured,
+  config index override, auto-build-on-miss)
+
+Validation:
+- `ast.parse` + import: passed.
+- `tests.test_dhan_feed` -> 33 OK (was 21; +12).
+- Full offline suite: `Ran 290 tests ... OK` (278 -> 290; 12 new).
+
+Not run here: any live Dhan call (no token/plan in this environment); the quote
+and instrument-master paths are verified only with stubbed HTTP offline.
+
 ## 2026-10-11 - Dhan market-data adapter (Step 1 data layer, read-only)
 
 Adds Dhan as an optional, cache-first source of historical daily candles that

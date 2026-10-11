@@ -110,16 +110,232 @@ def is_configured() -> bool:
 def resolve_security_id(symbol: str) -> str | None:
     """Return the Dhan securityId for an NSE equity symbol, or None.
 
-    Uses dhan_config.json {"equity": {SYMBOL: securityId}}. Never invents an id
-    and never downloads the instrument master at call time.
+    Priority: dhan_config.json {"equity": {...}} overrides, then the cached
+    instrument-master map (analysis/data/cache/dhan/security_map.json). Never
+    invents an id.
     """
+    symbol_up = str(symbol).strip().upper()
     config = _load_config()
     equity = config.get("equity", {})
     if isinstance(equity, dict):
-        sid = equity.get(str(symbol).strip().upper())
+        sid = equity.get(symbol_up)
         if sid is not None and str(sid).strip():
             return str(sid).strip()
+    return _load_security_map().get(symbol_up)
+
+
+# --------------------------------------------------------------------------
+# Instrument master (public CSV) -> cached security-id map (16h gate)
+# --------------------------------------------------------------------------
+
+INSTRUMENT_MASTER_URL = "https://images.dhan.co/api-data/api-scrip-master.csv"
+SECURITY_MAP_CACHE = CACHE_DIR / "security_map.json"
+
+# Tolerant header spellings across Dhan's compact/detailed masters.
+_SID_HEADERS = ("SEM_SMST_SECURITY_ID", "SECURITY_ID", "SCRIP_CODE", "SEM_SECURITY_ID")
+_SYM_HEADERS = ("SEM_TRADING_SYMBOL", "TRADING_SYMBOL", "SYMBOL", "SEM_CUSTOM_SYMBOL")
+_EXCH_HEADERS = ("EXCH_ID", "EXCHANGE", "SEM_EXM_EXCH_ID")
+_SEG_HEADERS = ("SEGMENT", "EXCHANGE_SEGMENT", "SEM_SEGMENT")
+_INSTR_HEADERS = ("INSTRUMENT", "INSTRUMENT_TYPE", "SEM_INSTRUMENT_NAME")
+
+
+def _first(row, names):
+    for name in names:
+        value = row.get(name)
+        if value is not None and str(value).strip():
+            return str(value).strip()
     return None
+
+
+def _load_security_map() -> dict:
+    path = SECURITY_MAP_CACHE
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        fetched_at = float(data.get("fetched_at", 0))
+        mapping = data.get("mapping", {})
+    except (OSError, ValueError, TypeError):
+        return {}
+    if (time.time() - fetched_at) / 3600.0 > MAX_AGE_HOURS:
+        return {}
+    if isinstance(mapping, dict):
+        return {str(k).upper(): str(v) for k, v in mapping.items()}
+    return {}
+
+
+def _save_security_map(mapping: dict) -> None:
+    try:
+        SECURITY_MAP_CACHE.write_text(
+            json.dumps({"fetched_at": time.time(), "mapping": mapping},
+                       ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except (OSError, ValueError, TypeError):
+        pass
+
+
+def build_security_map(force: bool = False) -> dict:
+    """Download Dhan's public instrument master and cache NSE EQUITY
+    symbol -> securityId. Public URL (no token needed); cached 16h.
+
+    Raises RuntimeError on network/parse failure so callers fall back.
+    """
+    if not force:
+        cached = _load_security_map()
+        if cached:
+            return cached
+
+    import csv
+    import io
+    import requests
+
+    response = requests.get(INSTRUMENT_MASTER_URL, timeout=180)
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"Dhan instrument master HTTP {response.status_code}."
+        )
+
+    text = response.content.decode("utf-8-sig", "replace")
+    reader = csv.DictReader(io.StringIO(text))
+    mapping: dict[str, str] = {}
+    for row in reader:
+        exch = (_first(row, _EXCH_HEADERS) or "").upper()
+        if "NSE" not in exch:
+            continue
+        segment = (_first(row, _SEG_HEADERS) or "").upper()
+        instrument = (_first(row, _INSTR_HEADERS) or "").upper()
+        is_equity = (
+            "EQ" in segment
+            or instrument in ("EQUITY", "E")
+        )
+        if not is_equity:
+            continue
+        symbol = _first(row, _SYM_HEADERS)
+        sid = _first(row, _SID_HEADERS)
+        if symbol and sid:
+            mapping[symbol.upper()] = sid
+
+    if not mapping:
+        raise RuntimeError(
+            "Dhan instrument master parsed to zero NSE equity rows."
+        )
+    _save_security_map(mapping)
+    return mapping
+
+
+# --------------------------------------------------------------------------
+# Live index / equity quotes (market-feed, analysis-only)
+# --------------------------------------------------------------------------
+
+# Common Dhan index security IDs; override via dhan_config.json {"index": {...}}.
+DEFAULT_INDEX_SECURITY = {"NIFTY": "13", "BANKNIFTY": "25", "INDIAVIX": "26"}
+_INDEX_LABELS = {"NIFTY": "NIFTY 50", "BANKNIFTY": "BANK NIFTY",
+                 "INDIAVIX": "INDIA VIX"}
+
+
+def _index_security_id(name: str) -> str | None:
+    config = _load_config().get("index", {})
+    if isinstance(config, dict):
+        sid = config.get(name)
+        if sid is not None and str(sid).strip():
+            return str(sid).strip()
+    return DEFAULT_INDEX_SECURITY.get(name)
+
+
+def _coerce_ids(ids):
+    out = []
+    for value in ids:
+        try:
+            out.append(int(value))
+        except (TypeError, ValueError):
+            out.append(str(value))
+    return out
+
+
+def get_index_quote(names=("NIFTY", "BANKNIFTY", "INDIAVIX")) -> dict:
+    """Live quotes for indices via POST /v2/marketfeed/quote (IDX_I segment).
+
+    Returns {name: {label, last_price, net_change, ohlc/open/high/low/close,
+    last_trade_time, available}}. Missing data is available=False (never
+    invented). Requires a configured token.
+    """
+    if not is_configured():
+        return {}
+
+    ids = {}
+    for name in names:
+        sid = _index_security_id(name)
+        if sid:
+            ids[name] = str(sid)
+    if not ids:
+        return {}
+
+    data = _post(
+        "/marketfeed/quote",
+        {"IDX_I": _coerce_ids(ids.values())},
+    )
+    block = ((data.get("data") or {}).get("IDX_I")) or {}
+
+    result = {}
+    for name, sid in ids.items():
+        quote = block.get(sid) if isinstance(block, dict) else None
+        entry = {"label": _INDEX_LABELS.get(name, name), "available": False}
+        if isinstance(quote, dict) and quote.get("last_price") is not None:
+            ohlc = quote.get("ohlc") or {}
+            entry.update({
+                "available": True,
+                "last_price": _safe(quote.get("last_price")),
+                "net_change": _safe(quote.get("net_change")),
+                "open": _safe(ohlc.get("open")),
+                "high": _safe(ohlc.get("high")),
+                "low": _safe(ohlc.get("low")),
+                "close": _safe(ohlc.get("close")),
+                "last_trade_time": quote.get("last_trade_time"),
+            })
+        result[name] = entry
+    return result
+
+
+def get_last_price(symbols) -> dict:
+    """LTP for NSE equities via POST /v2/marketfeed/ltp.
+
+    symbols: iterable of NSE symbols with mapped/known security IDs.
+    Returns {SYMBOL: {"last_price": float, "available": bool}}.
+    """
+    if not is_configured():
+        return {}
+
+    ids = {}
+    for symbol in symbols:
+        sid = resolve_security_id(symbol)
+        if sid:
+            ids[str(symbol).upper()] = str(sid)
+    if not ids:
+        return {}
+
+    data = _post("/marketfeed/ltp", {"NSE_EQ": _coerce_ids(ids.values())})
+    block = ((data.get("data") or {}).get("NSE_EQ")) or {}
+    result = {}
+    for symbol, sid in ids.items():
+        entry = (block.get(sid) or {}) if isinstance(block, dict) else {}
+        result[symbol] = {
+            "last_price": _safe(entry.get("last_price")),
+            "available": entry.get("last_price") is not None,
+        }
+    return result
+
+
+def _safe(value):
+    try:
+        if value is None:
+            return None
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number != number:
+        return None
+    return number
 
 
 # --------------------------------------------------------------------------
@@ -139,6 +355,9 @@ def _post(path: str, body: dict[str, Any]) -> dict:
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
+    client_id = os.environ.get("DHAN_CLIENT_ID", "").strip()
+    if client_id:
+        headers["client-id"] = client_id
     response = requests.post(
         f"{get_base_url()}{path}",
         json=body,
@@ -317,9 +536,16 @@ def get_price_history_dhan(symbol: str, period: str = "5d") -> pd.DataFrame:
 
     security_id = resolve_security_id(symbol)
     if not security_id:
+        # Best-effort: build/lookup the public instrument-master map (cached
+        # 16h) so symbols don't need manual mapping. Never invents an id.
+        try:
+            build_security_map()
+            security_id = resolve_security_id(symbol)
+        except Exception:
+            security_id = None
+    if not security_id:
         raise RuntimeError(
-            f"No Dhan security id mapped for {symbol}; add it to "
-            "dhan_config.json {\"equity\": {\"SYMBOL\": \"<id>\"}}."
+            f"No Dhan security id resolvable for {symbol}."
         )
 
     frame = fetch_daily_candles(symbol, period, security_id)

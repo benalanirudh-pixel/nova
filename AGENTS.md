@@ -103,8 +103,13 @@ The full refresh command is intentionally heavier:
   (`analysis/data/cache/dhan`, 16h freshness gate) and disabled until configured.
 - Enable (never commit): a git-ignored `.env` or `dhan_config.json` in the
   project root with `{"access_token": "<dhan-jwt>", "equity": {"RELIANCE":
-  "<securityId>", ...}}`, or env `DHAN_ACCESS_TOKEN`; base URL via `DHAN_BASE_URL`.
-  A missing token/id degrades gracefully and falls back to the MCP.
+  "<securityId>", ...}}`, or env `DHAN_ACCESS_TOKEN`; base URL via `DHAN_BASE_URL`
+  and quote `client-id` via `DHAN_CLIENT_ID`. A missing token/id degrades
+  gracefully and falls back to the MCP. Security IDs are auto-mapped from
+  Dhan's public instrument master (cached under `analysis/data/cache/dhan`,
+  16h), so explicit `equity` overrides are optional. The adapter also exposes
+  read-only live quotes (`get_index_quote`, `get_last_price`) for future use;
+  they are not yet wired into report generation.
 
 ## Manifests and CI
 
