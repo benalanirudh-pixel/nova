@@ -3,6 +3,36 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-11 - Real RSI + MACD on the dashboard indicator cards
+
+The RSI/MACD indicator cards were empty because the saved report carries only
+ATR/volatility, not index-level RSI/MACD. Now they are computed from the index's
+real daily candles.
+
+- `market_lab/view_model.py`: `indicator_cards(report, which)` now computes
+  RSI(14) and MACD(line/signal/histogram) from the `nifty_candles` /
+  `bank_nifty_candles` closes using `technical_engine.calculate_rsi` /
+  `calculate_macd` — Nova's EXISTING indicator math, no new calculation. RSI
+  interpretation uses the SAME thresholds as `technical_engine.analyze_stock`
+  (>=70 OVERBOUGHT, <=30 OVERSOLD, >=55 BULLISH, <=45 BEARISH); MACD is
+  BULLISH/BEARISH on macd vs signal. ATR/VOL still come from the volatility
+  engine. Honest N/A when there is too little real history (<20 closes -> RSI
+  N/A; <45 -> MACD N/A; <30 -> both N/A) or on any engine error.
+
+No data-source or engine change; the report carries the candles already used by
+the candlestick chart. Analysis-only unchanged.
+
+Files changed:
+- `market_lab/view_model.py`
+- `tests/test_view_model.py` (+RSI/MACD computed test, short-history N/A test)
+
+Validation:
+- Real cached report (125 NIFTY candles): RSI 36.49 BEARISH, MACD -28.76
+  (histogram) BEARISH, ATR 263.48 pts, VOL 13.74% — all genuine.
+- `tests.test_view_model` -> 27 OK (incl. RSI/MACD computed from candles,
+  short-history stays N/A).
+- Full offline suite: `Ran 319 tests ... OK` (317 -> 319; 2 new).
+
 ## 2026-10-11 - TradingView-style candlestick charts for NIFTY / BANK NIFTY
 
 Upgraded the index cards from a line/snapshot to a real candlestick chart.

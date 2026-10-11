@@ -220,22 +220,81 @@ def index_card(report, which, r5=None):
     }
 
 
+def _last(series):
+    """Last non-null value of a pandas Series as float, else None."""
+    try:
+        cleaned = series.dropna()
+        return float(cleaned.iloc[-1]) if len(cleaned) else None
+    except Exception:
+        return None
+
+
+def _rsi_condition(value):
+    """RSI interpretation using the SAME thresholds as technical_engine's
+    analyze_stock (>=70 overbought, <=30 oversold, >=55 bullish, <=45 bearish).
+    This is the engine's existing convention applied to a real computed value,
+    not a newly invented rule."""
+    if value >= 70:
+        return "OVERBOUGHT"
+    if value <= 30:
+        return "OVERSOLD"
+    if value >= 55:
+        return "BULLISH"
+    if value <= 45:
+        return "BEARISH"
+    return "NEUTRAL"
+
+
 def indicator_cards(report, which="nifty"):
-    """RSI/MACD/ATR/VOL for an index. Only ATR (+ vol context) is in the report;
-    per-index RSI/MACD/VOL are not, so they are honest N/A."""
+    """RSI/MACD/ATR/VOL for an index. ATR/VOL come from the report's volatility
+    engine; RSI/MACD are computed from the index's REAL daily candles using
+    technical_engine's own calculate_rsi/calculate_macd (no new math). If there
+    is not enough real history, they stay honest N/A."""
     vol = _get(report, "volatility", which) or {}
-    atr = _num(vol.get("atr14"))
-    atr_pct = _num(vol.get("atr_percent"))
-    realized = _num(vol.get("realized_volatility_20d"))
-    return {
-        "RSI": {"value": N_A, "interpretation": N_A,
-                "note": "index-level RSI is not in the saved report"},
-        "MACD": {"value": N_A, "interpretation": N_A,
-                 "note": "index-level MACD is not in the saved report"},
-        "ATR": {"value": atr, "unit": "pts", "percent": atr_pct,
+    cards = {
+        "RSI": {"value": N_A, "interpretation": N_A},
+        "MACD": {"value": N_A, "interpretation": N_A},
+        "ATR": {"value": _num(vol.get("atr14")), "unit": "pts",
+                "percent": _num(vol.get("atr_percent")),
                 "interpretation": vol.get("volatility_regime", N_A)},
-        "VOL": {"value": realized, "unit": "%", "interpretation": "realized vol 20d"},
+        "VOL": {"value": _num(vol.get("realized_volatility_20d")),
+                "unit": "%", "interpretation": "realized vol 20d"},
     }
+
+    candles = report.get("nifty_candles" if which == "nifty"
+                         else "bank_nifty_candles") or []
+    closes = [float(c["c"]) for c in candles
+              if isinstance(c, dict) and _num(c.get("c")) is not None]
+
+    if len(closes) >= 30:
+        try:
+            import pandas as pd
+            from analysis.data.technical_engine import calculate_macd, calculate_rsi
+
+            series = pd.Series(closes)
+
+            if len(closes) >= 20:
+                rsi_val = _last(calculate_rsi(series, 14))
+                if rsi_val is not None:
+                    cards["RSI"] = {"value": rsi_val, "unit": "",
+                                    "interpretation": _rsi_condition(rsi_val)}
+
+            if len(closes) >= 45:
+                macd, signal, histogram = calculate_macd(series)
+                macd_val = _last(macd)
+                sig_val = _last(signal)
+                hist_val = _last(histogram)
+                if macd_val is not None and sig_val is not None:
+                    cards["MACD"] = {
+                        "value": hist_val, "unit": "",
+                        "macd": macd_val, "signal": sig_val,
+                        "histogram": hist_val,
+                        "interpretation": "BULLISH" if macd_val > sig_val else "BEARISH",
+                    }
+        except Exception:
+            pass
+
+    return cards
 
 
 # ---------------------------------------------------------------------------

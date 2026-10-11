@@ -250,14 +250,40 @@ class TestIndexCard(unittest.TestCase):
         self.assertEqual(card["low"], 95.0)
         self.assertEqual(len(card["candles"]), 1)
 
-
 class TestIndicatorCards(unittest.TestCase):
-    def test_only_atr_is_real(self):
+
+    def test_only_atr_is_real_without_candles(self):
         cards = vm.indicator_cards(report_fixture(), "nifty")
         self.assertEqual(cards["ATR"]["value"], 263.48)
         self.assertEqual(cards["RSI"]["value"], NA)
         self.assertEqual(cards["MACD"]["value"], NA)
         self.assertEqual(cards["VOL"]["value"], 13.74)
+
+    def test_rsi_macd_computed_from_candles(self):
+        # 60 realistic daily closes -> enough history for RSI(14) and MACD.
+        report = report_fixture(
+            nifty_candles=[
+                {"t": f"d{i}", "o": 100 + i, "h": 105 + i,
+                 "l": 99 + i, "c": 100 + i + (i % 3), "v": 1}
+                for i in range(60)
+            ]
+        )
+        cards = vm.indicator_cards(report, "nifty")
+        self.assertIsInstance(cards["RSI"]["value"], float)
+        self.assertTrue(0 <= cards["RSI"]["value"] <= 100)
+        self.assertIn(cards["RSI"]["interpretation"],
+                      ("OVERSOLD", "OVERBOUGHT", "NEUTRAL", "BULLISH", "BEARISH"))
+        self.assertIsInstance(cards["MACD"]["value"], float)
+        self.assertIn(cards["MACD"]["interpretation"], ("BULLISH", "BEARISH"))
+
+    def test_short_history_stays_na(self):
+        report = report_fixture(
+            nifty_candles=[{"t": "d0", "o": 1, "h": 1, "l": 1, "c": 1, "v": 1}
+                           for _ in range(10)]
+        )
+        cards = vm.indicator_cards(report, "nifty")
+        self.assertEqual(cards["RSI"]["value"], NA)
+        self.assertEqual(cards["MACD"]["value"], NA)
 
 
 class TestSector(unittest.TestCase):

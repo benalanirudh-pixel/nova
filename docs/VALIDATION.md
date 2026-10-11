@@ -1044,4 +1044,27 @@ without a refetch; BANK NIFTY OHLC now derived from its last candle.
 Scope: real DAILY candles (not tick data); the last bar tracks the live price
 between refreshes. True intraday needs a live feed (the Dhan intraday path when
 configured); `CandleChart` will accept that series too. The exact pixel look was
-reviewed via offscreen render + a saved PNG only. 
+reviewed via offscreen render + a saved PNG only.
+
+
+## 2026-10-11 - Real RSI + MACD on the dashboard indicator cards
+
+Code changed: `market_lab/view_model.py` (presentation) + `tests/test_view_model.py`.
+No data-source or engine change — RSI/MACD are computed from the report's index
+candles (already produced by the candlestick-chart step) using
+`technical_engine.calculate_rsi` / `calculate_macd`.
+
+Checks run:
+
+- `ast.parse` on `market_lab/view_model.py` and the test: passed.
+- Real cached report (125 NIFTY candles), offscreen `render_dashboard`: RSI
+  36.49 (BEARISH), MACD -28.76 histogram (BEARISH), ATR 263.48 pts (MODERATE),
+  VOL 13.74% — all genuine, none fabricated.
+- `tests.test_view_model` -> 27 OK (RSI/MACD computed from candles; short
+  history and no-candles cases stay honest N/A).
+- Full offline suite (offscreen): `Ran 319 tests ... OK` (317 -> 319; 2 new).
+
+Interpretation labels reuse `technical_engine`'s existing thresholds
+(RSI 70/30/55/45; MACD macd vs signal); a failing/short series yields N/A rather
+than an invented value. Not re-run here: NSE-MCP smoke (presentation-only change;
+the MCP path is untouched and was smoke-tested for the candles step). 
