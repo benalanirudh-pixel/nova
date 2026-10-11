@@ -3,6 +3,16 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-11 - Sidebar: remove disabled "Unavailable" nav items
+
+`market_lab_ui.py`: removed the disabled Indices/Sectors/Stocks/Screeners/
+Watchlist/News/Tools entries (and the "UNAVAILABLE" label) the master-redesign
+commit had added to the left rail. The sidebar now shows only the five real,
+working destinations (Markets, Market Report, Nova Analysis, Factor Backtest,
+Event Risk) plus the NOVA identity mark. Guardrails/guardrail footer unchanged.
+
+Validation: `ast.parse` ok; full offline suite `Ran 323 tests ... OK`.
+
 ## 2026-10-11 - Master UI redesign: theme tokens, KPI strip, macro cards, breadth panel, expanded sidebar
 
 A large presentation refresh of `market_lab_ui.py` / `market_lab/widgets.py`

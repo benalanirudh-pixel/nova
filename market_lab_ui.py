@@ -683,34 +683,6 @@ class MarketLabWindow(QMainWindow):
             self.nav_buttons.append(nav)
             self.pages.addWidget(builder())
 
-        # Unsupported destinations: shown but disabled and honestly marked —
-        # NOT fake pages. Watchlist works, but lives on the Nova Analysis page.
-        rail_layout.addSpacing(6)
-        rail_layout.addWidget(make_label("UNAVAILABLE", 8, MUTED2, True))
-        unavailable = [
-            ("Indices", None),
-            ("Sectors", None),
-            ("Stocks", None),
-            ("Screeners", None),
-            ("Watchlist", "Watchlist is on the Nova Analysis page"),
-            ("News", None),
-            ("Tools", None),
-        ]
-        for label, tip in unavailable:
-            if tip:
-                nav = self._make_nav(f"       {label}", False, enabled=False)
-                nav.setToolTip(tip)
-                nav.clicked.connect(
-                    lambda checked=False, i=2: self.switch_page(i)
-                )
-                nav.setEnabled(True)
-                nav.setToolTip(f"{tip} (jumps to Nova Analysis)")
-            else:
-                nav = self._make_nav(f"       {label}", False, enabled=False)
-                nav.setToolTip("Not available in this build")
-            rail_layout.addWidget(nav)
-            self.nav_buttons.append(nav)
-
         rail_layout.addStretch()
 
         # NOVA identity mark at the bottom of the rail.
