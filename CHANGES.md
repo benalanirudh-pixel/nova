@@ -3,6 +3,25 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-11 - Terminal alignment pass (uniform grid, no ragged cards)
+
+Visual-consistency pass so the terminal reads as one aligned grid (presentation
+only; all tests/data unchanged):
+
+- Uniform KPI card height (96px) and stat/summary card height (78px); indicator
+  cards fixed 116px; index cards share a minimum height (330px) and a taller
+  chart area, so the Dashboard top row aligns.
+- Card value/sub/note labels set to no-wrap (clip + tooltip) so long values
+  can't stretch a row and break the grid.
+- Uniform compact table rows (`defaultSectionSize(26)`) and consistent panel
+  padding/spacing in `widgets.panel`; numeric columns stay right-aligned.
+
+Files changed: `market_lab_ui.py`, `market_lab/widgets.py`.
+
+Validation: `ast.parse` on both files; offscreen render confirms uniform card
+heights (KPI 96, indicators 116, index min 330). Full offline suite ->
+`Ran 324 tests ... OK` (unchanged).
+
 ## 2026-10-11 - Institutional UI upgrade for Sections 03-08
 
 Upgraded the six remaining Market Report sections into a cohesive, dense,

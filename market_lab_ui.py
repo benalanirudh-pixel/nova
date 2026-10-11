@@ -841,18 +841,23 @@ class MarketLabWindow(QMainWindow):
 
     def _index_card(self, name):
         frame, layout = W.panel(name, "Backend index snapshot")
+        frame.setMinimumHeight(330)
         self_price_row = QHBoxLayout()
         price = W.make_label("—", 28, TEXT, bold=True, mono=True)
         change = W.make_label("—", 15, MUTED, bold=True, mono=True)
+        change.setWordWrap(False)
         self_price_row.addWidget(price)
         self_price_row.addWidget(change)
         self_price_row.addStretch()
         layout.addLayout(self_price_row)
         meta = W.make_label("—", 9, MUTED)
+        meta.setWordWrap(False)
         layout.addWidget(meta)
         chart = W.CandleChart()
+        chart.setMinimumHeight(160)
         layout.addWidget(chart, 1)
         ohlc = W.make_label("O —  H —  L —  C —", 10, TEXT, mono=True)
+        ohlc.setWordWrap(False)
         layout.addWidget(ohlc)
         returns = W.make_label("5d —  |  20d —  |  60d —", 9, MUTED, mono=True)
         layout.addWidget(returns)
@@ -863,10 +868,15 @@ class MarketLabWindow(QMainWindow):
 
     def _indicator_card(self, name):
         frame, layout = W.panel(name, "")
+        frame.setFixedHeight(116)
         value = W.make_label("—", 18, TEXT, bold=True, mono=True)
+        value.setWordWrap(False)
         interp = W.make_label("—", 9, MUTED)
+        interp.setWordWrap(False)
+        interp.setToolTip(name)
         layout.addWidget(value)
         layout.addWidget(interp)
+        layout.addStretch()
         return {"frame": frame, "value": value, "interp": interp}
 
     # --------------------------------------------------------
@@ -913,14 +923,19 @@ class MarketLabWindow(QMainWindow):
 
     def _kpi_card(self, title):
         frame, layout = W.panel(title)
+        frame.setFixedHeight(96)
         layout.setSpacing(4)
         value = W.make_label("—", 22, TEXT, bold=True, mono=True)
+        value.setWordWrap(False)
         layout.addWidget(value)
-        sub = W.make_label("—", 10, MUTED)
+        sub = W.make_label("—", 10, MUTED, mono=True)
+        sub.setWordWrap(False)
+        sub.setToolTip(title)
         layout.addWidget(sub)
         bar = W.FillBar()
         bar.setVisible(False)
         layout.addWidget(bar)
+        layout.addStretch()
         return {"frame": frame, "value": value, "sub": sub, "bar": bar}
 
     def build_kpi_strip(self):
@@ -1414,11 +1429,18 @@ class MarketLabWindow(QMainWindow):
 
     def _stat_card(self, title, value, color=None, note=None):
         frame, layout = W.panel(title)
+        frame.setFixedHeight(78)
         layout.setSpacing(2)
-        layout.addWidget(W.make_label(str(value), 20, color or TEXT,
-                                      bold=True, mono=True))
+        value_label = W.make_label(str(value), 18, color or TEXT,
+                                   bold=True, mono=True)
+        value_label.setWordWrap(False)
+        value_label.setToolTip(str(value))
+        layout.addWidget(value_label)
         if note:
-            layout.addWidget(W.make_label(note, 8, MUTED))
+            note_label = W.make_label(note, 8, MUTED)
+            note_label.setWordWrap(False)
+            layout.addWidget(note_label)
+        layout.addStretch()
         return frame
 
     def _cards_row(self, cards, spacing=10):

@@ -883,6 +883,8 @@ def make_table(headers, stretch_column=1, sortable=False):
     table.setAlternatingRowColors(True)
     table.setShowGrid(False)
     table.setSortingEnabled(sortable)
+    table.verticalHeader().setVisible(False)
+    table.verticalHeader().setDefaultSectionSize(26)  # uniform compact rows
     header = table.horizontalHeader()
     for i in range(len(headers)):
         mode = (
