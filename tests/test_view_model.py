@@ -227,6 +227,16 @@ class TestIndexCard(unittest.TestCase):
         self.assertEqual(card["open"], NA)  # snapshot only for NIFTY
         self.assertEqual(card["high"], NA)
 
+    def test_card_includes_series(self):
+        report = report_fixture(
+            nifty_series=[{"date": "2026-10-01", "close": 100.0}],
+            bank_nifty_series=[{"date": "2026-10-01", "close": 200.0}],
+        )
+        self.assertEqual(len(vm.index_card(report, "nifty")["series"]), 1)
+        self.assertEqual(len(vm.index_card(report, "bank_nifty")["series"]), 1)
+        # no series in report -> empty list (chart shows 'no series')
+        self.assertEqual(vm.index_card(report_fixture(), "nifty")["series"], [])
+
 
 class TestIndicatorCards(unittest.TestCase):
     def test_only_atr_is_real(self):

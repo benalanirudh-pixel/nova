@@ -3,6 +3,48 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-11 - Real NIFTY / BANK NIFTY charts on the dashboard
+
+Previously the index cards only had a tiny OHLC snapshot bar (and BANK NIFTY
+showed an "unavailable" placeholder) because the report carried no price
+series. Now the dashboard renders a genuine daily-close line chart.
+
+- `market_lab/market_lab_data.py`: added `extract_close_series(dataframe,
+  limit)` (compact `[{date, close}]` from an index-history frame, no
+  synthesis) and `build_index_series(symbol, period, limit)` (guarded; `[]` on
+  any failure). `get_market_lab_data` now records `nifty_series` and
+  `bank_nifty_series` (from the SAME `^NSEI` / `^NSEBANK` daily history the
+  report already fetches).
+- `market_lab/view_model.py`: `index_card(...)` now exposes `series`.
+- `market_lab/widgets.py`: added `LineChart` (free hand stretch point series;
+  restrained grid + last-price marker + min/max price labels + first/last date
+  labels; green/red by overall direction; explicit "no series in report" empty
+  state). Index cards use it (they were previously using only the snapshot bar).
+- `market_lab_ui.py`: `render_dashboard` feeds the report series into the
+  charts; a missing series renders the honest "no series" state.
+
+Files changed:
+- `market_lab/market_lab_data.py`, `market_lab/view_model.py`,
+  `market_lab/widgets.py`, `market_lab_ui.py`
+- `tests/test_gui_smoke.py` (+1), `tests/test_market_lab_data.py`
+  (+`extract_close_series`), `tests/test_view_model.py` (+series)
+
+Validation:
+- `ast.parse` + offscreen build/render passed; a live fetch of
+  `build_index_series("^NSEI")` returned 21 real daily closes
+  (23,431.5 -> 22,520.45).
+- `tests.test_market_lab_data` -> `extract_close_series` cases (values+dates,
+  last-N limit, empty/None, missing Close column) OK.
+- `tests.test_gui_smoke.TestTerminalLayout` -> index chart renders the report
+  series (NIFTY 7 points; BANK NIFTY empty -> "no series").
+- NSE-MCP stdio smoke: `test_nse_mcp.py` -> "MCP SESSION: CONNECTED", 68 tools,
+  no orphan.
+- Full offline suite: `Ran 314 tests ... OK` (303 -> 314; 11 new).
+
+Note: charts, like every other panel, use real backend data only; when the
+index-history fetch fails (e.g. provider outage) the chart shows an explicit
+"no series in report" state rather than fabricated candles.
+
 ## 2026-10-11 - Dhan Step 4: opt-in BANK NIFTY + India VIX live override
 
 Extends the Dhan live-snapshot wiring to the volatility section, same guarded/

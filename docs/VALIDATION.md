@@ -987,3 +987,34 @@ Checks run:
 Not run here: a live Dhan call (no token/plan). BANK NIFTY/VIX Dhan values land
 in the report only when configured; percentile/regime still come from the
 volatility engine.
+
+
+## 2026-10-11 - Real NIFTY / BANK NIFTY charts on the dashboard
+
+Code changed: `market_lab/market_lab_data.py`, `market_lab/view_model.py`,
+`market_lab/widgets.py`, `market_lab_ui.py`; tests in `test_gui_smoke.py`,
+`test_market_lab_data.py`, `test_view_model.py`. No NSE-MCP path changed;
+series come from the same `^NSEI`/`^NSEBANK` daily history the report already
+fetches.
+
+Checks run:
+
+- `ast.parse` + offscreen `MarketLabWindow` build: passed.
+- Live series fetch: `market_lab_data.build_index_series("^NSEI")` returned 21
+  real daily closes (23,431.5 -> 22,520.45); `^NSEBANK` returned 21 points.
+- `tests.test_market_lab_data` -> `extract_close_series` OK (values+dates,
+  last-N limit, empty/None, missing Close column).
+- `tests.test_gui_smoke.TestTerminalLayout` -> 7 OK, incl.
+  `test_dashboard_renders_index_chart_from_series` (report series feeds the
+  NIFTY chart; BANK NIFTY with no series renders the "no series" empty state).
+- `tests.test_view_model` -> `index_card` exposes `series` ([] when absent).
+- NSE-MCP stdio smoke: `test_nse_mcp.py` -> "MCP SESSION: CONNECTED", 68 tools,
+  no orphan child.
+- Full offline suite (offscreen): `Ran 314 tests ... OK` (303 -> 314; 11 new).
+
+Honesty: charts draw only real backend series; on history-fetch failure the
+widget shows an explicit "no series in report" state — never synthetic candles.
+
+Not verified visually here: exact pixel appearance of the chart at 1920x1080
+(rendered + saved as a PNG proxy, offscreen); the axis/grid/last-price styling
+is a programmatic drawing, reviewed via geometry + the rendered PNG size only.

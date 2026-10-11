@@ -807,15 +807,15 @@ class MarketLabWindow(QMainWindow):
         layout.addLayout(self_price_row)
         meta = W.make_label("—", 9, MUTED)
         layout.addWidget(meta)
-        snapshot = W.SnapshotBar()
-        layout.addWidget(snapshot)
+        chart = W.LineChart()
+        layout.addWidget(chart, 1)
         ohlc = W.make_label("O —  H —  L —  C —", 10, TEXT, mono=True)
         layout.addWidget(ohlc)
         returns = W.make_label("5d —  |  20d —  |  60d —", 9, MUTED, mono=True)
         layout.addWidget(returns)
         return {
             "frame": frame, "price": price, "change": change, "meta": meta,
-            "snapshot": snapshot, "ohlc": ohlc, "returns": returns,
+            "chart": chart, "ohlc": ohlc, "returns": returns,
         }
 
     def _indicator_card(self, name):
@@ -1157,15 +1157,13 @@ class MarketLabWindow(QMainWindow):
                 f"O {fmt_points(card['open'])}  H {fmt_points(card['high'])}  "
                 f"L {fmt_points(card['low'])}  C {fmt_points(card['price'])}"
             )
-            # Real OHLC snapshot (NIFTY); BANK NIFTY has no OHLC -> honest
-            # "chart unavailable" state (never synthetic candles).
-            if all(isinstance(x, (int, float))
-                   for x in (card["open"], card["high"], card["low"], card["price"])):
-                c["snapshot"].set_snapshot(
-                    card["open"], card["high"], card["low"], card["price"]
-                )
-            else:
-                c["snapshot"].set_unavailable()
+            # Real daily-close series from the index-history engine.
+            series = card.get("series") or []
+            values = [row.get("close") for row in series
+                      if isinstance(row, dict)]
+            labels = [row.get("date", "") for row in series
+                      if isinstance(row, dict)]
+            c["chart"].set_series(values, labels)
             c["returns"].setText(
                 f"5d {fmt_pct(card['return_5d'])}  |  "
                 f"20d {fmt_pct(card['return_20d'])}  |  "

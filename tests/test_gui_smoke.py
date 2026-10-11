@@ -856,6 +856,19 @@ class TestTerminalLayout(unittest.TestCase):
         self.assertEqual(win.index_cards["nifty"]["price"].text(), "22,520.45")
         self.assertIn("+1.30%", win.index_cards["nifty"]["change"].text())
 
+    def test_dashboard_renders_index_chart_from_series(self):
+        win = self._window()
+        series = [
+            {"date": f"2026-10-{i:02d}", "close": 100.0 + i}
+            for i in range(1, 8)
+        ]
+        # report carries a real NIFTY series; BANK NIFTY has none.
+        report = {"market": "NSE", "generated": "2026-10-11T00:00:00Z",
+                  "nifty_series": series}
+        win.display_report(report, 0.0, cached=True)
+        self.assertEqual(len(win.index_cards["nifty"]["chart"]._values), 7)
+        self.assertEqual(len(win.index_cards["bank_nifty"]["chart"]._values), 0)
+
     def test_unavailable_renders_na_not_fabricated(self):
         win = self._window()
         win.display_report({"market": "NSE", "breadth": {}}, 0.0, cached=True)

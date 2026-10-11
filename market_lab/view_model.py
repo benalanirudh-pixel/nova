@@ -202,6 +202,8 @@ def index_card(report, which, r5=None):
         "return_20d": _num(returns.get("20D")),
         "return_60d": _num(returns.get("60D")),
         "chart": N_A,
+        "series": (report.get("nifty_series") if which == "nifty"
+                   else report.get("bank_nifty_series")) or [],
         "derived_abs_change": change_abs is not None,
     }
 

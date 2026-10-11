@@ -25,6 +25,38 @@ if str(ROOT) not in sys.path:
 import market_lab.market_lab_data as mld
 
 
+class TestExtractCloseSeries(unittest.TestCase):
+
+    def _df(self):
+        import pandas as pd
+        return pd.DataFrame({
+            "Date": ["2026-10-01", "2026-10-02", "2026-10-05"],
+            "Close": [100.0, 102.0, 101.0],
+        })
+
+    def test_extracts_close_with_dates(self):
+        series = mld.extract_close_series(self._df(), limit=40)
+        self.assertEqual(len(series), 3)
+        self.assertEqual(series[0]["close"], 100.0)
+        self.assertEqual(series[-1]["close"], 101.0)
+        self.assertEqual(series[0]["date"], "2026-10-01")
+
+    def test_limit_takes_last_n(self):
+        series = mld.extract_close_series(self._df(), limit=2)
+        self.assertEqual(len(series), 2)
+        self.assertEqual(series[-1]["close"], 101.0)
+
+    def test_empty_frame(self):
+        import pandas as pd
+        self.assertEqual(mld.extract_close_series(pd.DataFrame(), limit=40), [])
+        self.assertEqual(mld.extract_close_series(None), [])
+
+    def test_missing_close_column(self):
+        import pandas as pd
+        df = pd.DataFrame({"Open": [1.0, 2.0]})
+        self.assertEqual(mld.extract_close_series(df), [])
+
+
 class TestApplyDhanOverride(unittest.TestCase):
 
     def test_overrides_when_dhan_available(self):

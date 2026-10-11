@@ -1336,6 +1336,55 @@ def fallback_market_regime(
 # INDEX DATA
 # ============================================================
 
+def extract_close_series(
+    dataframe,
+    limit: int = 40,
+) -> list[dict[str, Any]]:
+    """Extract a compact daily-close series [{date, close}] for charting.
+
+    Uses the SAME index history Nova already fetches; never synthesizes data.
+    Returns [] when the frame has no usable close column.
+    """
+    if dataframe is None or getattr(dataframe, "empty", True):
+        return []
+    close_column = find_column(dataframe, "Close")
+    if close_column is None:
+        return []
+    closes = pd.to_numeric(dataframe[close_column], errors="coerce").dropna()
+    if closes.empty:
+        return []
+    date_column = find_column(dataframe, "Date")
+    labels = []
+    if date_column is not None:
+        labels = [str(x)[:10] for x in dataframe[date_column].tolist()]
+    values = [float(v) for v in closes.tail(limit).tolist()]
+    if labels:
+        labels = labels[-len(values):]
+    out = []
+    for i, value in enumerate(values):
+        out.append({
+            "date": labels[i] if i < len(labels) else "",
+            "close": value,
+        })
+    return out
+
+
+def build_index_series(
+    symbol: str,
+    period: str = "1mo",
+    limit: int = 40,
+) -> list[dict[str, Any]]:
+    """Cache-free, guarded daily-close series for an index symbol.
+
+    Returns [] on any failure so callers render an honest 'no series' state.
+    """
+    try:
+        dataframe = get_index_history(symbol, period=period, interval="1d")
+        return extract_close_series(dataframe, limit=limit)
+    except Exception:
+        return []
+
+
 def get_index_history(
     symbol: str,
     period: str = "1y",
@@ -3141,6 +3190,9 @@ def get_market_lab_data(
         )
     )
 
+    nifty_series = build_index_series("^NSEI")
+    bank_nifty_series = build_index_series("^NSEBANK")
+
     # --------------------------------------------------------
     # REGIME
     # --------------------------------------------------------
@@ -3446,6 +3498,12 @@ def get_market_lab_data(
 
         "nifty_snapshot":
             nifty_snapshot,
+
+        "nifty_series":
+            nifty_series,
+
+        "bank_nifty_series":
+            bank_nifty_series,
 
         "breadth":
             breadth,

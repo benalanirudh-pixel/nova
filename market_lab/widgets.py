@@ -419,6 +419,108 @@ class PerfBar(QWidget):
 
 
 # ---------------------------------------------------------------------------
+# Line chart (real series only; never synthetic)
+# ---------------------------------------------------------------------------
+
+class LineChart(QWidget):
+    """A compact index line chart. Draws only a real series (list of floats,
+    optional date labels). Grid + last-price marker + min/max labels. If no
+    genuine series is provided it renders an explicit unavailable state.
+    """
+
+    def __init__(self, width=300, height=120, parent=None):
+        super().__init__(parent)
+        self.setMinimumSize(width, height)
+        self._values = []
+        self._labels = []
+
+    def set_series(self, values, labels=None):
+        clean = []
+        for v in values or []:
+            try:
+                clean.append(float(v))
+            except (TypeError, ValueError):
+                clean = []
+                break
+        self._values = clean
+        self._labels = [str(x) for x in (labels or [])]
+        if self._labels and len(self._labels) != len(self._values):
+            self._labels = self._labels[-len(self._values):] if self._values else []
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = self.rect()
+        if len(self._values) < 2:
+            painter.setPen(QPen(QColor(MUTED)))
+            painter.drawText(
+                r, Qt.AlignmentFlag.AlignCenter,
+                "no series in report",
+            )
+            painter.end()
+            return
+
+        left, right = r.left() + 8, r.right() - 44
+        top, bot = r.top() + 8, r.bottom() - 18
+        span = (max(self._values) - min(self._values)) or 1.0
+        lo, hi = min(self._values), max(self._values)
+
+        def y(value):
+            return bot - (value - lo) / span * (bot - top)
+
+        # horizontal grid + right-aligned price labels
+        painter.setPen(QPen(QColor(BORDER), 1))
+        for frac in (0.0, 0.5, 1.0):
+            gy = int(top + (bot - top) * frac)
+            painter.drawLine(left, gy, r.right() - 6, gy)
+            label = hi - frac * (hi - lo)
+            painter.setPen(QPen(QColor(MUTED)))
+            painter.setFont(font(7, mono=True))
+            painter.drawText(
+                r.right() - 42, gy - 6, 40, 12,
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                f"{label:,.0f}",
+            )
+            painter.setPen(QPen(QColor(BORDER)))
+
+        # price line
+        rising = self._values[-1] >= self._values[0]
+        color = QColor(GREEN if rising else RED)
+        painter.setPen(QPen(color, 1.6))
+        count = len(self._values)
+        points = [
+            (int(left + (right - left) * i / (count - 1)), int(y(v)))
+            for i, v in enumerate(self._values)
+        ]
+        for (x0, y0), (x1, y1) in zip(points, points[1:]):
+            painter.drawLine(x0, y0, x1, y1)
+
+        # last price dot + dashed marker
+        last_x, last_y = points[-1]
+        painter.setBrush(color)
+        painter.drawEllipse(last_x - 3, last_y - 3, 6, 6)
+        dash = QPen(color, 1)
+        dash.setStyle(Qt.PenStyle.DashLine)
+        painter.setPen(dash)
+        painter.drawLine(left, last_y, last_x, last_y)
+
+        # x-axis first/last date labels
+        if self._labels and self._labels[0]:
+            painter.setPen(QPen(QColor(MUTED)))
+            painter.setFont(font(7, mono=True))
+            painter.drawText(
+                left, bot + 2, (right - left) // 2, 16,
+                Qt.AlignmentFlag.AlignLeft, self._labels[0][-6:],
+            )
+            painter.drawText(
+                left + (right - left) // 2, bot + 2, (right - left) // 2, 16,
+                Qt.AlignmentFlag.AlignRight, self._labels[-1][-6:],
+            )
+        painter.end()
+
+
+# ---------------------------------------------------------------------------
 # Tables
 # ---------------------------------------------------------------------------
 
