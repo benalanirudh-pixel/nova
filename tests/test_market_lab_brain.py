@@ -213,5 +213,64 @@ class TestAnalyzeBranchesPrompt(unittest.TestCase):
         self.assertIn("MARKET LAB DATA ERROR", out)
 
 
+class TestAnalyzeStockReport(unittest.TestCase):
+
+    def _metrics(self):
+        return {"symbol": "RELIANCE", "company_name": "Reliance Industries",
+                "exchange": "NSE", "price": 2850.0, "change_percent": 0.8,
+                "rsi_14": 55.0, "macd": 5.0, "trend": "STRONG_UPTREND"}
+
+    def test_returns_focused_report_with_disclaimer(self):
+        captured = {}
+
+        def fake_chat(**kwargs):
+            captured["messages"] = kwargs["messages"]
+            from types import SimpleNamespace
+            return SimpleNamespace(message=SimpleNamespace(
+                content="**Conclusion:** neutral — mixed evidence."))
+
+        with mock.patch.dict("os.environ", {}), \
+             mock.patch.object(mlb.ollama, "chat", side_effect=fake_chat):
+            out = mlb.analyze_stock_report(
+                "RELIANCE", self._metrics(), [], {}, "full")
+
+        self.assertIn("NOVA STOCK ANALYSIS — RELIANCE", out)
+        self.assertIn("Not a validated prediction or instruction to trade", out)
+        self.assertIn("informational and educational purposes only", out)
+        # prompt is stock-scoped and carries the identity + data JSON.
+        user_msg = captured["messages"][1]["content"]
+        self.assertIn("ANALYZE THIS ONE STOCK: RELIANCE", user_msg)
+        self.assertIn("MODE: FULL", user_msg)
+        self.assertIn("Reliance Industries", user_msg)
+
+    def test_mode_changes_prompt(self):
+        captured = {}
+
+        def fake_chat(**kwargs):
+            captured["messages"] = kwargs["messages"]
+            from types import SimpleNamespace
+            return SimpleNamespace(message=SimpleNamespace(content="ok"))
+
+        with mock.patch.object(mlb.ollama, "chat", side_effect=fake_chat):
+            mlb.analyze_stock_report("TCS", {}, [], {}, "quick")
+        self.assertIn("MODE: QUICK", captured["messages"][1]["content"])
+        self.assertIn("QUICK SCAN", captured["messages"][1]["content"])
+
+    def test_empty_model_response_is_error(self):
+        from types import SimpleNamespace
+        with mock.patch.object(mlb.ollama, "chat",
+                               return_value=SimpleNamespace(
+                                   message=SimpleNamespace(content=""))):
+            out = mlb.analyze_stock_report("TCS", {}, [], {}, "full")
+        self.assertIn("STOCK ANALYSIS AI ERROR", out)
+
+    def test_model_not_found_404(self):
+        err = mlb.ollama.ResponseError("not found")
+        err.status_code = 404
+        with mock.patch.object(mlb.ollama, "chat", side_effect=err):
+            out = mlb.analyze_stock_report("TCS", {}, [], {}, "full")
+        self.assertIn("ollama pull", out)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

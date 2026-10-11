@@ -3,6 +3,68 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-11 - AI Stock Analysis terminal (per-stock; any symbol)
+
+Added a stock-specific analysis mode: enter ANY supported NSE symbol and get a
+comprehensive report for THAT stock only (RELIANCE is just an example). Reuses
+the existing technical engine, candles, and Ollama client; no new backend.
+
+New files:
+- `market_lab/stock_adapter.py` — read-only per-stock adapter:
+  `resolve_symbol` (symbol_master), `stock_metrics` (technical_engine.analyze_stock:
+  price/RSI/MACD/ATR/EMAs/returns/52w/trend/momentum), `stock_candles`
+  (get_price_history daily OHLCV + real MA20/MA50/MA200 via technical_engine),
+  `kpi_tiles`, `data_quality` (honest AVAILABLE/PARTIAL/UNAVAILABLE),
+  `market_context` (clearly-labeled market-wide secondary only). It never
+  computes fundamentals/stock-level institutional/stock options/VaR and marks
+  them UNAVAILABLE (never fabricated).
+- `tests/test_stock_adapter.py` (10 tests; search_symbols/get_price_history
+  stubbed; MA math uses the real engine).
+
+`market_lab/market_lab_brain.py`: added `analyze_stock_report(symbol, metrics,
+candles, report, mode)` — a focused per-stock prompt reusing the SAME Ollama
+client/model/options (not a second engine). Mode quick/full/institutional
+changes the task. Returns the required disclaimer: "AI-generated analysis based
+on available market data. For informational and educational purposes only. Not a
+validated prediction or instruction to trade." STOCK_SYSTEM_PROMPT enforces
+stock-only scope, no fabricated values, and INSUFFICIENT EVIDENCE when warranted.
+
+`market_lab/market_lab_ui.py`:
+- New sidebar page **Stock Analysis** (index 1). Nav reordered: Markets,
+  Stock Analysis, Market Report, Nova Analysis, Factor Backtest, Event Risk.
+  Updated the off-page switch targets accordingly (analysis->3, backtest->4,
+  watchlist/search->3).
+- `build_stock_page`: SYMBOL input (Enter submits), MODE selector
+  (Quick/Full/Institutional, Full default), RANGE (3M/6M/1Y), ANALYZE button,
+  live status line; body rebuilt per run.
+- Analysis runs OFF the UI thread via a `stock_analysis` Worker (no overlap with
+  the report worker); on symbol change the body is rebuilt so no stale stock
+  data can persist.
+- Renders: stock identity (company/symbol/exchange, last price + change, H/L,
+  volume, 52W H/L, last-session timestamp), KPI cards (trend, momentum score,
+  RSI, MACD, ATR, relative volume), a real candlestick chart with MA20/50/200
+  overlays (crosshair + OHLC hover), the AI research report, honest
+  `UNAVAILABLE` cards for fundamentals/institutional/derivatives/support-
+  resistance, a data-quality table, and a clearly-labeled market-wide context
+  panel (secondary).
+- `CandleChart` gained `set_overlays` for MA lines; `QComboBox` import added.
+
+Files changed: `market_lab_ui.py`, `market_lab_brain.py`, `market_lab/widgets.py`,
+`tests/test_gui_smoke.py` (nav indices 5->6 / backtest page 4; +TestStockAnalysisPage),
+`tests/test_market_lab_brain.py` (+TestAnalyzeStockReport).
+
+Validation:
+- Real adapter run for RELIANCE: resolve -> "Reliance Industries Limited (NSE)";
+  metrics price 1170.30, RSI 35.42, MACD -26.80, ATR 22.22, trend
+  STRONG_DOWNTREND; 126 daily candles with MA20/MA50 overlays (NSE-MCP live
+  path; child cleaned up).
+- `tests.test_stock_adapter` -> 10 OK; `TestAnalyzeStockReport` -> 4 OK;
+  `tests.test_gui_smoke` -> 46 OK (incl. new Stock Analysis page tests).
+- Full offline suite: `Ran 339 tests ... OK` (324 -> 339; +15).
+
+Analysis-only preserved: no broker/orders, no fabricated data, symbol-only
+analysis, market-wide context clearly secondary.
+
 ## 2026-10-11 - Terminal alignment pass (uniform grid, no ragged cards)
 
 Visual-consistency pass so the terminal reads as one aligned grid (presentation

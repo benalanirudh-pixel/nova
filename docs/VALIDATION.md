@@ -1162,4 +1162,48 @@ Data honestly NOT shown (backend limits): per-strike OI-distribution chart
 (null in report) — all rendered as notes/`N/A`, never fabricated.
 
 Manual-only: pixel match vs the reference screenshot (rendered offscreen + PNG
-proxy; this environment cannot display the window). 
+proxy; this environment cannot display the window).
+
+
+## 2026-10-11 - AI Stock Analysis terminal (per-stock; any symbol)
+
+Code added/changed: `market_lab/stock_adapter.py` (new),
+`market_lab/market_lab_brain.py` (+`analyze_stock_report`, `STOCK_SYSTEM_PROMPT`),
+`market_lab/market_lab_ui.py` (Stock Analysis page + nav reorder + off-page
+targets + `stock_analysis` worker + `CandleChart.set_overlays` + `QComboBox`
+import), `market_lab/widgets.py` (MA overlays), tests in
+`tests/test_stock_adapter.py`, `tests/test_market_lab_brain.py`,
+`tests/test_gui_smoke.py`. No backend/engine/cache/refresh change.
+
+Checks run:
+
+- REAL adapter run for RELIANCE (live NSE-MCP path, child cleaned up): resolve ->
+  "Reliance Industries Limited" (NSE); metrics price 1170.30, RSI 35.42, MACD
+  -26.80, ATR 22.22, trend STRONG_DOWNTREND, timestamp 2026-10-09 (last session);
+  126 daily candles with MA20/MA50 overlays. Confirms the per-stock path works
+  for any symbol, not a hardcoded stock.
+- `tests.test_stock_adapter` -> 10 OK (resolve, candles+MA, empty/error, kpi,
+  data_quality partial/unavailable, market context).
+- `tests.test_market_lab_brain` incl. `TestAnalyzeStockReport` -> OK (focused
+  report + disclaimer, mode quick/full prompt, empty-response error, 404
+  model-not-found).
+- `tests.test_gui_smoke` -> 46 OK (nav reorder to 6 pages/backtest page 4,
+  Stock Analysis page renders identity/KPIs/chart/report/data-quality and an
+  honest no-data state).
+- Full offline suite (offscreen): `Ran 339 tests ... OK` (324 -> 339; +15).
+
+Data connected per stock: symbol/company/exchange; price + change (N/A when the
+live change is unavailable, e.g. weekend); high/low/volume; 52W H/L; RSI/MACD/
+ATR/EMAs/returns/trend/momentum via `technical_engine.analyze_stock`; daily
+OHLCV candles + MA20/50/200 via `get_price_history`; an AI report via the
+existing Ollama client.
+
+Data honestly UNAVAILABLE (backend limits, never fabricated): fundamentals, stock-
+level institutional holdings, stock-level derivatives/options, support/
+resistance levels, VaR/Sharpe/drawdown — all rendered as UNAVAILABLE cards /
+data-quality states. Market-wide (regime/VIX/FII/DII) is shown only in a small,
+clearly-labeled secondary panel.
+
+Not run here: a live Ollama turn through the UI (Ollama available; verified the
+focused prompt with a stubbed chat and the disclaimer; a real turn is manual),
+and the 1600x900 pixel comparison to the reference (render + PNG proxy only). 

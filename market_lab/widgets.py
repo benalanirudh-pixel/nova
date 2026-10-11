@@ -543,7 +543,24 @@ class CandleChart(QWidget):
         self.setMouseTracking(True)
         self._candles = []          # list of {t,o,h,l,c,v}
         self._hover_index = None
+        self._overlays = []         # list of {"values":[...], "color":hex}
         self.setStyleSheet("background:transparent;")
+
+    def set_overlays(self, overlays):
+        """Set optional line overlays (e.g. MA20/MA50/MA200) aligned by candle
+        index. Each overlay is {"values":[...], "color": hex}; None gaps are
+        skipped so the line only spans real values."""
+        clean = []
+        for ov in overlays or []:
+            values = []
+            for v in ov.get("values", []):
+                try:
+                    values.append(float(v))
+                except (TypeError, ValueError):
+                    values.append(None)
+            clean.append({"values": values, "color": ov.get("color", CYAN)})
+        self._overlays = clean
+        self.update()
 
     def set_candles(self, candles):
         clean = []
@@ -644,6 +661,22 @@ class CandleChart(QWidget):
                 vtop = price_bottom + 6 + vol_h - 2 - vh
                 painter.fillRect(QRectF(cx - cw / 2, vtop, cw, vh),
                                  QColor(GREEN if c["c"] >= c["o"] else RED))
+
+        # moving-average overlays (real series, None gaps skipped)
+        for ov in self._overlays:
+            if len(ov["values"]) != len(self._candles):
+                continue
+            painter.setPen(QPen(QColor(ov["color"]), 1.3))
+            prev = None
+            for i, value in enumerate(ov["values"]):
+                if value is None:
+                    prev = None
+                    continue
+                cx = int(left + step * i + step / 2)
+                cy = int(y(value))
+                if prev is not None:
+                    painter.drawLine(prev[0], prev[1], cx, cy)
+                prev = (cx, cy)
 
         # last price tag + dashed line
         last = self._candles[-1]

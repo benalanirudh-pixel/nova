@@ -22,6 +22,8 @@ import ollama
 
 from market_lab.market_lab_data import get_market_lab_data
 
+N_A = "N/A"
+
 
 MODEL = "qwen3.5:4b"
 KEEP_ALIVE = "30m"
@@ -672,4 +674,171 @@ def analyze_market_lab(
             "MARKET LAB AI ERROR: The report was retrieved, but "
             f"interpretation failed ({type(exc).__name__}: {exc}). "
             "No market conclusion was generated."
+        )
+
+
+STOCK_SYSTEM_PROMPT = """
+You are NOVA's quantitative equity research analyst. A user asks for an
+analysis of ONE specific NSE stock. Answer about THAT stock only.
+
+Hard constraints:
+- You receive a STRUCTURED dataset for the requested stock (identity, price,
+  technical features, data-quality). Use ONLY those provided values.
+- Do NOT invent prices, targets, probabilities, fundamentals, or predictions.
+- Fields the dataset marks UNAVAILABLE/N/A are simply not available in Nova;
+  state this plainly and treat them as gaps, never as zero or as a fabricated
+  figure.
+- Never present aggregate market-wide FII/DII/VIIX as the stock's own activity;
+  label any market context as MARKET-WIDE CONTEXT.
+- Distinguish raw observations (price/RSI/MACD/trend) from your interpretation.
+- If evidence for a conclusion is insufficient, the correct answer is
+  INSUFFICIENT EVIDENCE.
+- A score of e.g. 100/100 is a scanner score, NOT a probability of gain.
+
+Never suggest placing an order or give an executable trade instruction.
+Analysis-only.
+"""
+
+_MODE_INSTRUCTIONS = {
+    "quick": (
+        "Provide a QUICK SCAN: price/trend, key indicators (RSI, MACD, ATR), "
+        "and the primary risks, in a short structured answer."
+    ),
+    "full": (
+        "Provide a FULL ANALYSIS with these headings: 1) Executive conclusion "
+        "(bullish/bearish/neutral/insufficient evidence + horizon); "
+        "2) Bullish evidence; 3) Bearish evidence; 4) Key levels (only if the "
+        "data provides them; otherwise say none available); 5) Risks (technical "
+        "and data-quality); 6) Final research summary (what the data supports, "
+        "what contradicts it, what would invalidate the thesis, what to watch)."
+    ),
+    "institutional": (
+        "Provide an INSTITUTIONAL-STYLE positioning read on this stock using "
+        "only its technical features + clearly-labeled market-wide context; "
+        "note stock-level institutional/derivatives data is NOT available."
+    ),
+}
+
+
+def analyze_stock_report(
+    symbol: str,
+    metrics: dict,
+    candles: list,
+    report: dict | None = None,
+    mode: str = "full",
+) -> str:
+    """Focused per-stock AI report reusing the SAME Ollama client/model.
+
+    Read-only and analysis-only. Returns a text report (or an error string).
+    `mode` selects quick/full/institutional and changes the task instructions.
+    """
+    m = metrics if isinstance(metrics, dict) else {}
+    report = report if isinstance(report, dict) else {}
+    package = {
+        "identity": {
+            "symbol": m.get("symbol") or symbol,
+            "company_name": m.get("company_name", N_A),
+            "exchange": m.get("exchange", "NSE"),
+            "series": m.get("series", N_A),
+        },
+        "latest": {
+            "price": m.get("price", N_A),
+            "change_percent": m.get("change_percent", N_A),
+            "high": m.get("high", N_A), "low": m.get("low", N_A),
+            "volume": m.get("volume", N_A),
+            "timestamp": str(m.get("timestamp", N_A)),
+        },
+        "technical": {
+            "trend": m.get("trend", N_A),
+            "market_structure": m.get("market_structure", N_A),
+            "momentum_score": m.get("momentum_score", N_A),
+            "rsi_14": m.get("rsi_14", N_A),
+            "rsi_condition": m.get("rsi_condition", N_A),
+            "macd": m.get("macd", N_A), "macd_signal": m.get("macd_signal", N_A),
+            "macd_histogram": m.get("macd_histogram", N_A),
+            "macd_condition": m.get("macd_condition", N_A),
+            "atr_14": m.get("atr_14", N_A),
+            "ema_20": m.get("ema_20", N_A), "ema_50": m.get("ema_50", N_A),
+            "ema_200": m.get("ema_200", N_A),
+            "relative_volume": m.get("relative_volume", N_A),
+            "return_1d": m.get("return_1d", N_A),
+            "return_20d": m.get("return_20d", N_A),
+            "return_60d": m.get("return_60d", N_A),
+            "high_52w": m.get("high_52w", N_A), "low_52w": m.get("low_52w", N_A),
+        },
+        "history": {
+            "candles": len(candles or []),
+            "first": (candles[0]["t"] if candles else N_A),
+            "last": (candles[-1]["t"] if candles else N_A),
+            "ma20": (candles[-1].get("ma20") if candles else N_A),
+            "ma50": (candles[-1].get("ma50") if candles else N_A),
+        },
+        "availability": {
+            "fundamentals": "UNAVAILABLE",
+            "institutional_stock_level": "UNAVAILABLE",
+            "derivatives_stock_level": "UNAVAILABLE",
+            "support_resistance_levels": "UNAVAILABLE",
+        },
+        "market_wide_context_secondary": {
+            "market_regime": report.get("market_regime", N_A),
+            "india_vix": (report.get("volatility", {}) or {}).get("india_vix", {}).get("value", N_A)
+            if isinstance(report.get("volatility"), dict) else N_A,
+        },
+    }
+
+    try:
+        payload = _json_safe(package)
+        package_json = json.dumps(payload, ensure_ascii=False,
+                                  allow_nan=False, separators=(",", ":"))
+    except Exception as exc:
+        return (
+            f"STOCK ANALYSIS ERROR: could not serialize the dataset "
+            f"({type(exc).__name__}: {exc}). No analysis was generated."
+        )
+
+    mode_key = mode if mode in _MODE_INSTRUCTIONS else "full"
+    user_message = (
+        f"ANALYZE THIS ONE STOCK: {m.get('symbol') or symbol}\n\n"
+        f"MODE: {mode_key.upper()}\n{_MODE_INSTRUCTIONS[mode_key]}\n\n"
+        "STOCK DATA JSON (source of truth):\n"
+        f"{package_json}"
+    )
+
+    messages = [
+        {"role": "system", "content": STOCK_SYSTEM_PROMPT},
+        {"role": "user", "content": user_message},
+    ]
+
+    try:
+        response = ollama.chat(
+            model=MODEL, messages=messages, think=False,
+            options=OPTIONS, keep_alive=KEEP_ALIVE,
+        )
+        content = _extract_response_content(response)
+        if not content:
+            return (
+                "STOCK ANALYSIS AI ERROR: the model returned an empty report. "
+                "No conclusion was generated."
+            )
+        return (
+            f"NOVA STOCK ANALYSIS — {m.get('symbol') or symbol}\n"
+            f"Mode: {mode_key.upper()}\n\n{content}\n\n"
+            "AI-generated analysis based on available market data. For "
+            "informational and educational purposes only. Not a validated "
+            "prediction or instruction to trade."
+        )
+    except ollama.ResponseError as exc:
+        if getattr(exc, "status_code", None) == 404:
+            return (
+                f"STOCK ANALYSIS AI ERROR: Ollama model '{MODEL}' not found. "
+                f"Install it with: ollama pull {MODEL}"
+            )
+        return (
+            "STOCK ANALYSIS AI ERROR: Ollama rejected the request. "
+            f"{getattr(exc, 'error', str(exc))}"
+        )
+    except Exception as exc:
+        return (
+            "STOCK ANALYSIS AI ERROR: analysis could not be generated "
+            f"({type(exc).__name__}: {exc}). No conclusion was produced."
         )

@@ -218,16 +218,17 @@ class MarketLabSmokeTestCase(unittest.TestCase):
 
     def test_page_indices_match_the_nav_labels(self):
         window = self.window
-        self.assertEqual(window.pages.count(), 5)
+        self.assertEqual(window.pages.count(), 6)
         self.assertEqual(window.pages.currentIndex(), 0)
-        # task_succeeded hardcodes switch_page(3) for backtest.
-        self.assertIn("Factor Backtest", window.nav_buttons[3].text())
-        self.assertIn("Nova Analysis", window.nav_buttons[2].text())
-        self.assertIn("Event Risk", window.nav_buttons[4].text())
-        window.switch_page(3)
-        self.assertEqual(window.pages.currentIndex(), 3)
+        # task_succeeded hardcodes switch_page(4) for backtest.
+        self.assertIn("Factor Backtest", window.nav_buttons[4].text())
+        self.assertIn("Nova Analysis", window.nav_buttons[3].text())
+        self.assertIn("Stock Analysis", window.nav_buttons[1].text())
+        self.assertIn("Event Risk", window.nav_buttons[5].text())
         window.switch_page(4)
         self.assertEqual(window.pages.currentIndex(), 4)
+        window.switch_page(1)
+        self.assertEqual(window.pages.currentIndex(), 1)
         window.switch_page(0)
         self.assertEqual(window.pages.currentIndex(), 0)
 
@@ -501,7 +502,7 @@ class MarketLabSmokeTestCase(unittest.TestCase):
 
         window.task_succeeded("backtest", backtest_report(), 1.5)
 
-        self.assertEqual(window.pages.currentIndex(), 3)
+        self.assertEqual(window.pages.currentIndex(), 4)  # Factor Backtest page
         self.assertIn("Universe", window.backtest_view.toPlainText())
         self.assertIn("hit-rate, not a return", window.footer.text())
 
@@ -887,6 +888,62 @@ class TestTerminalLayout(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+@unittest.skipIf(not QT_AVAILABLE, "PySide6 (Qt) is not installed")
+class TestStockAnalysisPage(unittest.TestCase):
+    """The Stock Analysis page renders a stock-specific result with real
+    metrics + candles and honest N/A cards (no fabricated stock data)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    def _window(self):
+        win = MarketLabWindow()
+        self.addCleanup(win.deleteLater)
+        return win
+
+    def _result(self):
+        candles = [
+            {"t": f"2026-09-{i:02d}", "o": 100 + i, "h": 105 + i,
+             "l": 99 + i, "c": 103 + i, "v": 1000 + i,
+             "ma20": 102.0 + i}
+            for i in range(1, 31)
+        ]
+        metrics = {
+            "symbol": "RELIANCE", "company_name": "Reliance Industries",
+            "exchange": "NSE", "price": 2850.0, "change_percent": 0.8,
+            "high": 2860.0, "low": 2820.0, "volume": 1234567,
+            "high_52w": 3020.0, "low_52w": 2220.0,
+            "trend": "STRONG_UPTREND", "momentum_score": 92.0,
+            "rsi_14": 61.2, "rsi_condition": "BULLISH",
+            "macd": 12.3, "macd_condition": "BULLISH", "atr_14": 45.0,
+            "relative_volume": 1.3, "timestamp": "2026-10-09 15:30:00+05:30",
+        }
+        return {"ok": True, "symbol": "RELIANCE", "metrics": metrics,
+                "candles": candles, "ai": "NOVA STOCK ANALYSIS — RELIANCE\n..."}
+
+    def test_render_stock_result_populates_panels(self):
+        from PySide6.QtWidgets import QTableWidget, QPlainTextEdit, QLabel
+        win = self._window()
+        win.render_stock_result(self._result())
+        tables = win.stock_body.findChildren(QTableWidget)
+        self.assertGreaterEqual(len(tables), 1)          # data-quality table
+        edits = win.stock_body.findChildren(QPlainTextEdit)
+        self.assertTrue(any("NOVA STOCK ANALYSIS" in e.toPlainText()
+                            for e in edits))             # AI report present
+        labels = [l.text() for l in win.stock_body.findChildren(QLabel)]
+        self.assertTrue(any("Reliance Industries" in t for t in labels))
+
+    def test_no_data_result_is_honest(self):
+        from PySide6.QtWidgets import QPlainTextEdit, QLabel
+        win = self._window()
+        win.render_stock_result({"ok": False, "symbol": "FOOBAR",
+                                 "metrics": {}, "candles": [],
+                                 "ai": ""})
+        labels = [l.text() for l in win.stock_body.findChildren(QLabel)]
+        self.assertTrue(any("Nothing was fabricated" in t for t in labels))
 
 
 @unittest.skipIf(not QT_AVAILABLE, "PySide6 (Qt) is not installed")

@@ -12,6 +12,7 @@ from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -34,9 +35,10 @@ from market_lab.market_lab_data import (
     get_market_lab_data,
     save_json_report,
 )
-from market_lab.market_lab_brain import analyze_market_lab
+from market_lab.market_lab_brain import analyze_market_lab, analyze_stock_report
 from market_lab import view_model as vm
 from market_lab import widgets as W
+from market_lab import stock_adapter
 
 
 # ============================================================
@@ -668,6 +670,7 @@ class MarketLabWindow(QMainWindow):
 
         specs = [
             ("Markets", self.build_overview),
+            ("Stock Analysis", self.build_stock_page),
             ("Market Report", self.build_report_page),
             ("Nova Analysis", self.build_analysis_page),
             ("Factor Backtest", self.build_backtest_page),
@@ -812,7 +815,7 @@ class MarketLabWindow(QMainWindow):
         existing = [s for s in self.watch_input.text().split(",") if s.strip()]
         self.watch_input.setText(", ".join(existing + symbols))
         self.symbol_search.clear()
-        self.switch_page(2)
+        self.switch_page(3)  # Nova Analysis (watchlist lives there)
         self.apply_watchlist()
 
     def add_status(self, row, title, value, color):
@@ -1452,6 +1455,274 @@ class MarketLabWindow(QMainWindow):
             h.addWidget(card, 1)
         return row
 
+    # --------------------------------------------------------
+    # Stock Analysis terminal (per-stock; real data + AI report)
+    # --------------------------------------------------------
+
+    _STOCK_MODE_KEYS = {
+        "Quick Scan": "quick",
+        "Full Analysis": "full",
+        "Institutional Analysis": "institutional",
+    }
+    _STOCK_RANGE_PERIOD = {"3M": "3mo", "6M": "6mo", "1Y": "1y"}
+
+    def build_stock_page(self):
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(12)
+
+        # Controls
+        controls, cl = W.panel(
+            "Stock analysis",
+            "Enter any supported NSE symbol. Metrics, chart and the AI report "
+            "are stock-specific. Analysis-only — no broker/orders.",
+        )
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        row.addWidget(W.make_label("SYMBOL", 9, MUTED, True))
+        self.stock_symbol_input = QLineEdit()
+        self.stock_symbol_input.setFixedWidth(220)
+        self.stock_symbol_input.setPlaceholderText("Enter symbol (e.g. RELIANCE)")
+        self.stock_symbol_input.returnPressed.connect(self.run_stock_analysis)
+        row.addWidget(self.stock_symbol_input)
+        row.addWidget(W.make_label("MODE", 9, MUTED, True))
+        self.stock_mode = QComboBox()
+        self.stock_mode.addItems(["Quick Scan", "Full Analysis",
+                                  "Institutional Analysis"])
+        self.stock_mode.setCurrentIndex(1)
+        row.addWidget(self.stock_mode)
+        row.addWidget(W.make_label("RANGE", 9, MUTED, True))
+        self.stock_range = QComboBox()
+        self.stock_range.addItems(["3M", "6M", "1Y"])
+        self.stock_range.setCurrentIndex(1)
+        self.stock_range.currentIndexChanged.connect(self._stock_range_changed)
+        row.addWidget(self.stock_range)
+        self.stock_analyze_btn = make_button("ANALYZE", True)
+        self.stock_analyze_btn.clicked.connect(self.run_stock_analysis)
+        row.addWidget(self.stock_analyze_btn)
+        row.addStretch()
+        cl.addLayout(row)
+        self.stock_status = W.make_label(
+            "Ready. Enter a symbol and press Analyze.", 9, MUTED)
+        cl.addWidget(self.stock_status)
+        layout.addWidget(controls)
+
+        # Body (rebuilt per analysis) holder
+        self.stock_page_layout = layout
+        self._stock_clear()
+        scroll.setWidget(page)
+        return scroll
+
+    def _reset_stock_body(self):
+        """Rebuild a fresh stock-body container (avoids stale widget/layout
+        lifetime across analyses)."""
+        old = getattr(self, "stock_body", None)
+        if old is not None and self.stock_page_layout is not None:
+            self.stock_page_layout.removeWidget(old)
+            old.setParent(None)
+        self.stock_body = QWidget()
+        self.stock_body_layout = QVBoxLayout(self.stock_body)
+        self.stock_body_layout.setContentsMargins(0, 0, 0, 0)
+        self.stock_body_layout.setSpacing(12)
+        if self.stock_page_layout is not None:
+            self.stock_page_layout.addWidget(self.stock_body, 1)
+
+    def _stock_clear(self):
+        self._reset_stock_body()
+        placeholder = W.make_label(
+            "No stock analyzed yet. Enter a symbol above and press Analyze.",
+            10, MUTED)
+        self.stock_body_layout.addWidget(placeholder)
+
+    def _stock_range_changed(self):
+        # Re-run with the new range only if a symbol is present.
+        if self.stock_symbol_input.text().strip():
+            self.run_stock_analysis()
+
+    def run_stock_analysis(self):
+        query = self.stock_symbol_input.text().strip()
+        if not query:
+            self.stock_status.setText("Enter a symbol first.")
+            self.stock_status.setStyleSheet(f"color:{AMBER};")
+            return
+
+        self._stock_clear()
+        self.stock_report_placeholder()
+
+        resolved = stock_adapter.resolve_symbol(query)
+        if not resolved:
+            self.stock_status.setText(
+                f"No NSE security found for '{query}'. Try a symbol like RELIANCE.")
+            self.stock_status.setStyleSheet(f"color:{RED};")
+            self._stock_append_label(
+                f"Unresolved symbol '{query}' — nothing to analyze.", RED)
+            return
+
+        symbol = resolved["symbol"]
+        mode_key = self._STOCK_MODE_KEYS.get(
+            self.stock_mode.currentText(), "full")
+        period = self._STOCK_RANGE_PERIOD.get(
+            self.stock_range.currentText(), "6mo")
+        self.stock_status.setText(f"Analyzing {symbol} ({mode_key})…")
+        self.stock_status.setStyleSheet(f"color:{CYAN};")
+        self.start_task(
+            "stock_analysis", self._stock_worker,
+            symbol, mode_key, period, self.report,
+        )
+
+    def _stock_worker(self, symbol, mode_key, period, report):
+        metrics = stock_adapter.stock_metrics(symbol)
+        candles = stock_adapter.stock_candles(symbol, period=period)
+        ai = analyze_stock_report(symbol, metrics or {}, candles,
+                                  report or {}, mode_key)
+        return {"ok": bool(isinstance(metrics, dict) and metrics.get("price") is not None),
+                "symbol": symbol, "metrics": metrics, "candles": candles, "ai": ai}
+
+    def stock_report_placeholder(self):
+        layout = getattr(self, "stock_body_layout", None)
+        if layout is None:
+            return
+        self.stock_report = QPlainTextEdit()
+        self.stock_report.setReadOnly(True)
+        self.stock_report.setPlaceholderText("Waiting for analysis…")
+        self.stock_report.setMinimumHeight(180)
+        layout.addWidget(self.stock_report)
+
+    def _stock_append_label(self, text, color):
+        layout = getattr(self, "stock_body_layout", None)
+        if layout is not None:
+            layout.addWidget(W.make_label(text, 10, color))
+
+    def render_stock_result(self, result):
+        self._reset_stock_body()
+        layout = getattr(self, "stock_body_layout", None)
+        if layout is None:
+            return
+
+        metrics = result.get("metrics") if isinstance(result, dict) else None
+        metrics = metrics if isinstance(metrics, dict) else {}
+        candles = result.get("candles") or []
+        symbol = result.get("symbol") or metrics.get("symbol") or "?"
+
+        if not metrics.get("price"):
+            self._stock_append_label(
+                f"No usable live/history data for {symbol} right now "
+                f"(provider unavailable or market closed). Nothing was "
+                f"fabricated.", AMBER)
+            self.stock_report = QPlainTextEdit()
+            self.stock_report.setReadOnly(True)
+            self.stock_report.setPlainText(
+                result.get("ai", "") or "No analysis generated.")
+            layout.addWidget(self.stock_report)
+            return
+
+        # Identity strip
+        holder = self._stock_identity_panel(metrics)
+        layout.addWidget(holder)
+
+        # KPI cards (real metrics only)
+        ktiles = stock_adapter.kpi_tiles(metrics)
+        cards = [
+            self._stat_card("TREND", ktiles["trend"], self._trend_color(ktiles["trend"])),
+            self._stat_card("MOMENTUM SCORE",
+                            fmt_num(ktiles["momentum_score"], 1), CYAN,
+                            "scanner score, not a probability"),
+            self._stat_card("RSI 14", fmt_num(ktiles["rsi"]), None,
+                            str(ktiles["rsi_condition"])),
+            self._stat_card("MACD", fmt_num(ktiles["macd"]), None,
+                            str(ktiles["macd_condition"])),
+            self._stat_card("ATR 14", fmt_num(ktiles["atr"]), None, "INR"),
+            self._stat_card("REL VOLUME", fmt_num(ktiles["relative_volume"], 2)),
+        ]
+        layout.addWidget(self._cards_row(cards))
+
+        # Chart (real candles + MA overlays)
+        chart = W.CandleChart()
+        chart.setMinimumHeight(320)
+        chart.set_candles(candles)
+        overlays = []
+        for key, color in (("ma20", W.CYAN), ("ma50", W.AMBER), ("ma200", W.PURPLE)):
+            overlays.append({"values": [c.get(key) for c in candles], "color": color})
+        chart.set_overlays(overlays)
+        chart_frame, chart_layout = W.panel(
+            "Price (daily OHLC)",
+            "Candles + MA20/50/200 from real history. Legend: cyan MA20, "
+            "amber MA50, violet MA200. Hover for OHLC + change. Tooltips on "
+            "the RSI/MACD/ATR cards. Not a forecast.")
+        chart_layout.addWidget(chart, 1)
+        layout.addWidget(chart_frame, 1)
+
+        # AI report
+        report_frame, report_layout = W.panel(
+            "AI research report",
+            "Stock-specific. Raw observations are separated from AI "
+            "interpretation; conclusions are not validated predictions.")
+        self.stock_report = QPlainTextEdit()
+        self.stock_report.setReadOnly(True)
+        self.stock_report.setPlainText(result.get("ai", ""))
+        report_layout.addWidget(self.stock_report, 1)
+        layout.addWidget(report_frame, 1)
+
+        # Honest N/A cards for unavailable stock-level analysis
+        na_cards = [
+            self._stat_card("FUNDAMENTALS", "UNAVAILABLE", MUTED,
+                            "not computed by Nova"),
+            self._stat_card("INSTITUTIONAL", "UNAVAILABLE", MUTED,
+                            "stock-level holdings not in report"),
+            self._stat_card("DERIVATIVES", "UNAVAILABLE", MUTED,
+                            "stock options not wired"),
+            self._stat_card("SUPPORT/RES", "UNAVAILABLE", MUTED,
+                            "levels not computed"),
+        ]
+        layout.addWidget(self._cards_row(na_cards))
+
+        # Data quality
+        dq = stock_adapter.data_quality(metrics, candles)
+        table = W.make_table(["Component", "Status"], stretch_column=0)
+        W.fill_table(table, [[k, v] for k, v in dq.items()])
+        for r in range(table.rowCount()):
+            state = table.item(r, 1).text()
+            color = GREEN if state == "AVAILABLE" else (
+                AMBER if state == "PARTIAL" else MUTED)
+            self._paint_cell(table, r, 1, color, center=True)
+        layout.addWidget(W.make_label("DATA QUALITY", 9, MUTED, True))
+        layout.addWidget(table)
+
+        # Secondary market-wide context (clearly labeled)
+        ctx = stock_adapter.market_context(self.report or {})
+        ctx_frame, ctx_layout = W.panel("Market-wide context (secondary)")
+        ctx_layout.addWidget(W.make_label(
+            f"Regime: {ctx['market_regime']}  •  India VIX: {ctx['india_vix']}  "
+            f"•  FII 20D: {fmt_num(ctx['fii_20d'])}  •  DII 20D: {fmt_num(ctx['dii_20d'])}",
+            9, MUTED))
+        ctx_layout.addWidget(W.make_label(
+            "These are MARKET-WIDE figures, not this stock's own activity.",
+            8, AMBER))
+        layout.addWidget(ctx_frame)
+
+    def _stock_identity_panel(self, metrics):
+        frame, layout = W.panel("Selected security")
+        layout.addWidget(W.make_label(
+            f"{metrics.get('company_name') or metrics.get('symbol')}  •  "
+            f"{metrics.get('symbol')}  •  {metrics.get('exchange', 'NSE')}",
+            15, TEXT, True))
+        layout.addWidget(W.make_label(
+            f"Last {fmt_price(metrics.get('price'))}  "
+            f"({fmt_pct(metrics.get('change_percent'))})   "
+            f"H {fmt_points(metrics.get('high'))}  L {fmt_points(metrics.get('low'))}",
+            11, W.sign_color(metrics.get("change_percent")), mono=True))
+        layout.addWidget(W.make_label(
+            f"52W H {fmt_points(metrics.get('high_52w'))}  "
+            f"L {fmt_points(metrics.get('low_52w'))}  •  volume "
+            f"{metrics.get('volume') if isinstance(metrics.get('volume'), (int, float)) else vm.N_A}"
+            f"  •  as of {metrics.get('timestamp', vm.N_A)} (last session)",
+            9, MUTED))
+        return frame
+
     def build_overview(self):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -1624,11 +1895,14 @@ class MarketLabWindow(QMainWindow):
 
     @staticmethod
     def _clear_layout(layout):
-        while layout.count():
-            item = layout.takeAt(0)
-            w = item.widget()
-            if w is not None:
-                w.setParent(None)
+        try:
+            while layout.count():
+                item = layout.takeAt(0)
+                w = item.widget()
+                if w is not None:
+                    w.setParent(None)
+        except RuntimeError:
+            pass
 
     def _sector_row(self, name, return_20d, relative_strength, regime, scale):
         row = QFrame()
@@ -2353,6 +2627,10 @@ class MarketLabWindow(QMainWindow):
             self.progress.setRange(0, 0)
             self.footer.setText("Factor backtest running in the background…")
 
+        elif name == "stock_analysis":
+            self.stock_analyze_btn.setEnabled(False)
+            self.footer.setText("Stock analysis running in the background…")
+
         worker.start()
 
     def task_finished(self, name, worker):
@@ -2396,11 +2674,20 @@ class MarketLabWindow(QMainWindow):
             self.analysis_view.setPlainText(
                 result if isinstance(result, str) else pretty_json(result)
             )
-            self.switch_page(2)
+            self.switch_page(3)  # Nova Analysis
             self.footer.setText(
                 f"AI analysis returned in {elapsed:.2f}s. "
                 "Validate conclusions against the report evidence."
             )
+
+        elif name == "stock_analysis":
+            self.render_stock_result(result if isinstance(result, dict) else {})
+            self.stock_analyze_btn.setEnabled(True)
+            self.stock_status.setText(
+                f"Analysis complete in {elapsed:.2f}s.")
+            self.stock_status.setStyleSheet(f"color:{GREEN};")
+            self.footer.setText(
+                "Stock analysis complete. Validate against the evidence shown.")
 
         elif name == "watchlist":
             if isinstance(result, dict):
@@ -2411,7 +2698,7 @@ class MarketLabWindow(QMainWindow):
 
         elif name == "backtest":
             self.render_backtest(result)
-            self.switch_page(3)
+            self.switch_page(4)  # Factor Backtest
             self.footer.setText(
                 f"Backtest completed in {elapsed:.2f}s. "
                 "Up-day fraction is a hit-rate, not a return."
@@ -2438,6 +2725,13 @@ class MarketLabWindow(QMainWindow):
                 f"Backtest failed after {elapsed:.1f}s. "
                 "See the terminal output for details."
             )
+        elif name == "stock_analysis":
+            self.stock_analyze_btn.setEnabled(True)
+            self.stock_status.setText(
+                f"Stock analysis failed after {elapsed:.1f}s: {error}")
+            self.stock_status.setStyleSheet(f"color:{RED};")
+            self.footer.setText(
+                "Stock analysis failed. No conclusion produced; nothing fabricated.")
         else:
             self.status_data.setText("ERROR" if name == "report" else "ANALYSIS ERROR")
             self.status_data.setStyleSheet(f"color:{RED};")
