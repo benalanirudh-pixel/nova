@@ -714,8 +714,8 @@ class MarketLabWindow(QMainWindow):
         body.addWidget(left)
         body.addWidget(self.pages)
 
-        self.factor_panel = self.build_factor_panel()
-        body.addWidget(self.factor_panel)
+        self.uptrend_panel = self.build_uptrend_panel()
+        body.addWidget(self.uptrend_panel)
 
         body.setStretchFactor(0, 0)
         body.setStretchFactor(1, 1)
@@ -723,8 +723,8 @@ class MarketLabWindow(QMainWindow):
         body.setSizes([260, 1160, 380])
         left.setMinimumWidth(230)
         left.setMaximumWidth(280)
-        self.factor_panel.setMinimumWidth(320)
-        self.factor_panel.setMaximumWidth(420)
+        self.uptrend_panel.setMinimumWidth(320)
+        self.uptrend_panel.setMaximumWidth(420)
         outer.addWidget(body, 1)
 
         # --- Footer status line (operational text) ---
@@ -1507,26 +1507,53 @@ class MarketLabWindow(QMainWindow):
             )
             self.sector_note.setText("Sector data unavailable.")
 
-    def build_factor_panel(self):
+    def build_uptrend_panel(self):
         frame, layout = W.panel(
-            "Factor rankings",
-            "Cross-sectional equal-weight z-score (research_factor_engine). "
-            "Ranks are analysis inputs, not buy/sell signals.",
+            "Top Uptrend Stocks",
+            "Current technical trend/score ranking from the report "
+            "(top_technical_stocks). Nova does not compute long-run growth "
+            "fundamentals — this is a trend screen, not a growth forecast "
+            "and not a buy/sell signal.",
         )
-        self.factor_meta = W.make_label("Loading factor rankings…", 9, MUTED)
-        layout.addWidget(self.factor_meta)
-
-        self.factor_avail = W.make_table(["Factor", "Availability"], stretch_column=0)
-        layout.addWidget(self.factor_avail)
-
-        layout.addWidget(W.make_label("TOP 10 (composite z)", 9, MUTED, True))
-        self.factor_top_table = W.make_table(
-            ["Rank", "Symbol", "Composite Z", "Price"],
-            stretch_column=1,
+        self.uptrend_table = W.make_table(
+            ["#", "Symbol", "Score", "Trend"], stretch_column=1
         )
-        layout.addWidget(self.factor_top_table)
+        layout.addWidget(self.uptrend_table)
+        self.uptrend_note = W.make_label("Loading uptrend screen…", 9, MUTED)
+        self.uptrend_note.setWordWrap(True)
+        layout.addWidget(self.uptrend_note)
         layout.addStretch()
         return frame
+
+    def render_uptrend(self, report):
+        rows = []
+        for item in (report.get("top_technical_stocks") or []):
+            if isinstance(item, dict):
+                rows.append(item)
+        # Rank by technical score (strongest first); real values only.
+        rows.sort(key=lambda r: r.get("technical_score") or 0, reverse=True)
+        rows = rows[:15]
+
+        W.fill_table(self.uptrend_table, [
+            [i, r.get("symbol", vm.N_A), fmt_num(r.get("technical_score"), 1),
+             r.get("trend", vm.N_A)]
+            for i, r in enumerate(rows, 1)
+        ])
+        for i, r in enumerate(rows):
+            self._paint_cell(self.uptrend_table, i, 0, MUTED, center=True)
+            self._paint_cell(self.uptrend_table, i, 3,
+                             self._trend_color(r.get("trend")))
+
+        if rows:
+            self.uptrend_note.setText(
+                "Strongest current uptrend by score/trend from the existing "
+                "scanner. Not a long-range growth prediction; fundamentals "
+                "(value/quality/growth) are not computed by Nova."
+            )
+        else:
+            self.uptrend_note.setText(
+                "No technical top-list in this report."
+            )
 
     # --------------------------------------------------------
     # Small table builders for report sections
@@ -1690,49 +1717,6 @@ class MarketLabWindow(QMainWindow):
         W.fill_table(self.breadth_table, rows)
 
         self.update_header(report)
-
-    def render_factor(self, report):
-        fb = vm.factor_block(report)
-        self.factor_meta.setText(
-            f"method: {fb['method']}  •  universe: {fb['universe_size']}  •  "
-            f"as of: {fb['as_of']}"
-        )
-        # Factor availability (QUALITY/VALUE genuinely not computed).
-        avail_rows = []
-        for factor in fb["factors_available"]:
-            avail_rows.append([factor, "AVAILABLE (z populated: "
-                              + ("yes" if fb["per_factor_z_available"] else "no") + ")"] )
-        for factor, reason in fb["factors_unavailable"].items():
-            avail_rows.append([factor, "NOT_AVAILABLE"])
-        W.fill_table(self.factor_avail, avail_rows)
-        # Color availability: green available, muted unavailable (text carries it).
-        for r in range(self.factor_avail.rowCount()):
-            cell = self.factor_avail.item(r, 1)
-            if cell is None:
-                continue
-            if cell.text().startswith("NOT_AVAILABLE"):
-                cell.setForeground(QColor(MUTED))
-            else:
-                cell.setForeground(QColor(GREEN))
-
-        # Top 10 by composite z (the real ranking output).
-        top_rows = []
-        for r in fb["top"]:
-            top_rows.append([
-                r["rank"], r["symbol"], fmt_num(r["composite_z"], 3),
-                fmt_price(r["price"]),
-            ])
-        if not top_rows:
-            top_rows = []
-        W.fill_table(self.factor_top_table, top_rows)
-        # Right-align the numeric columns for a quant-terminal feel.
-        for r in range(self.factor_top_table.rowCount()):
-            for col in (0, 2, 3):
-                cell = self.factor_top_table.item(r, col)
-                if cell is not None:
-                    cell.setTextAlignment(
-                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-                    )
 
     def _render_failure(self, panel, exc):
         """Record that one panel failed to render without crashing the rest
@@ -2408,9 +2392,9 @@ class MarketLabWindow(QMainWindow):
         except Exception as exc:
             self._render_failure("sector", exc)
         try:
-            self.render_factor(report)
+            self.render_uptrend(report)
         except Exception as exc:
-            self._render_failure("factors", exc)
+            self._render_failure("uptrend", exc)
 
         if hasattr(self, "guardrails"):
             dmc = report.get("decision_policy") or {}

@@ -1046,6 +1046,31 @@ between refreshes. True intraday needs a live feed (the Dhan intraday path when
 configured); `CandleChart` will accept that series too. The exact pixel look was
 reviewed via offscreen render + a saved PNG only.
 
+## 2026-10-11 - Replace factor panel with an honest "Top Uptrend Stocks" screen
+
+Code changed: `market_lab_ui.py` + `tests/test_gui_smoke.py`. No backend/engine/data change.
+
+Behavior: the right-side factor-ranking panel is removed and replaced with a
+Top Uptrend Stocks table (`#, Symbol, Score, Trend`) ranked by the report's real
+`top_technical_stocks` technical score (top 15), trend colored; the panel note
+states it is a current technical trend/score screen, that long-run growth
+fundamentals (value/quality/growth) are NOT computed by Nova, and that it is not
+a buy/sell signal. Section 08 (Factor Rankings) is unchanged within the
+10-section report.
+
+Checks run:
+
+- `ast.parse` on `market_lab_ui.py`: passed; no `factor_*` attribute references remain.
+- Real cached report (offscreen `load_initial_report`): uptrend table lists top
+  STRONG_UPTREND symbols (BLUSPRING/ZIMLAB/CPPLUS 100.0, PLASTIBLEN 98.0, ...);
+  Section 08 still has its top+bottom tables.
+- Empty report: uptrend shows "No technical top-list in this report" plus a
+  single "—" row (never invented symbols).
+- `tests.test_gui_smoke` -> 44 OK; full offline suite -> `Ran 324 tests ... OK`.
+
+Guardrails: analysis-only preserved; the panel is explicitly labeled a technical
+trend screen, not a growth prediction or recommendation.
+
 
 ## 2026-10-11 - Real RSI + MACD on the dashboard indicator cards
 

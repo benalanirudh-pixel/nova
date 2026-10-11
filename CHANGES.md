@@ -3,6 +3,33 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-11 - Replace factor panel with an honest "Top Uptrend Stocks" screen
+
+Requested: remove the factor-ranking panel and show the most-uptrend stocks.
+Because Nova is analysis-only and its engine explicitly does NOT compute
+long-run growth fundamentals (value/quality/growth), the new panel is labeled a
+**technical uptrend screen**, not a growth forecast or signal.
+
+- Removed the right-side factor-ranking panel (`build_factor_panel`,
+  `render_factor`, `factor_*` widgets, splitter column) and its `display_report`
+  call.
+- Added `build_uptrend_panel` / `render_uptrend`: a `#, Symbol, Score, Trend`
+  table ranked by the report's real `top_technical_stocks` technical score
+  (strongest first, top 15), trend colored via the existing trend palette, with
+  a note stating it's the current trend/score, that fundamentals are not
+  computed, and that it's not a buy/sell signal.
+- Section 08 (Factor Rankings) remains in the 10-section report unchanged
+  (still real composite z, QUALITY/VALUE honestly NOT_AVAILABLE) — only the
+  duplicate side panel was replaced.
+
+Files changed: `market_lab_ui.py`, `tests/test_gui_smoke.py`
+(factor-panel assertion replaced with an uptrend empty-state assertion).
+
+Validation: `ast.parse` ok; real cached report -> uptrend table lists top
+STRONG_UPTREND symbols (e.g. BLUSPRING/ZIMLAB/CPPLUS 100.0, PLASTIBLEN 98.0);
+empty report -> honest "No technical top-list" + a single "—" row.
+`tests.test_gui_smoke(44 OK)`; full offline suite -> `Ran 324 tests ... OK`.
+
 ## 2026-10-11 - Market Report sections 03-08 redesigned (aligned/colorized, dense)
 
 Applied the same premium treatment used for Sections 01/02 to the remaining

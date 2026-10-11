@@ -878,9 +878,11 @@ class TestTerminalLayout(unittest.TestCase):
         win.display_report({"market": "NSE", "breadth": {}}, 0.0, cached=True)
         # BANK NIFTY snapshot is not provided -> OHLC must be N/A, not zeros.
         self.assertIn("N/A", win.index_cards["bank_nifty"]["ohlc"].text())
-        # Factor engine not present -> rankings unavailable, never invented.
-        self.assertEqual(win.factor_meta.text().split("  •")[0].split(":")[1].strip(),
-                         "N/A")
+        # No technical top-list in the report -> uptrend screen shows the
+        # honest empty state (never invented symbols).
+        self.assertIn("No technical top-list", win.uptrend_note.text())
+        self.assertEqual(win.uptrend_table.rowCount(), 1)  # fill_table "—" row
+        self.assertEqual(win.uptrend_table.item(0, 0).text(), "—")
 
 
 if __name__ == "__main__":
