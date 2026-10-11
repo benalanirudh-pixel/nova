@@ -1067,4 +1067,35 @@ Checks run:
 Interpretation labels reuse `technical_engine`'s existing thresholds
 (RSI 70/30/55/45; MACD macd vs signal); a failing/short series yields N/A rather
 than an invented value. Not re-run here: NSE-MCP smoke (presentation-only change;
-the MCP path is untouched and was smoke-tested for the candles step). 
+the MCP path is untouched and was smoke-tested for the candles step).
+
+
+## 2026-10-11 - Master UI redesign (theme tokens, KPI strip, macro cards, breadth panel, sidebar)
+
+Code changed: `market_lab_ui.py`, `market_lab/widgets.py`, `market_lab/view_model.py`;
+tests in `tests/test_gui_smoke.py` (+`TestRedesign`). No backend/engine/cache/refresh
+logic changed; every displayed value still comes from the real report.
+
+Checks run:
+
+- `ast.parse` on all changed files; offscreen `MarketLabWindow` build: passed.
+- Real app path (`MarketLabWindow` -> `load_initial_report` on the cached report)
+  rendered and populated: header 56px; KPI NIFTY 22520.45 +1.30%, INDIA VIX 14.38
+  (-5.89% 1D), ADVANCES 1169 (59.2%), DECLINES 807 (40.8%), A/D 1.45; Section 01
+  shows the BEARISH regime card; Section 02 stacked bar has 2 segments; index
+  candles 63; RSI 36.49 BEARISH, MACD -28.76 BEARISH, ATR 263.48, VOL 13.74%.
+- `tests.test_gui_smoke` -> 43 OK (incl. `TestRedesign`: KPI populate, missing-KPI
+  N/A, macro regime label, breadth StackBar 2 segments).
+- `tests.test_view_model` (breadth A/D fallback) -> OK.
+- Full offline suite (offscreen): `Ran 323 tests ... OK` (319 -> 323; +4).
+
+Guardrails: analysis-only preserved; unsupported nav items (Indices, Sectors, Stocks,
+Screeners, News, Tools) are disabled and honestly labeled — no fake pages; Watchlist
+is a working shortcut to the Nova Analysis page. Missing KPIs render `N/A`, never a
+fabricated number.
+
+Visual verification (honest limitation): the window was rendered headless (offscreen)
+and a PNG proxy saved, but this environment cannot display/compare pixels, so the
+exact match to the reference screenshot still needs manual review. Deviation: the
+left rail is a wider column (~230-260px) because the sector panel is stacked beneath
+it; native window controls are used (no custom title bar). 

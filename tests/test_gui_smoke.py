@@ -885,3 +885,63 @@ class TestTerminalLayout(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+@unittest.skipIf(not QT_AVAILABLE, "PySide6 (Qt) is not installed")
+class TestRedesign(unittest.TestCase):
+    """KPI strip, macro cards and breadth panel render real report values."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    def _window(self):
+        win = MarketLabWindow()
+        self.addCleanup(win.deleteLater)
+        return win
+
+    def _report(self):
+        return {
+            "market": "NSE",
+            "generated": "2026-10-11T00:00:00+00:00",
+            "market_regime": "BEARISH",
+            "nifty_snapshot": {"price": 22520.45, "change_percent": 1.3,
+                               "open": 22315, "high": 22580, "low": 22295},
+            "volatility": {"india_vix": {"value": 14.38, "change_percent": -5.9,
+                                         "regime": "MODERATE"}},
+            "breadth": {"advancing": 100, "declining": 50, "unchanged": 5},
+        }
+
+    def test_kpi_strip_populates(self):
+        win = self._window()
+        win.display_report(self._report(), 0.0, cached=True)
+        self.assertEqual(win.kpi["nifty"]["value"].text(), "22,520.45")
+        self.assertIn("+1.30%", win.kpi["nifty"]["sub"].text())
+        self.assertEqual(win.kpi["vix"]["value"].text(), "14.38")
+        self.assertIn("-5.90%", win.kpi["vix"]["sub"].text())
+        self.assertEqual(win.kpi["advances"]["value"].text(), "100")
+        self.assertEqual(win.kpi["declines"]["value"].text(), "50")
+        self.assertEqual(win.kpi["ad"]["value"].text(), "2.00")
+        # advances bar fraction = 100/(100+50)
+        self.assertAlmostEqual(win.kpi["advances"]["bar"]._frac, 2 / 3, places=2)
+
+    def test_missing_kpi_shows_dash(self):
+        win = self._window()
+        win.display_report({"market": "NSE", "breadth": {}}, 0.0, cached=True)
+        self.assertEqual(win.kpi["nifty"]["value"].text(), "N/A")
+        self.assertEqual(win.kpi["advances"]["value"].text(), "N/A")
+
+    def test_section01_macro_cards_regime(self):
+        from PySide6.QtWidgets import QLabel
+        win = self._window()
+        win.display_report(self._report(), 0.0, cached=True)
+        labels = [l.text() for l in win.report_sections["01"].body.findChildren(QLabel)]
+        self.assertIn("BEARISH", labels)
+
+    def test_section02_breadth_stack_bar(self):
+        win = self._window()
+        win.display_report(self._report(), 0.0, cached=True)
+        from market_lab import widgets as _W
+        bars = win.report_sections["02"].body.findChildren(_W.StackBar)
+        self.assertEqual(len(bars), 1)
+        self.assertEqual(len(bars[0]._segments), 2)  # advances + declines

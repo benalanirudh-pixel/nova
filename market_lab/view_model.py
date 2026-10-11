@@ -396,11 +396,17 @@ def macro(report):
 
 def breadth_block(report):
     b = report.get("breadth") or {}
+    ad_ratio = _num(b.get("advance_decline_ratio", b.get("ad_ratio")))
+    if ad_ratio is None:
+        advances = _num(b.get("advancing"))
+        declines = _num(b.get("declining"))
+        if advances is not None and declines not in (None, 0):
+            ad_ratio = advances / declines
     return {
         "advancing": b.get("advancing", N_A),
         "declining": b.get("declining", N_A),
         "unchanged": b.get("unchanged", N_A),
-        "ad_ratio": _num(b.get("advance_decline_ratio", b.get("ad_ratio"))),
+        "ad_ratio": ad_ratio,
         "above_ema20_percent": _num(b.get("above_ema20_percent")),
         "above_ema50_percent": _num(b.get("above_ema50_percent")),
         "above_ema200_percent": _num(b.get("above_ema200_percent")),

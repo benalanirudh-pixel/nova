@@ -3,6 +3,62 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-11 - Master UI redesign: theme tokens, KPI strip, macro cards, breadth panel, expanded sidebar
+
+A large presentation refresh of `market_lab_ui.py` / `market_lab/widgets.py`
+toward the institutional-terminal reference. No backend, engine, cache, or
+refresh logic changed; every value still comes from the real report.
+
+- Centralized the exact theme palette in both modules (BG `#050B10`, sidebar
+  `#061019`, panel `#091620`, card `#0D1B26`, alt row `#0F202B`, border
+  `#183746`/`#102936`, text `#F2F6FA`/secondary `#91A9BE`/muted `#617A91`,
+  cyan `#00D9F5`, green `#00E6A0`, red `#FF4058`, amber `#FFBD4A`). Table
+  typography bumped (header 9px, data 10pt).
+- **KPI strip** on the Dashboard: five cards — NIFTY 50 (price + change),
+  INDIA VIX (value + change), ADVANCES (count + green fill bar + % of movers),
+  DECLINES (count + red fill bar + %), A/D RATIO. New `W.FillBar` and
+  `W.StackBar` widgets. All real; missing -> `N/A`.
+- **Section 01 – Macro Overview** redesigned into three horizontal cards:
+  dominant colored **Market Regime** (red/bearish, green/bullish, cyan/else),
+  **NIFTY 50 Level** (value + real sparkline from candles), **India VIX**
+  (value + 1D change + regime).
+- **Section 02 – Market Breadth** redesigned into a visual internals panel:
+  green/red **stacked advances-vs-declines bar** (proportions from real counts),
+  big advances/declines counts + % of movers, and an A/D ratio block. Added
+  `view_model.breadth_block` A/D ratio fallback = advances/declines.
+- **Sidebar** expanded: working nav styled dark-blue active + cyan indicator
+  (`NAV_QSS`, `switch_page` now uses `setChecked`); first tab renamed
+  "Markets"; unsupported destinations (Indices, Sectors, Stocks, Screeners,
+  News, Tools) are **disabled and honestly labeled** (no fake pages); Watchlist
+  is a working shortcut to the Nova Analysis page; added a NOVA identity mark
+  at the rail bottom.
+- Header search placeholder -> `Search symbol, sector, or insight...` (still the
+  real watchlist-pin behavior).
+
+Guardrails unchanged (analysis-only, no broker/orders, honest N/A).
+
+Files changed:
+- `market_lab_ui.py`, `market_lab/widgets.py`, `market_lab/view_model.py`
+- `tests/test_gui_smoke.py` (+`TestRedesign`: KPI, missing-KPI N/A, macro
+  regime card, breadth stack bar)
+
+Validation:
+
+- `ast.parse` on all changed files; offscreen `MarketLabWindow` build passes;
+  real `load_initial_report` -> KPI/macro/breadth populate with genuine values
+  (NIFTY 22,520.45 +1.30%, VIX 14.38, Advances 1,169 / Declines 807, A/D 1.45,
+  regime BEARISH, stacked bar 2 segments, RSI 36.49, MACD -28.76).
+- `tests.test_gui_smoke` -> 43 OK; full offline suite -> `Ran 323 tests ... OK`
+  (319 -> 323; +4). `tests.test_view_model` (breadth A/D fallback) still OK.
+
+Visual verification (honest): the window was rendered headless (offscreen) and
+a PNG proxy saved, but this environment cannot display/compare pixels, so the
+side-by-side match to the reference screenshot still needs your eyes. Known
+deviation: the left rail is a wider column (~230-260px) because the sector
+panel is stacked beneath it (the reference uses a ~160-180px slim rail); I kept
+it wider so sector names don't clip. Desktop native window controls are used
+(no custom title bar).
+
 ## 2026-10-11 - Real RSI + MACD on the dashboard indicator cards
 
 The RSI/MACD indicator cards were empty because the saved report carries only

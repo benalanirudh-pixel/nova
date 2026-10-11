@@ -46,20 +46,36 @@ from market_lab import widgets as W
 APP_NAME = "NOVA MARKET LAB"
 
 BG = "#050B10"
-SIDEBAR = "#070F16"
-PANEL = "#09141D"
-PANEL_ALT = "#0D1D28"
-BORDER = "#1B3443"
+SIDEBAR = "#061019"
+PANEL = "#091620"
+PANEL_ALT = "#0D1B26"
+ALT_ROW = "#0F202B"
+BORDER = "#183746"
+BORDER_ALT = "#102936"
 
-TEXT = "#E6F0F7"
-MUTED = "#8298AA"
+TEXT = "#F2F6FA"
+SECONDARY = "#91A9BE"
+MUTED = "#91A9BE"
+MUTED2 = "#617A91"
 
-GREEN = "#20E69A"
-CYAN = "#36DDF2"
+GREEN = "#00E6A0"
+CYAN = "#00D9F5"
 PURPLE = "#B49AFF"
-AMBER = "#FFC45B"
-RED = "#FF465B"
+AMBER = "#FFBD4A"
+RED = "#FF4058"
 BLUE = "#3198FF"
+
+# Left-rail navigation styling: dark-blue active + cyan indicator; disabled dim.
+NAV_QSS = """
+QPushButton {
+    text-align:left; padding:9px 12px; background:transparent;
+    border:none; border-left:3px solid transparent;
+    color:%s; font-size:10pt; font-weight:600;
+}
+QPushButton:hover { background:%s; color:%s; }
+QPushButton:checked { background:%s; color:%s; border-left:3px solid %s; }
+QPushButton:disabled { color:%s; }
+""" % (SECONDARY, PANEL_ALT, TEXT, "#0A2230", CYAN, CYAN, MUTED2)
 
 FONT = "Segoe UI"
 
@@ -576,6 +592,18 @@ class MarketLabWindow(QMainWindow):
     # UI
     # --------------------------------------------------------
 
+    def _make_nav(self, text, active, enabled=True):
+        button = QPushButton(text)
+        button.setCheckable(True)
+        button.setChecked(active)
+        button.setEnabled(enabled)
+        button.setCursor(
+            Qt.CursorShape.PointingHandCursor if enabled
+            else Qt.CursorShape.ArrowCursor
+        )
+        button.setStyleSheet(NAV_QSS)
+        return button
+
     def build_ui(self):
         root = QWidget()
         self.setCentralWidget(root)
@@ -639,7 +667,7 @@ class MarketLabWindow(QMainWindow):
         self.nav_buttons = []
 
         specs = [
-            ("Dashboard", self.build_overview),
+            ("Markets", self.build_overview),
             ("Market Report", self.build_report_page),
             ("Nova Analysis", self.build_analysis_page),
             ("Factor Backtest", self.build_backtest_page),
@@ -647,7 +675,7 @@ class MarketLabWindow(QMainWindow):
         ]
 
         for index, (title, builder) in enumerate(specs):
-            nav = make_button(f"{index + 1:02d}   {title}", index == 0)
+            nav = self._make_nav(f"{index + 1:02d}  {title}", index == 0)
             nav.clicked.connect(
                 lambda checked=False, i=index: self.switch_page(i)
             )
@@ -655,15 +683,56 @@ class MarketLabWindow(QMainWindow):
             self.nav_buttons.append(nav)
             self.pages.addWidget(builder())
 
+        # Unsupported destinations: shown but disabled and honestly marked —
+        # NOT fake pages. Watchlist works, but lives on the Nova Analysis page.
+        rail_layout.addSpacing(6)
+        rail_layout.addWidget(make_label("UNAVAILABLE", 8, MUTED2, True))
+        unavailable = [
+            ("Indices", None),
+            ("Sectors", None),
+            ("Stocks", None),
+            ("Screeners", None),
+            ("Watchlist", "Watchlist is on the Nova Analysis page"),
+            ("News", None),
+            ("Tools", None),
+        ]
+        for label, tip in unavailable:
+            if tip:
+                nav = self._make_nav(f"       {label}", False, enabled=False)
+                nav.setToolTip(tip)
+                nav.clicked.connect(
+                    lambda checked=False, i=2: self.switch_page(i)
+                )
+                nav.setEnabled(True)
+                nav.setToolTip(f"{tip} (jumps to Nova Analysis)")
+            else:
+                nav = self._make_nav(f"       {label}", False, enabled=False)
+                nav.setToolTip("Not available in this build")
+            rail_layout.addWidget(nav)
+            self.nav_buttons.append(nav)
+
         rail_layout.addStretch()
-        rail_layout.addWidget(make_label("SYSTEM MODE", 9, MUTED, True))
-        rail_layout.addWidget(make_label("READ-ONLY", 12, GREEN, True))
-        rail_layout.addWidget(make_label(
-            "No broker connection\n"
-            "No order placement\n"
-            "No automatic execution",
-            9, MUTED,
-        ))
+
+        # NOVA identity mark at the bottom of the rail.
+        identity = QHBoxLayout()
+        identity.setSpacing(8)
+        mark = QLabel("N")
+        mark.setFixedSize(28, 28)
+        mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        mark.setStyleSheet(
+            f"QLabel {{ background:{PANEL_ALT}; color:{CYAN};"
+            f" border:1px solid {CYAN}; border-radius:14px;"
+            f" font-weight:bold; }}"
+        )
+        identity.addWidget(mark)
+        idcol = QVBoxLayout()
+        idcol.setSpacing(0)
+        idcol.addWidget(make_label("NOVA", 11, TEXT, True))
+        idcol.addWidget(make_label("MARKET LAB · read-only", 8, MUTED2))
+        identity.addLayout(idcol)
+        identity.addStretch()
+        rail_layout.addLayout(identity)
+
         left_layout.addWidget(rail)
 
         # Sector overview beneath the rail (real sector data only).
@@ -722,7 +791,7 @@ class MarketLabWindow(QMainWindow):
         # Symbol search pins a symbol into the existing watchlist engine.
         self.symbol_search = QLineEdit()
         self.symbol_search.setFixedWidth(230)
-        self.symbol_search.setPlaceholderText("Symbol search (e.g. RELIANCE)")
+        self.symbol_search.setPlaceholderText("Search symbol, sector, or insight...")
         self.symbol_search.returnPressed.connect(self._search_symbol)
         hl.addWidget(self.symbol_search)
 
@@ -858,6 +927,211 @@ class MarketLabWindow(QMainWindow):
                         candles[-1]["l"] = min(candles[-1]["l"], float(card["low"]))
                 c["chart"].set_candles(self._slice_candles(candles, rng))
 
+    # --------------------------------------------------------
+    # KPI strip (real values only)
+    # --------------------------------------------------------
+
+    _KPI_TITLES = (
+        ("nifty", "NIFTY 50"),
+        ("vix", "INDIA VIX"),
+        ("advances", "ADVANCES"),
+        ("declines", "DECLINES"),
+        ("ad", "A/D RATIO"),
+    )
+
+    def _kpi_card(self, title):
+        frame, layout = W.panel(title)
+        layout.setSpacing(4)
+        value = W.make_label("—", 22, TEXT, bold=True, mono=True)
+        layout.addWidget(value)
+        sub = W.make_label("—", 10, MUTED)
+        layout.addWidget(sub)
+        bar = W.FillBar()
+        bar.setVisible(False)
+        layout.addWidget(bar)
+        return {"frame": frame, "value": value, "sub": sub, "bar": bar}
+
+    def build_kpi_strip(self):
+        strip = QHBoxLayout()
+        strip.setSpacing(10)
+        self.kpi = {}
+        for key, title in self._KPI_TITLES:
+            card = self._kpi_card(title)
+            strip.addWidget(card["frame"], 1)
+            self.kpi[key] = card
+        return strip
+
+    def render_kpi(self, report):
+        try:
+            card = vm.index_card(report, "nifty")
+            macro = vm.macro(report)
+            breadth = vm.breadth_block(report)
+
+            def set_change(cell, value):
+                if isinstance(value, (int, float)):
+                    cell.setText(fmt_pct(value))
+                    cell.setStyleSheet(
+                        f"color:{W.sign_color(value)};"
+                        "background:transparent;border:none;"
+                    )
+                else:
+                    cell.setText(vm.N_A)
+                    cell.setStyleSheet(
+                        f"color:{MUTED};background:transparent;border:none;"
+                    )
+
+            c = self.kpi["nifty"]
+            c["value"].setText(fmt_price(card["price"]))
+            set_change(c["sub"], card["change_percent"])
+            c["bar"].setVisible(False)
+
+            c = self.kpi["vix"]
+            c["value"].setText(fmt_num(macro["india_vix"]))
+            set_change(c["sub"], macro["vix_change_percent"])
+            c["bar"].setVisible(False)
+
+            advances = breadth["advancing"]
+            declines = breadth["declining"]
+            total = None
+            if (isinstance(advances, (int, float))
+                    and isinstance(declines, (int, float))
+                    and (advances + declines) > 0):
+                total = advances + declines
+
+            c = self.kpi["advances"]
+            c["value"].setText(f"{advances:,}" if isinstance(advances, (int, float)) else vm.N_A)
+            if total:
+                frac = advances / total
+                c["bar"].set_fraction(frac, GREEN)
+                c["bar"].setVisible(True)
+                c["sub"].setText(f"{frac * 100:.1f}% of movers")
+            else:
+                c["bar"].setVisible(False)
+                c["sub"].setText(vm.N_A)
+
+            c = self.kpi["declines"]
+            c["value"].setText(f"{declines:,}" if isinstance(declines, (int, float)) else vm.N_A)
+            if total:
+                frac = declines / total
+                c["bar"].set_fraction(frac, RED)
+                c["bar"].setVisible(True)
+                c["sub"].setText(f"{frac * 100:.1f}% of movers")
+            else:
+                c["bar"].setVisible(False)
+                c["sub"].setText(vm.N_A)
+
+            c = self.kpi["ad"]
+            c["value"].setText(fmt_num(breadth["ad_ratio"]))
+            c["sub"].setText("advance / decline")
+            c["bar"].setVisible(False)
+        except Exception:
+            self._render_failure("kpi", sys.exc_info()[1])
+
+    # --------------------------------------------------------
+    # Section renderers: Macro cards (01) + Breadth panel (02)
+    # --------------------------------------------------------
+
+    def _macro_cards(self, report):
+        m = vm.macro(report)
+        row = QWidget()
+        h = QHBoxLayout(row)
+        h.setSpacing(12)
+        h.setContentsMargins(0, 0, 0, 0)
+
+        # Card A — Market Regime (dominant, tinted by regime)
+        regime = str(m["market_regime"]).upper()
+        accent = RED if regime == "BEARISH" else (
+            GREEN if regime == "BULLISH" else CYAN
+        )
+        card_a, la = W.panel("Market Regime")
+        card_a.setStyleSheet(
+            f"QFrame#novaPanel {{ background:{PANEL};"
+            f" border:1px solid {accent}; border-radius:8px; }}"
+        )
+        la.addWidget(W.make_label(regime, 30, accent, bold=True))
+        la.addWidget(W.make_label("scanner classification (not a signal)", 9, MUTED))
+        la.addStretch()
+        h.addWidget(card_a, 30)
+
+        # Card B — NIFTY 50 Level (+ real sparkline from candles)
+        card_b, lb = W.panel("NIFTY 50 Level")
+        lb.addWidget(W.make_label(fmt_price(m["nifty_price"]), 26, TEXT,
+                                  bold=True, mono=True))
+        closes = [c["c"] for c in (report.get("nifty_candles") or [])
+                  if isinstance(c, dict)]
+        spark = W.Sparkline(width=220, height=40)
+        spark.set_series(closes[-40:])
+        lb.addWidget(spark)
+        h.addWidget(card_b, 35)
+
+        # Card C — India VIX (Dhan/engine value + 1D change; no series -> no sparkline)
+        card_c, lc = W.panel("India VIX")
+        lc.addWidget(W.make_label(fmt_num(m["india_vix"]), 26, TEXT,
+                                  bold=True, mono=True))
+        lc.addWidget(W.make_label(f"{fmt_pct(m['vix_change_percent'])} 1D", 11,
+                                  W.sign_color(m["vix_change_percent"]), mono=True))
+        lc.addWidget(W.make_label(f"regime: {m['vix_regime']}", 9, MUTED))
+        h.addWidget(card_c, 35)
+        return row
+
+    def _breadth_panel(self, report):
+        b = vm.breadth_block(report)
+        row = QWidget()
+        h = QHBoxLayout(row)
+        h.setSpacing(14)
+        h.setContentsMargins(0, 0, 0, 0)
+
+        advances = b["advancing"]
+        declines = b["declining"]
+        total = None
+        if (isinstance(advances, (int, float))
+                and isinstance(declines, (int, float))
+                and (advances + declines) > 0):
+            total = advances + declines
+
+        # Advances (left)
+        left = QVBoxLayout()
+        left.addWidget(W.make_label("ADVANCES", 10, MUTED, True))
+        left.addWidget(W.make_label(
+            f"{advances:,}" if isinstance(advances, (int, float)) else vm.N_A,
+            24, GREEN, bold=True, mono=True))
+        left.addWidget(W.make_label(
+            f"{advances / total * 100:.1f}% of movers" if total else vm.N_A,
+            9, MUTED))
+        h.addLayout(left)
+
+        # Stacked bar (center)
+        bar = W.StackBar(height=18)
+        if total:
+            bar.set_segments([(advances / total, GREEN),
+                              (declines / total, RED)])
+        h.addWidget(bar, 1)
+
+        # Declines (right of bar)
+        right = QVBoxLayout()
+        right.addWidget(W.make_label("DECLINES", 10, MUTED, True))
+        right.addWidget(W.make_label(
+            f"{declines:,}" if isinstance(declines, (int, float)) else vm.N_A,
+            24, RED, bold=True, mono=True))
+        right.addWidget(W.make_label(
+            f"{declines / total * 100:.1f}% of movers" if total else vm.N_A,
+            9, MUTED))
+        h.addLayout(right)
+
+        # A/D ratio (far right, separated)
+        h.addWidget(self._vsep())
+        ad = QVBoxLayout()
+        ad.addWidget(W.make_label("A/D RATIO", 10, MUTED, True))
+        ad.addWidget(W.make_label(fmt_num(b["ad_ratio"]), 22, TEXT,
+                                  bold=True, mono=True))
+        ad.addWidget(W.make_label("advance / decline", 9, MUTED))
+        h.addLayout(ad)
+        return row
+
+    @staticmethod
+    def _macro_availability(report):
+        return "AVAILABLE" if vm.macro(report).get("market_regime") else vm.N_A
+
     def build_overview(self):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -866,6 +1140,9 @@ class MarketLabWindow(QMainWindow):
         layout = QVBoxLayout(page)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(12)
+
+        # --- Market KPI strip ---
+        layout.addLayout(self.build_kpi_strip())
 
         # --- Chart range selector (slices the stored real candles) ---
         range_row = QHBoxLayout()
@@ -1120,6 +1397,14 @@ class MarketLabWindow(QMainWindow):
         W.fill_table(table, rows)
         return table
 
+    @staticmethod
+    def _vsep():
+        from PySide6.QtWidgets import QFrame as _QF
+        line = _QF()
+        line.setFixedWidth(1)
+        line.setStyleSheet(f"background:{BORDER}; border:none;")
+        return line
+
     def _fill_section(self, number, availability, add_func):
         section = self.report_sections[number]
         section.set_availability(availability)
@@ -1179,6 +1464,7 @@ class MarketLabWindow(QMainWindow):
 
     def render_dashboard(self, report):
         # --- Index cards ---
+        self.render_kpi(report)
         for which in ("nifty", "bank_nifty"):
             card = vm.index_card(report, which)
             c = self.index_cards[which]
@@ -1316,28 +1602,18 @@ class MarketLabWindow(QMainWindow):
             pass
 
     def render_report_sections(self, report):
-        # --- 01 Macro ---
+        # --- 01 Macro Overview (premium 3-card row) ---
         macro = vm.macro(report)
-        self._fill_section("01", "AVAILABLE", lambda s: s.add(self._kv_table([
-            ["Market regime", macro["market_regime"]],
-            ["NIFTY level", fmt_price(macro["nifty_price"])],
-            ["India VIX", fmt_num(macro["india_vix"])],
-            ["VIX regime", macro["vix_regime"]],
-            ["VIX change %", fmt_pct(macro["vix_change_percent"])],
-            ["VIX 1y percentile", fmt_num(macro["vix_percentile_1y"], 1)],
-        ])))
+        self._fill_section(
+            "01",
+            "AVAILABLE" if macro.get("market_regime") else vm.N_A,
+            lambda s: s.add(self._macro_cards(report)),
+        )
 
-        # --- 02 Breadth ---
-        b = vm.breadth_block(report)
-        self._fill_section("02", "AVAILABLE", lambda s: s.add(self._kv_table([
-            ["Advances", b["advancing"]],
-            ["Declines", b["declining"]],
-            ["A/D ratio", fmt_num(b["ad_ratio"])],
-            ["% above EMA200", fmt_pct(b["above_ema200_percent"], signed=False)],
-            ["New 52w highs", b["new_52w_highs"]],
-            ["New 52w lows", b["new_52w_lows"]],
-            ["McClellan Summation", b["mcclellan_summation"]],
-        ])))
+        # --- 02 Market Breadth (visual stacked advances/declines panel) ---
+        self._fill_section(
+            "02", "AVAILABLE", lambda s: s.add(self._breadth_panel(report))
+        )
 
         # --- 03 Sector ---
         sectors = vm.sector_rows(report, limit=20)
@@ -1717,18 +1993,7 @@ class MarketLabWindow(QMainWindow):
         self.pages.setCurrentIndex(index)
 
         for i, button in enumerate(self.nav_buttons):
-            active = i == index
-            button.setStyleSheet(f"""
-                QPushButton {{
-                    background:{GREEN if active else PANEL_ALT};
-                    color:{BG if active else TEXT};
-                    border:1px solid {GREEN if active else BORDER};
-                    border-radius:8px;
-                    padding:9px 12px;
-                    text-align:left;
-                    font-weight:600;
-                }}
-            """)
+            button.setChecked(i == index)
 
     # --------------------------------------------------------
     # STARTUP

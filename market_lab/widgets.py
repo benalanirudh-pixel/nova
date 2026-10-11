@@ -32,19 +32,23 @@ from PySide6.QtWidgets import (
 # ---------------------------------------------------------------------------
 
 BG = "#050B10"
-SIDEBAR = "#070F16"
-PANEL = "#09141D"
-PANEL_ALT = "#0D1D28"
-BORDER = "#1B3443"
+SIDEBAR = "#061019"
+PANEL = "#091620"
+PANEL_ALT = "#0D1B26"
+ALT_ROW = "#0F202B"
+BORDER = "#183746"
+BORDER_ALT = "#102936"
 
-TEXT = "#E6F0F7"
-MUTED = "#8298AA"
+TEXT = "#F2F6FA"
+SECONDARY = "#91A9BE"
+MUTED = "#91A9BE"
+MUTED2 = "#617A91"
 
-GREEN = "#20E69A"
-CYAN = "#36DDF2"
+GREEN = "#00E6A0"
+CYAN = "#00D9F5"
 PURPLE = "#B49AFF"
-AMBER = "#FFC45B"
-RED = "#FF465B"
+AMBER = "#FFBD4A"
+RED = "#FF4058"
 BLUE = "#3198FF"
 
 REGULAR = "Segoe UI"
@@ -692,6 +696,86 @@ class CandleChart(QWidget):
 
 
 # ---------------------------------------------------------------------------
+# Fill bar (0..1 horizontal) for KPI strips / breadth
+# ---------------------------------------------------------------------------
+
+class FillBar(QWidget):
+    """A thin left-to-right progress bar; fraction 0..1, honest color."""
+
+    def __init__(self, color=GREEN, height=8, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(height)
+        self._frac = 0.0
+        self._color = color
+
+    def set_fraction(self, frac, color=None):
+        try:
+            self._frac = max(0.0, min(1.0, float(frac)))
+        except (TypeError, ValueError):
+            self._frac = 0.0
+        if color:
+            self._color = color
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = self.rect()
+        h = r.height()
+        radius = h // 2
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(PANEL_ALT))
+        painter.drawRoundedRect(QRectF(r), radius, radius)
+        width = int(r.width() * self._frac)
+        if width > 0:
+            painter.setBrush(QColor(self._color))
+            painter.drawRoundedRect(QRectF(r.left(), r.top(), width, h), radius, radius)
+        painter.end()
+
+
+# ---------------------------------------------------------------------------
+# Stacked bar (segments) for breadth internals
+# ---------------------------------------------------------------------------
+
+class StackBar(QWidget):
+    """A single horizontal stacked bar of (fraction, color) segments.
+    Fractions should sum to ~1.0; used for the advances/declines split."""
+
+    def __init__(self, height=16, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(height)
+        self._segments = []
+
+    def set_segments(self, segments):
+        clean = []
+        for frac, color in segments or []:
+            try:
+                clean.append((max(0.0, float(frac)), color))
+            except (TypeError, ValueError):
+                continue
+        self._segments = clean
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = self.rect()
+        if not self._segments:
+            painter.setPen(QPen(QColor(MUTED)))
+            painter.drawText(r, Qt.AlignmentFlag.AlignCenter, "—")
+            painter.end()
+            return
+        x = float(r.left())
+        for frac, color in self._segments:
+            w = r.width() * frac
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(color))
+            painter.drawRect(QRectF(x, r.top(), w, r.height()))
+            x += w
+        painter.end()
+
+
+# ---------------------------------------------------------------------------
 # Tables
 # ---------------------------------------------------------------------------
 
@@ -718,21 +802,21 @@ def make_table(headers, stretch_column=1, sortable=False):
     table.setStyleSheet(f"""
         QTableWidget {{
             background:{PANEL_ALT};
-            alternate-background-color:{PANEL};
+            alternate-background-color:{ALT_ROW};
             color:{TEXT};
-            gridline-color:{BORDER};
+            gridline-color:{BORDER_ALT};
             border:1px solid {BORDER};
             border-radius:6px;
         }}
         QHeaderView::section {{
             background:{PANEL};
-            color:{MUTED};
+            color:{SECONDARY};
             border:none;
             border-bottom:1px solid {BORDER};
             padding:4px 6px;
-            font-size:8pt;
+            font-size:9pt;
         }}
-        QTableWidget::item {{ padding:3px 6px; font-size:9pt; }}
+        QTableWidget::item {{ padding:4px 6px; font-size:10pt; }}
     """)
     table.setMinimumHeight(120)
     return table
