@@ -1280,5 +1280,35 @@ Checks run:
 Not verified visually here: the on-screen hover/press/focus pixel rendering and
 the Enter-key chip position across widths (logic verified headlessly; the chip
 auto-hides below ~90px of free width and is repositioned in `resizeEvent`).
+
+
+## 2026-10-12 - AI Research Report redesigned (structured, tabbed)
+
+Code changed: `market_lab_ui.py` (report section only), new
+`market_lab/report_parser.py`, `tests/test_report_parser.py` (10),
+`tests/test_gui_smoke.py` (+2). No engine/data-source/AI-integration change.
+
+Checks run:
+
+- `ast.parse` on `market_lab_ui.py` and `market_lab/report_parser.py`: passed.
+- `tests.test_report_parser` -> 10 OK (numbered-heading split, raw preserved,
+  bias incl. INSUFFICIENT EVIDENCE, level extraction, plain-text fallback,
+  disclaimer/preamble lines skipped).
+- `tests.test_gui_smoke.TestStockAnalysisPage` -> OK incl.
+  `test_report_is_structured_with_tabs` (4 tabs: Technical Analysis /
+  Fundamental Context / Business Overview / Risks & Outlook; raw report kept;
+  bias rendered; no oversized "UNAVAILABLE" card) and
+  `test_copy_report_action_exists`.
+- Offscreen render of the structured report: tabs present with the 4 expected
+  labels, bias card shown, raw report preserved, page PNG proxy saved.
+- Full offline suite (offscreen): `Ran 366 tests ... OK` (354 -> 366).
+
+Honesty: bias and evidence come only from the AI report's own text; absent
+support/resistance and fundamentals are explained as limitations, never
+rendered as oversized cards or implied to be zero; the disclaimer stays
+compact and the previous successful report is preserved on a failed re-run.
+
+Not verified visually here: the on-screen tab/scroll/animation rendering and
+resize behavior at multiple widths (rendered offscreen + PNG proxy only).
   
  

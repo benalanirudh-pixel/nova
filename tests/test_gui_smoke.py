@@ -969,6 +969,56 @@ class TestStockAnalysisPage(unittest.TestCase):
         self.assertTrue(btn.isEnabled())
         self.assertEqual(btn.text(), "ANALYZE")
 
+    def _ok_result(self):
+        from PySide6.QtWidgets import QTabWidget
+        candles = [
+            {"t": "2026-09-%02d" % ((i % 27) + 1), "o": 100 + i, "h": 105 + i,
+             "l": 99 + i, "c": 103 + (i % 4), "v": 1000 + i}
+            for i in range(40)
+        ]
+        metrics = {
+            "symbol": "RELIANCE", "company_name": "Reliance Industries Limited",
+            "exchange": "NSE", "price": 1170.3, "change_percent": 0.8,
+            "high": 1179.0, "low": 1160.2, "volume": 12086708,
+            "high_52w": 1600.0, "low_52w": 1110.0, "trend": "STRONG_DOWNTREND",
+            "momentum_score": 0.0, "rsi_14": 35.4, "rsi_condition": "BEARISH",
+            "macd": -26.8, "macd_condition": "BEARISH", "atr_14": 22.2,
+            "relative_volume": 1.1, "timestamp": "2026-10-09 15:30:00+05:30",
+        }
+        report_text = (
+            "NOVA STOCK ANALYSIS — RELIANCE\n"
+            "### 1) Executive conclusion\nNEUTRAL with mixed evidence.\n"
+            "### 2) Bullish evidence\n- Price above EMA20\n"
+            "### 3) Bearish evidence\n- Price below EMA50\n"
+        )
+        return {"ok": True, "symbol": "RELIANCE", "metrics": metrics,
+                "candles": candles, "osc": {}, "ai": report_text}
+
+    def test_report_is_structured_with_tabs(self):
+        from PySide6.QtWidgets import QTabWidget, QLabel
+        win = self._window()
+        win.render_stock_result(self._ok_result())
+        tabs = win.stock_body.findChildren(QTabWidget)
+        self.assertGreaterEqual(len(tabs), 1)
+        self.assertEqual(
+            [tabs[0].tabText(i) for i in range(tabs[0].count())],
+            ["Technical Analysis", "Fundamental Context",
+             "Business Overview", "Risks & Outlook"])
+        # Full raw report preserved verbatim.
+        self.assertIn("NOVA STOCK ANALYSIS", win.stock_report.toPlainText())
+        # Bias is rendered.
+        labels = [l.text() for l in win.stock_body.findChildren(QLabel)]
+        self.assertTrue(any(l.strip() == "NEUTRAL" for l in labels))
+        # No oversized UNAVAILABLE cards remain.
+        self.assertFalse(any(l.strip() == "UNAVAILABLE" for l in labels))
+
+    def test_copy_report_action_exists(self):
+        win = self._window()
+        win.render_stock_result(self._ok_result())
+        btns = [b.text() for b in win.stock_body.findChildren(
+            __import__("PySide6.QtWidgets", fromlist=["QPushButton"]).QPushButton)]
+        self.assertIn("Copy", btns)
+
 
 @unittest.skipIf(not QT_AVAILABLE, "PySide6 (Qt) is not installed")
 class TestRedesign(unittest.TestCase):

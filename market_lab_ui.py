@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSplitter,
     QStackedWidget,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -39,6 +40,7 @@ from market_lab.market_lab_brain import analyze_market_lab, analyze_stock_report
 from market_lab import view_model as vm
 from market_lab import widgets as W
 from market_lab import stock_adapter
+from market_lab import report_parser
 from market_lab import icons as icons_module
 
 
@@ -1542,6 +1544,22 @@ class MarketLabWindow(QMainWindow):
             h.addWidget(card, 1)
         return row
 
+    def _bullets(self, items, color, empty="No points recorded in the analysis."):
+        box = QWidget()
+        lay = QVBoxLayout(box)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(5)
+        if not items:
+            note = W.make_label(empty, 9, MUTED)
+            note.setWordWrap(True)
+            lay.addWidget(note)
+        else:
+            for item in items:
+                label = W.make_label(f"\u2022  {item}", 9, color)
+                label.setWordWrap(True)
+                lay.addWidget(label)
+        return box
+
     # --------------------------------------------------------
     # Stock Analysis terminal (per-stock; real data + AI report)
     # --------------------------------------------------------
@@ -1758,33 +1776,10 @@ class MarketLabWindow(QMainWindow):
         chart_layout.addWidget(chart, 1)
         layout.addWidget(chart_frame, 1)
 
-        # AI report
-        report_frame, report_layout = W.panel(
-            "AI research report",
-            "Stock-specific. Raw observations are separated from AI "
-            "interpretation; conclusions are not validated predictions.")
-        self.stock_report = QPlainTextEdit()
-        self.stock_report.setReadOnly(True)
-        self.stock_report.setLineWrapMode(
-            QPlainTextEdit.LineWrapMode.WidgetWidth)
-        self._set_stock_ai(result.get("ai", "") or "", symbol)
-        report_layout.addWidget(self.stock_report, 1)
-        layout.addWidget(report_frame, 1)
+        # ---------------- AI Research Report (structured) ----------------
+        self._render_ai_report(layout, result, symbol, metrics, candles)
 
-        # Honest N/A cards for unavailable stock-level analysis
-        na_cards = [
-            self._stat_card("FUNDAMENTALS", "UNAVAILABLE", MUTED,
-                            "no fundamentals source in Nova"),
-            self._stat_card("INSTITUTIONAL", "UNAVAILABLE", MUTED,
-                            "stock holdings not available (only market-wide FII/DII)"),
-            self._stat_card("DERIVATIVES", "UNAVAILABLE", MUTED,
-                            "stock option chain not available"),
-            self._stat_card("SUPPORT/RES", "UNAVAILABLE", MUTED,
-                            "levels not calculated by the engine"),
-        ]
-        layout.addWidget(self._cards_row(na_cards))
-
-        # Data quality
+        # Data quality (compact)
         dq = stock_adapter.data_quality(metrics, candles)
         table = W.make_table(["Component", "Status"], stretch_column=0)
         W.fill_table(table, [[k, v] for k, v in dq.items()])
@@ -1800,13 +1795,199 @@ class MarketLabWindow(QMainWindow):
         ctx = stock_adapter.market_context(self.report or {})
         ctx_frame, ctx_layout = W.panel("Market-wide context (secondary)")
         ctx_layout.addWidget(W.make_label(
-            f"Regime: {ctx['market_regime']}  •  India VIX: {ctx['india_vix']}  "
-            f"•  FII 20D: {fmt_num(ctx['fii_20d'])}  •  DII 20D: {fmt_num(ctx['dii_20d'])}",
+            f"Regime: {ctx['market_regime']}  \u2022  India VIX: {ctx['india_vix']}  "
+            f"\u2022  FII 20D: {fmt_num(ctx['fii_20d'])}  "
+            f"\u2022  DII 20D: {fmt_num(ctx['dii_20d'])}",
             9, MUTED))
         ctx_layout.addWidget(W.make_label(
             "These are MARKET-WIDE figures, not this stock's own activity.",
             8, AMBER))
         layout.addWidget(ctx_frame)
+
+    def _render_ai_report(self, layout, result, symbol, metrics, candles):
+        """Structured AI Research Report: header, executive summary with bias,
+        bullish/bearish evidence, interactive tabs, key levels, risk, and a
+        raw fallback. Compact 'not available' notes replace oversized cards.
+        """
+        parsed = report_parser.parse_report(result.get("ai", "") or "")
+        bias = parsed["bias"]
+        bias_color = {
+            "BULLISH": GREEN, "BEARISH": RED, "NEUTRAL": MUTED,
+            "MIXED": AMBER, "INSUFFICIENT EVIDENCE": AMBER, "UNAVAILABLE": MUTED,
+        }.get(bias, MUTED)
+
+        report_frame, report_layout = W.panel()
+
+        # Header
+        hdr = QHBoxLayout()
+        ai_pm = icons_module.icon_pixmap("zap", CYAN, 24)
+        if ai_pm is not None:
+            icon_lbl = QLabel()
+            icon_lbl.setPixmap(ai_pm)
+            hdr.addWidget(icon_lbl)
+        titles = QVBoxLayout()
+        titles.setSpacing(1)
+        titles.addWidget(W.make_label("AI Research Report", 16, TEXT, True))
+        sub = W.make_label(
+            "Stock-specific research based on available market data. "
+            "Observations are separated from AI interpretation.", 9, MUTED)
+        sub.setWordWrap(True)
+        titles.addWidget(sub)
+        hdr.addLayout(titles)
+        hdr.addStretch()
+        hdr.addWidget(W.make_label("Success  \u2022  generated just now",
+                                   9, GREEN))
+        copy_btn = make_button("Copy", False)
+        copy_btn.clicked.connect(self._copy_stock_report)
+        hdr.addWidget(copy_btn)
+        refresh_btn = make_button("Re-run", False)
+        refresh_btn.clicked.connect(self.run_stock_analysis)
+        hdr.addWidget(refresh_btn)
+        report_layout.addLayout(hdr)
+        disclaimer = W.make_label(
+            "AI-generated analysis \u2014 informational and educational only; "
+            "not a validated prediction or instruction to trade.", 8, AMBER)
+        disclaimer.setWordWrap(True)
+        report_layout.addWidget(disclaimer)
+
+        # Executive summary: bias card + indicator KPIs
+        exec_row = QHBoxLayout()
+        bias_card, bias_layout = W.panel("Analytical bias")
+        bias_layout.addWidget(
+            W.make_label(bias, 22, bias_color, bold=True))
+        bias_layout.addWidget(W.make_label(
+            "From the report's own conclusion; not a forecast.", 8, MUTED))
+        exec_row.addWidget(bias_card)
+        kpi_strip = self._cards_row([
+            self._stat_card("TREND", metrics.get("trend", vm.N_A),
+                            self._trend_color(metrics.get("trend"))),
+            self._stat_card("MOMENTUM", fmt_num(metrics.get("momentum_score"), 1),
+                            CYAN, "scanner score, not a probability"),
+            self._stat_card("RSI 14", fmt_num(metrics.get("rsi_14")), None,
+                            str(metrics.get("rsi_condition", vm.N_A))),
+            self._stat_card("MACD", fmt_num(metrics.get("macd")), None,
+                            str(metrics.get("macd_condition", vm.N_A))),
+        ])
+        exec_row.addWidget(kpi_strip, 1)
+        report_layout.addLayout(exec_row)
+
+        # Bullish / Bearish evidence
+        bull_items = report_parser.collect_bullets(
+            report_parser.sections_matching(parsed, "bullish", "positive"))
+        bear_items = report_parser.collect_bullets(
+            report_parser.sections_matching(
+                parsed, "bearish", "negative", "risk", "limitation"))
+        bull_frame, bull_layout = W.panel("Bullish factors")
+        bull_layout.addWidget(self._bullets(bull_items, GREEN))
+        bear_frame, bear_layout = W.panel("Bearish factors")
+        bear_layout.addWidget(self._bullets(bear_items, RED))
+        bb = QHBoxLayout()
+        bb.addWidget(bull_frame, 1)
+        bb.addWidget(bear_frame, 1)
+        report_layout.addLayout(bb)
+
+        # Interactive tabs
+        tabs = QTabWidget()
+        tabs.setObjectName("reportTabs")
+        tabs.setStyleSheet(
+            f"QTabWidget#reportTabs::pane {{ border:1px solid {BORDER};"
+            f" border-radius:8px; top:-1px; }}"
+            f"QTabBar::tab {{ background:{PANEL}; color:{MUTED};"
+            " padding:6px 12px; border:1px solid transparent; }"
+            f"QTabBar::tab:selected {{ background:{PANEL_ALT}; color:{TEXT};"
+            f" border:1px solid {BORDER}; border-bottom:2px solid {CYAN}; }}"
+        )
+        tech_items = report_parser.collect_bullets(
+            report_parser.sections_matching(
+                parsed, "technical", "momentum", "trend")) or \
+            report_parser.collect_bullets(parsed.get("sections", {}))
+        tech_page = QWidget()
+        tech_layout = QVBoxLayout(tech_page)
+        tech_layout.addWidget(self._bullets(
+            tech_items, TEXT, "No technical observations were recorded."))
+        tech_scroll = QScrollArea()
+        tech_scroll.setWidgetResizable(True)
+        tech_scroll.setWidget(tech_page)
+        tabs.addTab(tech_scroll, "Technical Analysis")
+
+        fund_page = QWidget()
+        fund_layout = QVBoxLayout(fund_page)
+        fund_layout.addWidget(W.make_label(
+            "Fundamentals are not available: Nova has no fundamentals data "
+            "source, so no revenue, earnings, valuation or peer metrics are "
+            "shown. This is a data limitation, not a zero reading.",
+            10, AMBER))
+        tabs.addTab(fund_page, "Fundamental Context")
+
+        biz_page = QWidget()
+        biz_layout = QVBoxLayout(biz_page)
+        name = metrics.get("company_name") or symbol
+        biz_layout.addWidget(W.make_label(f"{name}  \u2022  {symbol}  \u2022  NSE",
+                                          12, TEXT, True))
+        biz_layout.addWidget(W.make_label(
+            "Business-segment and company-profile data are not provided by the "
+            "current Nova data sources; only identity from the exchange symbol "
+            "master is available.", 9, MUTED))
+        biz_layout.addStretch()
+        tabs.addTab(biz_page, "Business Overview")
+
+        risk_items = report_parser.collect_bullets(
+            report_parser.sections_matching(
+                parsed, "risk", "outlook", "limitation", "invalidat", "summary"))
+        risk_page = QWidget()
+        risk_layout = QVBoxLayout(risk_page)
+        risk_layout.addWidget(W.make_label("Risks & Outlook", 11, AMBER, True))
+        risk_layout.addWidget(self._bullets(
+            risk_items, TEXT, "No explicit risks were recorded in the report."))
+        risk_scroll = QScrollArea()
+        risk_scroll.setWidgetResizable(True)
+        risk_scroll.setWidget(risk_page)
+        tabs.addTab(risk_scroll, "Risks & Outlook")
+        report_layout.addWidget(tabs)
+
+        # Key price levels (compact; support/resistance not calculated)
+        level_rows = [
+            ("Resistance 2", parsed["levels"].get("r2")),
+            ("Resistance 1", parsed["levels"].get("r1")),
+            ("Current price", metrics.get("price")),
+            ("Support 1", parsed["levels"].get("s1")),
+            ("Support 2", parsed["levels"].get("s2")),
+        ]
+        level_table = W.make_table(["Level", "Value"], stretch_column=0)
+        W.fill_table(level_table, [[label, fmt_price(value)]
+                                   for label, value in level_rows])
+        levels_frame, levels_layout = W.panel("Key price levels")
+        levels_layout.addWidget(level_table)
+        levels_layout.addWidget(W.make_label(
+            "Support/resistance are not calculated by Nova's engine; values "
+            "shown only when the AI report states them. Absent \u2260 zero.",
+            8, MUTED))
+        report_layout.addWidget(levels_frame)
+
+        # Full AI report (raw) fallback so nothing is dropped.
+        raw_frame, raw_layout = W.panel("Full AI report (raw)")
+        self.stock_report = QPlainTextEdit()
+        self.stock_report.setReadOnly(True)
+        self.stock_report.setLineWrapMode(
+            QPlainTextEdit.LineWrapMode.WidgetWidth)
+        self._set_stock_ai(result.get("ai", "") or "", symbol)
+        raw_layout.addWidget(self.stock_report, 1)
+        raw_frame.setVisible(bool(parsed["raw"]))
+        report_layout.addWidget(raw_frame)
+
+        layout.addWidget(report_frame, 1)
+
+    def _copy_stock_report(self):
+        clipboard = QApplication.clipboard()
+        text = ""
+        if hasattr(self, "stock_report"):
+            text = self.stock_report.toPlainText()
+        if not text:
+            self.stock_status.setText("No report text to copy.")
+            return
+        clipboard.setText(text)
+        self.stock_status.setText("Report copied to clipboard.")
+        self.stock_status.setStyleSheet(f"color:{GREEN};")
 
     def _set_stock_ai(self, text, symbol=None):
         """Show the AI report; on an AI error, preserve the previous successful

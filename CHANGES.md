@@ -3,6 +3,46 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-12 - AI Research Report redesigned (structured, tabbed)
+
+Replaced the large plain-text report box and the row of oversized UNAVAILABLE
+cards in the Stock Analysis page with a structured report (only the AI Research
+Report section and its widgets changed; search/button/nav/chart untouched).
+
+New `market_lab/report_parser.py` (pure, stdlib): parses the AI report into
+sections/bias/key-levels and always preserves the raw text; detects the
+explicit bias (INSUFFICIENT EVIDENCE/BULLISH/BEARISH/NEUTRAL/MIXED) without
+inventing a stance.
+
+`market_lab_ui.py` (`render_stock_result` -> new `_render_ai_report`):
+- Header: AI icon, "AI Research Report" + subtitle, "Success - generated just
+  now", compact disclaimer, working Copy and Re-run actions.
+- Executive Summary: bias side card (colored) + KPI strip (trend, momentum
+  score, RSI 14, MACD) from real metrics.
+- Bullish / Bearish evidence panels derived from the report's own sections
+  (green/red bullets; honest empty state).
+- Interactive tabs: Technical Analysis / Fundamental Context / Business
+  Overview / Risks & Outlook (QTabWidget, content swaps in place).
+- Compact Key Price Levels table (R2/R1/current/S1/S2; absent levels explained,
+  never treated as zero).
+- Full raw report kept in a scrollable fallback so nothing is dropped; a failed
+  AI run still preserves the previous good report.
+- Fund/institutional/derivatives/S-R "oversized unavailable" cards removed;
+  limitations now shown as compact notes inside the relevant section.
+
+Unavailable-data honesty, analysis-only guardrails and all backend/AI data
+sources are unchanged.
+
+Files changed: `market_lab_ui.py`, `market_lab/report_parser.py` (new),
+`tests/test_report_parser.py` (new, 10), `tests/test_gui_smoke.py`
+(+`test_report_is_structured_with_tabs`, `test_copy_report_action_exists`).
+
+Validation: `ast.parse` on `market_lab_ui.py`/`report_parser.py`; offscreen
+render shows the 4 tabs, preserved raw report, bias card, and no oversized
+UNAVAILABLE card; `tests.test_report_parser` -> 10 OK,
+`tests.test_gui_smoke.TestStockAnalysisPage` -> OK; full suite
+`Ran 366 tests ... OK` (354 -> 366).
+
 ## 2026-10-12 - Premium ANALYZE button (Stock Analysis only)
 
 Replaced the plain Analyze button with a dedicated `AnalyzeButton`
