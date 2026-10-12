@@ -952,6 +952,23 @@ class TestStockAnalysisPage(unittest.TestCase):
         labels = [l.text() for l in win.stock_body.findChildren(QLabel)]
         self.assertTrue(any("Nothing was fabricated" in t for t in labels))
 
+    def test_analyze_button_is_premium_and_toggles(self):
+        btn = self._window().stock_analyze_btn
+        self.assertEqual(type(btn).__name__, "AnalyzeButton")
+        self.assertEqual(btn.objectName(), "analyzePrimaryButton")
+        qss = btn.styleSheet()
+        self.assertIn("qlineargradient", qss)          # cyan gradient
+        self.assertIn("#00D9F5", qss)
+        self.assertIn("border-radius: 12px", qss)
+        for state in (":hover", ":pressed", ":focus", ":disabled"):
+            self.assertIn(state, qss)
+        btn.set_busy(True)
+        self.assertFalse(btn.isEnabled())
+        self.assertIn("ANALYZING", btn.text())
+        btn.set_busy(False)
+        self.assertTrue(btn.isEnabled())
+        self.assertEqual(btn.text(), "ANALYZE")
+
 
 @unittest.skipIf(not QT_AVAILABLE, "PySide6 (Qt) is not installed")
 class TestRedesign(unittest.TestCase):

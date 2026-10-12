@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, QThread, QTimer, Signal
+from PySide6.QtCore import Qt, QThread, QTimer, QSize, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QApplication,
@@ -449,6 +449,92 @@ def make_button(text, primary=False):
         }}
     """)
     return button
+
+
+# Premium cyan "ANALYZE" button (Stock Analysis page only). Gradient QSS with
+# distinct hover/pressed/focus/disabled states plus an inline Enter-key hint.
+ANALYZE_BUTTON_QSS = """
+QPushButton#analyzePrimaryButton {
+    color: #031018;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                stop:0 #00D9F5, stop:1 #00E6C8);
+    border: 1px solid #00D9F5;
+    border-radius: 12px;
+    padding: 6px 38px 6px 16px;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 1px;
+}
+QPushButton#analyzePrimaryButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                stop:0 #2FE6FF, stop:1 #2BF0D6);
+    border: 1px solid #7BEEFF;
+}
+QPushButton#analyzePrimaryButton:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                stop:0 #00B8D0, stop:1 #00C9AE);
+    padding: 7px 38px 5px 16px;
+}
+QPushButton#analyzePrimaryButton:focus {
+    border: 2px solid #7BEEFF;
+}
+QPushButton#analyzePrimaryButton:disabled {
+    background: #17313e;
+    color: #5d707b;
+    border: 1px solid #1f3b48;
+}
+"""
+
+
+class AnalyzeButton(QPushButton):
+    """Premium cyan ANALYZE button with an inline Enter-key hint.
+
+    Only styling/hint; the caller wires `.clicked` to the existing analysis.
+    """
+
+    def __init__(self, text="ANALYZE", parent=None):
+        super().__init__(text, parent)
+        self.setObjectName("analyzePrimaryButton")
+        self.setMinimumSize(150, 50)
+        self.setMaximumHeight(54)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setStyleSheet(ANALYZE_BUTTON_QSS)
+        try:
+            from market_lab.icons import make_icon
+
+            icon = make_icon("zap", "#031018", 16)
+            if icon and not icon.isNull():
+                self.setIcon(icon)
+                self.setIconSize(QSize(16, 16))
+        except Exception:
+            pass
+        self._hint = QLabel("\u23CE", self)  # return symbol
+        self._hint.setObjectName("analyzeEnterHint")
+        self._hint.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self._hint.setStyleSheet(
+            "QLabel#analyzeEnterHint { color:#031018;"
+            " background: rgba(3,16,24,0.14); border-radius:4px;"
+            " padding:1px 5px; font-size:11px; }"
+        )
+        self._hint.hide()
+
+    def set_busy(self, busy):
+        """Reflect the running state; restores the normal label when done."""
+        self.setEnabled(not busy)
+        self.setText("ANALYZING \u2026" if busy else "ANALYZE")
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if not hasattr(self, "_hint") or self._hint is None:
+            return
+        self._hint.adjustSize()
+        x = self.width() - self._hint.width() - 14
+        # Keep room for the label; only show the hint when the button is wide.
+        if self.isEnabled() and self.width() >= (self._hint.width() + 90):
+            self._hint.move(x, (self.height() - self._hint.height()) // 2)
+            self._hint.show()
+        else:
+            self._hint.hide()
 
 
 def make_panel(title, subtitle=None):
@@ -1507,10 +1593,8 @@ class MarketLabWindow(QMainWindow):
         self.stock_range.setCurrentIndex(1)
         self.stock_range.currentIndexChanged.connect(self._stock_range_changed)
         row.addWidget(self.stock_range)
-        self.stock_analyze_btn = make_button("ANALYZE", True)
+        self.stock_analyze_btn = AnalyzeButton("ANALYZE")
         self.stock_analyze_btn.clicked.connect(self.run_stock_analysis)
-        self.stock_analyze_btn.setIcon(
-            icons_module.make_icon("zap", BG, 14))
         row.addWidget(self.stock_analyze_btn)
         row.addStretch()
         cl.addLayout(row)
@@ -2669,7 +2753,7 @@ class MarketLabWindow(QMainWindow):
             self.footer.setText("Factor backtest running in the background…")
 
         elif name == "stock_analysis":
-            self.stock_analyze_btn.setEnabled(False)
+            self.stock_analyze_btn.set_busy(True)
             self.footer.setText("Stock analysis running in the background…")
 
         worker.start()
@@ -2723,7 +2807,7 @@ class MarketLabWindow(QMainWindow):
 
         elif name == "stock_analysis":
             self.render_stock_result(result if isinstance(result, dict) else {})
-            self.stock_analyze_btn.setEnabled(True)
+            self.stock_analyze_btn.set_busy(False)
             self.stock_status.setText(
                 f"Analysis complete in {elapsed:.2f}s.")
             self.stock_status.setStyleSheet(f"color:{GREEN};")
@@ -2767,7 +2851,7 @@ class MarketLabWindow(QMainWindow):
                 "See the terminal output for details."
             )
         elif name == "stock_analysis":
-            self.stock_analyze_btn.setEnabled(True)
+            self.stock_analyze_btn.set_busy(False)
             self.stock_status.setText(
                 f"Stock analysis failed after {elapsed:.1f}s: {error}")
             self.stock_status.setStyleSheet(f"color:{RED};")

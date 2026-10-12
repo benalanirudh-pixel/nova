@@ -1258,5 +1258,27 @@ Checks run:
 Guardrails: no synthetic candles/bars; invalid series are dropped with an
 explicit diagnostic rather than plotted; the chart never fabricates dates or
 prices.
+
+
+## 2026-10-12 - Premium ANALYZE button (Stock Analysis only)
+
+Code changed: `market_lab_ui.py` (new `AnalyzeButton` + `ANALYZE_BUTTON_QSS`;
+creation + enable/disable sites now use `set_busy`). Only this button's styling
+and label toggle changed; `run_stock_analysis`, search, mode, range, and result
+rendering are untouched. No new dependencies.
+
+Checks run:
+
+- `ast.parse` on `market_lab_ui.py`: passed.
+- Offscreen build: objectName `analyzePrimaryButton`; QSS contains the cyan
+  gradient + `#00D9F5` + `border-radius: 12px` + `:hover`/`:pressed`/`:focus`/
+  `:disabled`; lightning icon present; `set_busy(True)` -> text `ANALYZING …`,
+  disabled; `set_busy(False)` -> text `ANALYZE`, enabled.
+- `tests.test_gui_smoke` -> 52 OK (incl. `test_analyze_button_is_premium_and_toggles`).
+- Full offline suite (offscreen): `Ran 354 tests ... OK` (353 -> 354).
+
+Not verified visually here: the on-screen hover/press/focus pixel rendering and
+the Enter-key chip position across widths (logic verified headlessly; the chip
+auto-hides below ~90px of free width and is repositioned in `resizeEvent`).
   
  

@@ -3,6 +3,24 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-12 - Premium ANALYZE button (Stock Analysis only)
+
+Replaced the plain Analyze button with a dedicated `AnalyzeButton`
+(`market_lab_ui.py`): cyan gradient `#00D9F5 -> #00E6C8`, 12px radius, bold
+uppercase `ANALYZE` in dark navy `#031018`, left lightning icon, Enter-key hint
+chip inside the right edge (hidden when the button is narrow), and QSS
+`hover`/`pressed`/`focus`/`disabled` states. `set_busy()` toggles the
+`ANALYZING …` + disabled state and restores `ANALYZE` on completion/failure.
+The existing `.clicked -> run_stock_analysis` handler and all backend behavior
+are unchanged; no second button or duplicate handler. Only the button and its
+styling changed — search, mode, range, result rendering are untouched.
+
+Validation: `ast.parse` ok; offscreen build confirms objectName
+`analyzePrimaryButton`, gradient/`#00D9F5`/12px radius/hover-pressed-focus-
+disabled in the QSS, lightning icon present, and `set_busy` toggling label +
+enabled; `tests.test_gui_smoke` -> 52 OK (incl. the new button test); full
+suite `Ran 354 tests ... OK`.
+
 ## 2026-10-11 - Fix corrupted stock chart (non-finite + future-date validation)
 
 Root cause of the corrupted chart: the plot received **NaN warm-up values**
