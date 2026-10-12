@@ -1560,6 +1560,25 @@ class MarketLabWindow(QMainWindow):
                 lay.addWidget(label)
         return box
 
+    def _evidence_panel(self, title, items, color, icon_name):
+        """An evidence panel with an icon + bold title header row, bullet list,
+        and a trailing stretch so paired panels align to the same top and fill
+        equal height."""
+        frame, layout = W.panel()
+        header = QHBoxLayout()
+        header.setSpacing(8)
+        pm = icons_module.icon_pixmap(icon_name, color, 16)
+        if pm is not None:
+            icon_label = QLabel()
+            icon_label.setPixmap(pm)
+            header.addWidget(icon_label)
+        header.addWidget(W.make_label(title, 10, color, bold=True))
+        header.addStretch()
+        layout.addLayout(header)
+        layout.addWidget(self._bullets(items, color))
+        layout.addStretch()
+        return frame
+
     # --------------------------------------------------------
     # Stock Analysis terminal (per-stock; real data + AI report)
     # --------------------------------------------------------
@@ -1877,11 +1896,12 @@ class MarketLabWindow(QMainWindow):
         bear_items = report_parser.collect_bullets(
             report_parser.sections_matching(
                 parsed, "bearish", "negative", "risk", "limitation"))
-        bull_frame, bull_layout = W.panel("Bullish factors")
-        bull_layout.addWidget(self._bullets(bull_items, GREEN))
-        bear_frame, bear_layout = W.panel("Bearish factors")
-        bear_layout.addWidget(self._bullets(bear_items, RED))
+        bull_frame = self._evidence_panel(
+            "Bullish factors", bull_items, GREEN, "trending-up")
+        bear_frame = self._evidence_panel(
+            "Bearish factors", bear_items, RED, "trending-down")
         bb = QHBoxLayout()
+        bb.setSpacing(12)
         bb.addWidget(bull_frame, 1)
         bb.addWidget(bear_frame, 1)
         report_layout.addLayout(bb)
