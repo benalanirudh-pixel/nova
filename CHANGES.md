@@ -3,6 +3,44 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-12 - Stock Analysis page rebuilt (two-column, no chart)
+
+The Stock Analysis page now has only three areas: the controls panel, a Stock
+Overview column, and an AI Research Report column.
+
+- Removed from this page: the price/volume/RSI/MACD chart, the interactive
+  report tabs, the standalone data-quality table and market-wide panel (no
+  oversized empty panels, no giant raw-text box).
+- Left column ("Stock Overview"): company identity (name, symbol, exchange,
+  sector tag when resolvable), prominent last price + change with the
+  last-session timestamp, four KPI cards (Trend, Momentum Score, RSI 14, MACD)
+  and a "Key observations" card derived from real metrics.
+- Right column ("AI Research Report"): header with AI icon + compact
+  disclaimer + status + Copy; Executive Summary with an Overall Bias card;
+  side-by-side Bullish/Bearish factors; a slim Key Price Levels table (R2/R1/
+  current/S1/S2, "support/resistance not calculated" when absent); and a
+  compact collapsed "Show full report" so the full AI text is preserved.
+- Empty state before analysis: "Ready to analyze a stock" with the required
+  subtitle; a loading indicator replaces it while analyzing.
+- The two columns use a responsive layout (side-by-side when wide, stacked when
+  narrow); controls (symbol, mode, range, Analyze, Enter-to-run) and the
+  analysis/Ollama pipeline are unchanged.
+
+New adapter helpers (pure): `stock_observations(metrics)` and
+`stock_sector(symbol)`. Analysis-only guardrails and honesty preserved; no
+fabricated metrics, levels, fundamentals or market data.
+
+Files changed: `market_lab_ui.py` (Stock Analysis page only),
+`market_lab/stock_adapter.py` (`stock_observations`, `stock_sector`),
+`tests/test_gui_smoke.py`, `tests/test_stock_adapter.py`.
+
+Validation: `ast.parse` on `market_lab_ui.py`/`stock_adapter.py`; offscreen
+render shows the empty state, then the two columns with Stock overview / Key
+observations / AI Research Report / Executive Summary / Overall Bias / Bullish /
+Bearish / Key price levels, Copy + collapsed raw report, and no chart;
+`tests.test_gui_smoke.TestStockAnalysisPage` + `tests.test_stock_adapter` -> OK;
+full suite `Ran 371 tests ... OK` (366 -> 371).
+
 ## 2026-10-12 - AI Research Report redesigned (structured, tabbed)
 
 Replaced the large plain-text report box and the row of oversized UNAVAILABLE

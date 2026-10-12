@@ -935,12 +935,12 @@ class TestStockAnalysisPage(unittest.TestCase):
         from PySide6.QtWidgets import QTableWidget, QPlainTextEdit, QLabel
         win = self._window()
         win.render_stock_result(self._result())
-        tables = win.stock_body.findChildren(QTableWidget)
-        self.assertGreaterEqual(len(tables), 1)          # data-quality table
-        edits = win.stock_body.findChildren(QPlainTextEdit)
+        tables = win.stock_body_host.findChildren(QTableWidget)
+        self.assertGreaterEqual(len(tables), 1)          # key-levels table
+        edits = win.stock_body_host.findChildren(QPlainTextEdit)
         self.assertTrue(any("NOVA STOCK ANALYSIS" in e.toPlainText()
                             for e in edits))             # AI report present
-        labels = [l.text() for l in win.stock_body.findChildren(QLabel)]
+        labels = [l.text() for l in win.stock_body_host.findChildren(QLabel)]
         self.assertTrue(any("Reliance Industries" in t for t in labels))
 
     def test_no_data_result_is_honest(self):
@@ -949,7 +949,7 @@ class TestStockAnalysisPage(unittest.TestCase):
         win.render_stock_result({"ok": False, "symbol": "FOOBAR",
                                  "metrics": {}, "candles": [],
                                  "ai": ""})
-        labels = [l.text() for l in win.stock_body.findChildren(QLabel)]
+        labels = [l.text() for l in win.stock_body_host.findChildren(QLabel)]
         self.assertTrue(any("Nothing was fabricated" in t for t in labels))
 
     def test_analyze_button_is_premium_and_toggles(self):
@@ -994,28 +994,38 @@ class TestStockAnalysisPage(unittest.TestCase):
         return {"ok": True, "symbol": "RELIANCE", "metrics": metrics,
                 "candles": candles, "osc": {}, "ai": report_text}
 
-    def test_report_is_structured_with_tabs(self):
-        from PySide6.QtWidgets import QTabWidget, QLabel
+    def test_report_is_structured_two_column(self):
+        from PySide6.QtWidgets import QLabel, QPlainTextEdit
         win = self._window()
         win.render_stock_result(self._ok_result())
-        tabs = win.stock_body.findChildren(QTabWidget)
-        self.assertGreaterEqual(len(tabs), 1)
-        self.assertEqual(
-            [tabs[0].tabText(i) for i in range(tabs[0].count())],
-            ["Technical Analysis", "Fundamental Context",
-             "Business Overview", "Risks & Outlook"])
-        # Full raw report preserved verbatim.
-        self.assertIn("NOVA STOCK ANALYSIS", win.stock_report.toPlainText())
-        # Bias is rendered.
-        labels = [l.text() for l in win.stock_body.findChildren(QLabel)]
+        labels = [l.text() for l in win.stock_body_host.findChildren(QLabel)]
+        # Left column: Stock Overview.
+        self.assertIn("Stock overview", labels)
+        self.assertIn("Key observations", labels)
+        # Right column: AI Research Report structure.
+        for want in ("AI Research Report", "Executive Summary", "Overall Bias",
+                     "Bullish factors", "Bearish factors", "Key price levels"):
+            self.assertIn(want, labels)
+        # Bias rendered.
         self.assertTrue(any(l.strip() == "NEUTRAL" for l in labels))
-        # No oversized UNAVAILABLE cards remain.
+        # No chart and no oversized UNAVAILABLE cards.
         self.assertFalse(any(l.strip() == "UNAVAILABLE" for l in labels))
+        # Full raw report preserved (collapsed by default).
+        edits = win.stock_body_host.findChildren(QPlainTextEdit)
+        self.assertTrue(any("NOVA STOCK ANALYSIS" in e.toPlainText() for e in edits))
+
+    def test_empty_state_before_analysis(self):
+        from PySide6.QtWidgets import QLabel
+        win = self._window()
+        labels = [l.text() for l in win.stock_body_host.findChildren(QLabel)]
+        self.assertIn("Ready to analyze a stock", labels)
+        self.assertTrue(any(
+            "Enter a supported NSE symbol" in t for t in labels))
 
     def test_copy_report_action_exists(self):
         win = self._window()
         win.render_stock_result(self._ok_result())
-        btns = [b.text() for b in win.stock_body.findChildren(
+        btns = [b.text() for b in win.stock_body_host.findChildren(
             __import__("PySide6.QtWidgets", fromlist=["QPushButton"]).QPushButton)]
         self.assertIn("Copy", btns)
 

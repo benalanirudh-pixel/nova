@@ -210,6 +210,92 @@ def stock_oscillators(candles, limit=130):
         return {"rsi": [], "macd": [], "signal": [], "hist": []}
 
 
+def _is_finite(value):
+    return isinstance(value, (int, float)) and math.isfinite(value)
+
+
+def stock_observations(metrics):
+    """Real, data-grounded observations for the Stock Overview panel.
+
+    Each line is derived from a field that is actually present in the
+    metrics; nothing is invented and insufficient data is stated plainly.
+    """
+    obs = []
+    if not isinstance(metrics, dict):
+        return obs
+    price = metrics.get("price")
+    if not _is_finite(price):
+        return obs
+
+    def side(value, ref):
+        return "above" if value >= ref else "below"
+
+    for ema_key, label in (("ema_20", "EMA20"), ("ema_50", "EMA50"),
+                           ("ema_200", "EMA200")):
+        ref = metrics.get(ema_key)
+        if _is_finite(ref):
+            obs.append(f"Price is {side(price, ref)} {label} ({ref:,.1f}).")
+
+    rsi = metrics.get("rsi_14")
+    if _is_finite(rsi):
+        cond = metrics.get("rsi_condition")
+        obs.append(f"RSI(14) {rsi:.1f} -> {cond or 'n/a'}.")
+
+    macd_cond = metrics.get("macd_condition")
+    macd = metrics.get("macd")
+    if macd_cond or _is_finite(macd):
+        tail = f" (line {macd:.2f})." if _is_finite(macd) else "."
+        obs.append(f"MACD {macd_cond or 'n/a'}{tail}")
+
+    rv = metrics.get("relative_volume")
+    if _is_finite(rv):
+        obs.append(f"Volume {rv:.2f}x the 20-day average.")
+
+    high_52w = metrics.get("high_52w")
+    if _is_finite(high_52w) and high_52w > 0:
+        obs.append(
+            f"Price is {(high_52w - price) / high_52w * 100:.1f}% below the "
+            f"52-week high ({high_52w:,.1f})."
+        )
+
+    if not obs:
+        obs.append(
+            "Insufficient indicator data in the saved report for observations."
+        )
+    return obs
+
+
+def stock_sector(symbol):
+    """Best-effort sector/industry tag from the local classification cache.
+    Returns '' (never a guess) when no cache/column matches."""
+    try:
+        from analysis.data import sector_engine as se
+
+        frame = se.load_classification_cache()
+        if frame is None or getattr(frame, "empty", True):
+            return ""
+        sym_col = next(
+            (c for c in frame.columns if "SYMBOL" in c.upper()), None)
+        if not sym_col:
+            return ""
+        matched = frame[
+            frame[sym_col].astype(str).str.upper() == str(symbol).upper()
+        ]
+        if matched.empty:
+            return ""
+        sec_col = next(
+            (c for c in frame.columns
+             if any(k in c.upper() for k in ("SECTOR", "INDUSTRY", "MACRO"))),
+            None,
+        )
+        if not sec_col:
+            return ""
+        value = str(matched.iloc[0][sec_col]).strip()
+        return "" if value.lower() in ("nan", "none", "") else value
+    except Exception:
+        return ""
+
+
 def kpi_tiles(metrics: dict):
     """Compact stock KPI values from the metrics (or honest N/A)."""
     if not isinstance(metrics, dict):

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import sys
@@ -537,6 +537,34 @@ class AnalyzeButton(QPushButton):
             self._hint.show()
         else:
             self._hint.hide()
+
+
+class ResponsiveRow(QWidget):
+    """Two panels side by side when wide, stacked vertically when narrow."""
+
+    def __init__(self, left, right, threshold=900, parent=None):
+        super().__init__(parent)
+        self.left = left
+        self.right = right
+        self.threshold = threshold
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self._layout.setSpacing(12)
+        self._apply(self.width() >= self.threshold)
+
+    def _apply(self, horizontal):
+        while self._layout.count():
+            self._layout.takeAt(0)
+        if horizontal:
+            self._layout.addWidget(self.left, 1)
+            self._layout.addWidget(self.right, 1)
+        else:
+            self._layout.addWidget(self.left)
+            self._layout.addWidget(self.right)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._apply(self.width() >= self.threshold)
 
 
 def make_panel(title, subtitle=None):
@@ -1599,12 +1627,25 @@ class MarketLabWindow(QMainWindow):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(12)
 
-        # Controls
+        # ---- Controls (title/subtitle + status top-right) ----
         controls, cl = W.panel(
             "Stock analysis",
-            "Enter any supported NSE symbol. Metrics, chart and the AI report "
-            "are stock-specific. Analysis-only — no broker/orders.",
+            "Enter any supported NSE symbol. Metrics, summary and the AI "
+            "report are stock-specific. Analysis-only \u2014 no broker/orders.",
         )
+        header = QHBoxLayout()
+        header.addStretch()
+        self.stock_status_icon = QLabel()
+        pm = icons_module.icon_pixmap("activity", AMBER, 12)
+        if pm is not None:
+            self.stock_status_icon.setPixmap(pm)
+        else:
+            self.stock_status_icon.setText("\u25CF")
+        header.addWidget(self.stock_status_icon)
+        self.stock_status = W.make_label("Ready", 9, AMBER, True)
+        header.addWidget(self.stock_status)
+        cl.addLayout(header)
+
         row = QHBoxLayout()
         row.setSpacing(10)
         search_icon_pm = icons_module.icon_pixmap("search", MUTED, 16)
@@ -1635,42 +1676,64 @@ class MarketLabWindow(QMainWindow):
         row.addWidget(self.stock_analyze_btn)
         row.addStretch()
         cl.addLayout(row)
-        self.stock_status = W.make_label(
-            "Ready. Enter a symbol and press Analyze.", 9, MUTED)
-        cl.addWidget(self.stock_status)
         layout.addWidget(controls)
 
-        # Body (rebuilt per analysis) holder
-        self.stock_page_layout = layout
-        self._stock_clear()
+        # ---- Body host: empty state or the two-column result ----
+        self.stock_body_host = QWidget()
+        self.stock_body_layout = QVBoxLayout(self.stock_body_host)
+        self.stock_body_layout.setContentsMargins(0, 0, 0, 0)
+        self.stock_body_layout.setSpacing(12)
+        layout.addWidget(self.stock_body_host, 1)
+
+        self.stock_report = None
+        self._stock_show_empty()
         scroll.setWidget(page)
         return scroll
 
-    def _reset_stock_body(self):
-        """Rebuild a fresh stock-body container (avoids stale widget/layout
-        lifetime across analyses)."""
-        old = getattr(self, "stock_body", None)
-        if old is not None and self.stock_page_layout is not None:
-            self.stock_page_layout.removeWidget(old)
-            old.setParent(None)
-        self.stock_body = QWidget()
-        self.stock_body_layout = QVBoxLayout(self.stock_body)
-        self.stock_body_layout.setContentsMargins(0, 0, 0, 0)
-        self.stock_body_layout.setSpacing(12)
-        if self.stock_page_layout is not None:
-            self.stock_page_layout.addWidget(self.stock_body, 1)
+    def _stock_clear_body(self):
+        layout = getattr(self, "stock_body_layout", None)
+        if layout is None:
+            return
+        try:
+            while layout.count():
+                item = layout.takeAt(0)
+                w = item.widget()
+                if w is not None:
+                    w.setParent(None)
+        except RuntimeError:
+            pass
+
+    def _stock_show_empty(self):
+        self._stock_clear_body()
+        self.stock_report = None
+        box = QWidget()
+        col = QVBoxLayout(box)
+        col.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title = W.make_label("Ready to analyze a stock", 18, TEXT, True)
+        subtitle = W.make_label(
+            "Enter a supported NSE symbol above to view its metrics and AI "
+            "research report.", 11, MUTED)
+        subtitle.setWordWrap(True)
+        col.addWidget(title, alignment=Qt.AlignmentFlag.AlignCenter)
+        col.addWidget(subtitle, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.stock_body_layout.addWidget(box)
 
     def _stock_clear(self):
-        self._reset_stock_body()
-        placeholder = W.make_label(
-            "No stock analyzed yet. Enter a symbol above and press Analyze.",
-            10, MUTED)
-        self.stock_body_layout.addWidget(placeholder)
+        self._stock_show_empty()
 
     def _stock_range_changed(self):
         # Re-run with the new range only if a symbol is present.
         if self.stock_symbol_input.text().strip():
             self.run_stock_analysis()
+
+    def _stock_show_loading(self):
+        self._stock_clear_body()
+        self.stock_report = None
+        note = W.make_label(
+            f"Analyzing {self.stock_symbol_input.text().strip().upper()} \u2026",
+            12, CYAN)
+        note.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.stock_body_layout.addWidget(note)
 
     def run_stock_analysis(self):
         query = self.stock_symbol_input.text().strip()
@@ -1679,8 +1742,7 @@ class MarketLabWindow(QMainWindow):
             self.stock_status.setStyleSheet(f"color:{AMBER};")
             return
 
-        self._stock_clear()
-        self.stock_report_placeholder()
+        self._stock_show_loading()
 
         resolved = stock_adapter.resolve_symbol(query)
         if not resolved:
@@ -1713,307 +1775,279 @@ class MarketLabWindow(QMainWindow):
                 "symbol": symbol, "metrics": metrics, "candles": candles,
                 "osc": osc, "ai": ai}
 
-    def stock_report_placeholder(self):
-        layout = getattr(self, "stock_body_layout", None)
-        if layout is None:
-            return
-        self.stock_report = QPlainTextEdit()
-        self.stock_report.setReadOnly(True)
-        self.stock_report.setPlaceholderText("Waiting for analysis…")
-        self.stock_report.setMinimumHeight(180)
-        layout.addWidget(self.stock_report)
-
     def _stock_append_label(self, text, color):
         layout = getattr(self, "stock_body_layout", None)
         if layout is not None:
             layout.addWidget(W.make_label(text, 10, color))
 
     def render_stock_result(self, result):
-        self._reset_stock_body()
+        self._stock_clear_body()
         layout = getattr(self, "stock_body_layout", None)
         if layout is None:
             return
 
         metrics = result.get("metrics") if isinstance(result, dict) else None
         metrics = metrics if isinstance(metrics, dict) else {}
-        candles = result.get("candles") or []
         symbol = result.get("symbol") or metrics.get("symbol") or "?"
+        ai_text = result.get("ai", "") or ""
 
         if not metrics.get("price"):
+            self.stock_report = None
             self._stock_append_label(
                 f"No usable live/history data for {symbol} right now "
                 f"(provider unavailable or market closed). Nothing was "
                 f"fabricated.", AMBER)
-            self.stock_report = QPlainTextEdit()
-            self.stock_report.setReadOnly(True)
-            self.stock_report.setPlainText(
-                result.get("ai", "") or "No analysis generated.")
-            layout.addWidget(self.stock_report)
+            prev = getattr(self, "_last_stock_report", None)
+            keep = prev and prev.get("symbol") == symbol and prev.get("text")
+            text = keep or ai_text or "No analysis generated."
+            self._add_report_panel(text)
             return
 
-        # Identity strip
-        holder = self._stock_identity_panel(metrics)
-        layout.addWidget(holder)
+        overview = self._build_stock_overview(symbol, metrics)
+        report_panel = self._build_ai_report_panel(
+            symbol, metrics, ai_text, result.get("candles") or [])
+        layout.addWidget(ResponsiveRow(overview, report_panel))
 
-        # KPI cards (real metrics only)
-        ktiles = stock_adapter.kpi_tiles(metrics)
-        cards = [
-            self._stat_card("TREND", ktiles["trend"], self._trend_color(ktiles["trend"])),
-            self._stat_card("MOMENTUM SCORE",
-                            fmt_num(ktiles["momentum_score"], 1), CYAN,
-                            "scanner score, not a probability"),
-            self._stat_card("RSI 14", fmt_num(ktiles["rsi"]), None,
-                            str(ktiles["rsi_condition"])),
-            self._stat_card("MACD", fmt_num(ktiles["macd"]), None,
-                            str(ktiles["macd_condition"])),
-            self._stat_card("ATR 14", fmt_num(ktiles["atr"]), None, "INR"),
-            self._stat_card("REL VOLUME", fmt_num(ktiles["relative_volume"], 2)),
-        ]
-        layout.addWidget(self._cards_row(cards))
+    # -------------------- Stock Overview (left column) --------------------
 
-        # Chart (real candles + MA overlays; PyQtGraph price/volume/RSI/MACD
-        # when available, otherwise the lightweight QPainter candle chart).
-        chart_frame, chart_layout = W.panel(
-            "Price (daily OHLC)",
-            "Candles + volume + RSI/MACD from real history. Hover the price "
-            "panel for OHLC/change. Not a forecast.")
-        if getattr(W, "PG_AVAILABLE", False):
-            chart = W.PgCandleChart()
-            chart.setMinimumHeight(420)
-            osc = result.get("osc") or {}
-            chart.set_data(candles, osc.get("rsi"), osc.get("macd"),
-                           osc.get("signal"), osc.get("hist"))
-        else:
-            chart = W.CandleChart()
-            chart.setMinimumHeight(320)
-            chart.set_candles(candles)
-            overlays = []
-            for key, color in (("ma20", CYAN), ("ma50", AMBER), ("ma200", PURPLE)):
-                overlays.append({"values": [c.get(key) for c in candles],
-                                 "color": color})
-            chart.set_overlays(overlays)
-        chart_layout.addWidget(chart, 1)
-        layout.addWidget(chart_frame, 1)
+    def _build_stock_overview(self, symbol, metrics):
+        frame, layout = W.panel("Stock overview")
+        sector = stock_adapter.stock_sector(symbol)
+        tags = [symbol, metrics.get("exchange", "NSE")]
+        if sector:
+            tags.append(sector)
+        price = metrics.get("price")
+        change = metrics.get("change_percent")
+        ts = metrics.get("timestamp")
 
-        # ---------------- AI Research Report (structured) ----------------
-        self._render_ai_report(layout, result, symbol, metrics, candles)
+        id_row = QHBoxLayout()
+        left = QVBoxLayout()
+        left.setSpacing(2)
+        left.addWidget(W.make_label(
+            metrics.get("company_name") or symbol, 16, TEXT, True))
+        meta_text = "  \u2022  ".join(str(t) for t in tags)
+        if ts:
+            meta_text += f"  \u2022  as of {ts}"
+        meta = W.make_label(meta_text, 9, MUTED)
+        meta.setWordWrap(True)
+        left.addWidget(meta)
+        id_row.addLayout(left, 1)
 
-        # Data quality (compact)
-        dq = stock_adapter.data_quality(metrics, candles)
-        table = W.make_table(["Component", "Status"], stretch_column=0)
-        W.fill_table(table, [[k, v] for k, v in dq.items()])
-        for r in range(table.rowCount()):
-            state = table.item(r, 1).text()
-            color = GREEN if state == "AVAILABLE" else (
-                AMBER if state == "PARTIAL" else MUTED)
-            self._paint_cell(table, r, 1, color, center=True)
-        layout.addWidget(W.make_label("DATA QUALITY", 9, MUTED, True))
-        layout.addWidget(table)
+        right = QVBoxLayout()
+        right.setSpacing(2)
+        price_lbl = W.make_label(fmt_price(price), 22, TEXT, True, mono=True)
+        price_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
+        right.addWidget(price_lbl)
+        change_lbl = W.make_label(
+            fmt_pct(change) if isinstance(change, (int, float)) else vm.N_A,
+            13, W.sign_color(change), True, mono=True)
+        change_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
+        right.addWidget(change_lbl)
+        id_row.addLayout(right)
+        layout.addLayout(id_row)
 
-        # Secondary market-wide context (clearly labeled)
-        ctx = stock_adapter.market_context(self.report or {})
-        ctx_frame, ctx_layout = W.panel("Market-wide context (secondary)")
-        ctx_layout.addWidget(W.make_label(
-            f"Regime: {ctx['market_regime']}  \u2022  India VIX: {ctx['india_vix']}  "
-            f"\u2022  FII 20D: {fmt_num(ctx['fii_20d'])}  "
-            f"\u2022  DII 20D: {fmt_num(ctx['dii_20d'])}",
-            9, MUTED))
-        ctx_layout.addWidget(W.make_label(
-            "These are MARKET-WIDE figures, not this stock's own activity.",
-            8, AMBER))
-        layout.addWidget(ctx_frame)
+        kt = stock_adapter.kpi_tiles(metrics)
+        layout.addWidget(self._cards_row([
+            self._stat_card("TREND", kt["trend"],
+                            self._trend_color(kt["trend"])),
+            self._stat_card("MOMENTUM SCORE", fmt_num(kt["momentum_score"], 1),
+                            CYAN, "scanner score, not a probability"),
+            self._stat_card("RSI 14", fmt_num(kt["rsi"]), None,
+                            str(kt["rsi_condition"])),
+            self._stat_card("MACD", fmt_num(kt["macd"]), None,
+                            str(kt["macd_condition"])),
+        ]))
 
-    def _render_ai_report(self, layout, result, symbol, metrics, candles):
-        """Structured AI Research Report: header, executive summary with bias,
-        bullish/bearish evidence, interactive tabs, key levels, risk, and a
-        raw fallback. Compact 'not available' notes replace oversized cards.
-        """
-        parsed = report_parser.parse_report(result.get("ai", "") or "")
+        obs_frame, obs_layout = W.panel("Key observations")
+        obs_layout.addWidget(self._bullets(
+            stock_adapter.stock_observations(metrics), TEXT))
+        layout.addWidget(obs_frame)
+        layout.addStretch()
+        return frame
+
+    # ----------------- AI Research Report (right column) -----------------
+
+    def _build_ai_report_panel(self, symbol, metrics, ai_text, candles):
+        parsed = report_parser.parse_report(ai_text)
         bias = parsed["bias"]
         bias_color = {
             "BULLISH": GREEN, "BEARISH": RED, "NEUTRAL": MUTED,
             "MIXED": AMBER, "INSUFFICIENT EVIDENCE": AMBER, "UNAVAILABLE": MUTED,
         }.get(bias, MUTED)
+        is_error = ai_text.startswith((
+            "STOCK ANALYSIS AI ERROR", "MARKET LAB AI ERROR"))
 
         report_frame, report_layout = W.panel()
 
         # Header
         hdr = QHBoxLayout()
-        ai_pm = icons_module.icon_pixmap("zap", CYAN, 24)
+        ai_pm = icons_module.icon_pixmap("zap", CYAN, 22)
         if ai_pm is not None:
             icon_lbl = QLabel()
             icon_lbl.setPixmap(ai_pm)
             hdr.addWidget(icon_lbl)
         titles = QVBoxLayout()
         titles.setSpacing(1)
-        titles.addWidget(W.make_label("AI Research Report", 16, TEXT, True))
+        titles.addWidget(W.make_label("AI Research Report", 15, TEXT, True))
         sub = W.make_label(
-            "Stock-specific research based on available market data. "
-            "Observations are separated from AI interpretation.", 9, MUTED)
+            "Stock-specific analysis based on available market data. Not a "
+            "buy/sell recommendation.", 9, MUTED)
         sub.setWordWrap(True)
         titles.addWidget(sub)
         hdr.addLayout(titles)
         hdr.addStretch()
-        hdr.addWidget(W.make_label("Success  \u2022  generated just now",
-                                   9, GREEN))
+        hdr.addWidget(W.make_label("Generated just now", 9, GREEN))
         copy_btn = make_button("Copy", False)
         copy_btn.clicked.connect(self._copy_stock_report)
         hdr.addWidget(copy_btn)
-        refresh_btn = make_button("Re-run", False)
-        refresh_btn.clicked.connect(self.run_stock_analysis)
-        hdr.addWidget(refresh_btn)
         report_layout.addLayout(hdr)
-        disclaimer = W.make_label(
-            "AI-generated analysis \u2014 informational and educational only; "
-            "not a validated prediction or instruction to trade.", 8, AMBER)
-        disclaimer.setWordWrap(True)
-        report_layout.addWidget(disclaimer)
 
-        # Executive summary: bias card + indicator KPIs
+        if is_error:
+            note = W.make_label(ai_text, 10, RED)
+            note.setWordWrap(True)
+            report_layout.addWidget(note)
+            prev = getattr(self, "_last_stock_report", None)
+            if prev and prev.get("symbol") == symbol and prev.get("text"):
+                report_layout.addWidget(W.make_label(
+                    "Showing the previous successful report for this symbol.",
+                    9, AMBER))
+                self.stock_report = QPlainTextEdit()
+                self.stock_report.setReadOnly(True)
+                self.stock_report.setLineWrapMode(
+                    QPlainTextEdit.LineWrapMode.WidgetWidth)
+                self.stock_report.setPlainText(prev["text"])
+                report_layout.addWidget(self.stock_report, 1)
+            else:
+                self.stock_report = None
+            report_layout.addStretch()
+            return report_frame
+
+        # Executive Summary (bullets + bias card)
+        summary_items = report_parser.collect_bullets(
+            report_parser.sections_matching(
+                parsed, "executive", "conclusion", "summary", "overall")
+        ) or report_parser.collect_bullets(parsed.get("sections", {}))
+        exec_summary_card, sum_layout = W.panel("Executive Summary")
+        sum_layout.addWidget(self._bullets(
+            summary_items, TEXT, "The analysis did not include a summary."))
         exec_row = QHBoxLayout()
-        bias_card, bias_layout = W.panel("Analytical bias")
-        bias_layout.addWidget(
-            W.make_label(bias, 22, bias_color, bold=True))
-        bias_layout.addWidget(W.make_label(
-            "From the report's own conclusion; not a forecast.", 8, MUTED))
-        exec_row.addWidget(bias_card)
-        kpi_strip = self._cards_row([
-            self._stat_card("TREND", metrics.get("trend", vm.N_A),
-                            self._trend_color(metrics.get("trend"))),
-            self._stat_card("MOMENTUM", fmt_num(metrics.get("momentum_score"), 1),
-                            CYAN, "scanner score, not a probability"),
-            self._stat_card("RSI 14", fmt_num(metrics.get("rsi_14")), None,
-                            str(metrics.get("rsi_condition", vm.N_A))),
-            self._stat_card("MACD", fmt_num(metrics.get("macd")), None,
-                            str(metrics.get("macd_condition", vm.N_A))),
-        ])
-        exec_row.addWidget(kpi_strip, 1)
+        exec_row.addWidget(exec_summary_card, 3)
+        bias_card, bias_layout = W.panel("Overall Bias")
+        bias_layout.addWidget(W.make_label(bias, 22, bias_color, bold=True))
+        exec_row.addWidget(bias_card, 1)
         report_layout.addLayout(exec_row)
 
-        # Bullish / Bearish evidence
+        # Bullish / Bearish factors
         bull_items = report_parser.collect_bullets(
             report_parser.sections_matching(parsed, "bullish", "positive"))
         bear_items = report_parser.collect_bullets(
             report_parser.sections_matching(
                 parsed, "bearish", "negative", "risk", "limitation"))
-        bull_frame = self._evidence_panel(
-            "Bullish factors", bull_items, GREEN, "trending-up")
-        bear_frame = self._evidence_panel(
-            "Bearish factors", bear_items, RED, "trending-down")
         bb = QHBoxLayout()
         bb.setSpacing(12)
-        bb.addWidget(bull_frame, 1)
-        bb.addWidget(bear_frame, 1)
+        bb.addWidget(self._evidence_panel(
+            "Bullish factors", bull_items, GREEN, "trending-up"), 1)
+        bb.addWidget(self._evidence_panel(
+            "Bearish factors", bear_items, RED, "trending-down"), 1)
         report_layout.addLayout(bb)
 
-        # Interactive tabs
-        tabs = QTabWidget()
-        tabs.setObjectName("reportTabs")
-        tabs.setStyleSheet(
-            f"QTabWidget#reportTabs::pane {{ border:1px solid {BORDER};"
-            f" border-radius:8px; top:-1px; }}"
-            f"QTabBar::tab {{ background:{PANEL}; color:{MUTED};"
-            " padding:6px 12px; border:1px solid transparent; }"
-            f"QTabBar::tab:selected {{ background:{PANEL_ALT}; color:{TEXT};"
-            f" border:1px solid {BORDER}; border-bottom:2px solid {CYAN}; }}"
-        )
-        tech_items = report_parser.collect_bullets(
-            report_parser.sections_matching(
-                parsed, "technical", "momentum", "trend")) or \
-            report_parser.collect_bullets(parsed.get("sections", {}))
-        tech_page = QWidget()
-        tech_layout = QVBoxLayout(tech_page)
-        tech_layout.addWidget(self._bullets(
-            tech_items, TEXT, "No technical observations were recorded."))
-        tech_scroll = QScrollArea()
-        tech_scroll.setWidgetResizable(True)
-        tech_scroll.setWidget(tech_page)
-        tabs.addTab(tech_scroll, "Technical Analysis")
+        # Key Price Levels (slim)
+        report_layout.addWidget(self._key_levels_panel(parsed, metrics))
 
-        fund_page = QWidget()
-        fund_layout = QVBoxLayout(fund_page)
-        fund_layout.addWidget(W.make_label(
-            "Fundamentals are not available: Nova has no fundamentals data "
-            "source, so no revenue, earnings, valuation or peer metrics are "
-            "shown. This is a data limitation, not a zero reading.",
-            10, AMBER))
-        tabs.addTab(fund_page, "Fundamental Context")
+        # Compact market-wide context + unavailable-capability note
+        ctx = stock_adapter.market_context(self.report or {})
+        note = W.make_label(
+            f"Market-wide context (not this stock): regime "
+            f"{ctx['market_regime']}, India VIX {ctx['india_vix']}, "
+            f"FII 20D {fmt_num(ctx['fii_20d'])}, DII 20D "
+            f"{fmt_num(ctx['dii_20d'])} (INR crore). Fundamentals, stock-level "
+            f"FII/DII holdings and stock options are not available in Nova.",
+            8, AMBER)
+        note.setWordWrap(True)
+        report_layout.addWidget(note)
 
-        biz_page = QWidget()
-        biz_layout = QVBoxLayout(biz_page)
-        name = metrics.get("company_name") or symbol
-        biz_layout.addWidget(W.make_label(f"{name}  \u2022  {symbol}  \u2022  NSE",
-                                          12, TEXT, True))
-        biz_layout.addWidget(W.make_label(
-            "Business-segment and company-profile data are not provided by the "
-            "current Nova data sources; only identity from the exchange symbol "
-            "master is available.", 9, MUTED))
-        biz_layout.addStretch()
-        tabs.addTab(biz_page, "Business Overview")
+        # Full raw report, collapsed by default (compact toggle, not a box).
+        self._attach_raw_report(ai_text, symbol, report_layout)
+        report_layout.addStretch()
+        return report_frame
 
-        risk_items = report_parser.collect_bullets(
-            report_parser.sections_matching(
-                parsed, "risk", "outlook", "limitation", "invalidat", "summary"))
-        risk_page = QWidget()
-        risk_layout = QVBoxLayout(risk_page)
-        risk_layout.addWidget(W.make_label("Risks & Outlook", 11, AMBER, True))
-        risk_layout.addWidget(self._bullets(
-            risk_items, TEXT, "No explicit risks were recorded in the report."))
-        risk_scroll = QScrollArea()
-        risk_scroll.setWidgetResizable(True)
-        risk_scroll.setWidget(risk_page)
-        tabs.addTab(risk_scroll, "Risks & Outlook")
-        report_layout.addWidget(tabs)
+    def _key_levels_panel(self, parsed, metrics):
+        levels_frame, levels_layout = W.panel()
+        hdr = QHBoxLayout()
+        hdr.addWidget(W.make_label("Key price levels", 10, MUTED, True))
+        hdr.addStretch()
+        calculated = parsed.get("levels") or {}
+        hdr.addWidget(W.make_label(
+            "From analysis" if calculated else "Support/resistance not calculated",
+            8, GREEN if calculated else MUTED))
+        levels_layout.addLayout(hdr)
+        table = W.make_table(
+            ["Resistance 2", "Resistance 1", "Current price",
+             "Support 1", "Support 2"], stretch_column=0)
+        W.fill_table(table, [[
+            fmt_price(calculated.get("r2")),
+            fmt_price(calculated.get("r1")),
+            fmt_price(metrics.get("price")),
+            fmt_price(calculated.get("s1")),
+            fmt_price(calculated.get("s2")),
+        ]])
+        levels_layout.addWidget(table)
+        return levels_frame
 
-        # Key price levels (compact; support/resistance not calculated)
-        level_rows = [
-            ("Resistance 2", parsed["levels"].get("r2")),
-            ("Resistance 1", parsed["levels"].get("r1")),
-            ("Current price", metrics.get("price")),
-            ("Support 1", parsed["levels"].get("s1")),
-            ("Support 2", parsed["levels"].get("s2")),
-        ]
-        level_table = W.make_table(["Level", "Value"], stretch_column=0)
-        W.fill_table(level_table, [[label, fmt_price(value)]
-                                   for label, value in level_rows])
-        levels_frame, levels_layout = W.panel("Key price levels")
-        levels_layout.addWidget(level_table)
-        levels_layout.addWidget(W.make_label(
-            "Support/resistance are not calculated by Nova's engine; values "
-            "shown only when the AI report states them. Absent \u2260 zero.",
-            8, MUTED))
-        report_layout.addWidget(levels_frame)
-
-        # Full AI report (raw) fallback so nothing is dropped.
-        raw_frame, raw_layout = W.panel("Full AI report (raw)")
+    def _attach_raw_report(self, text, symbol, layout):
+        toggle = QPushButton("Show full report")
+        toggle.setCheckable(True)
+        toggle.setChecked(False)
+        toggle.setStyleSheet(
+            f"QPushButton {{ text-align:left; color:{CYAN};"
+            f" background:transparent; border:none; padding:2px; }}"
+            f"QPushButton:hover {{ color:{TEXT}; }}")
         self.stock_report = QPlainTextEdit()
         self.stock_report.setReadOnly(True)
         self.stock_report.setLineWrapMode(
             QPlainTextEdit.LineWrapMode.WidgetWidth)
-        self._set_stock_ai(result.get("ai", "") or "", symbol)
-        raw_layout.addWidget(self.stock_report, 1)
-        raw_frame.setVisible(bool(parsed["raw"]))
-        report_layout.addWidget(raw_frame)
+        self._set_stock_ai(text, symbol)
+        self.stock_report.setVisible(False)
+        toggle.toggled.connect(self.stock_report.setVisible)
+        layout.addWidget(toggle)
+        layout.addWidget(self.stock_report, 1)
 
-        layout.addWidget(report_frame, 1)
+    def _add_report_panel(self, text):
+        toggle = QPushButton("Show full report")
+        toggle.setCheckable(True)
+        toggle.setStyleSheet(
+            f"QPushButton {{ text-align:left; color:{CYAN};"
+            f" background:transparent; border:none; padding:2px; }}"
+            f"QPushButton:hover {{ color:{TEXT}; }}")
+        self.stock_report = QPlainTextEdit()
+        self.stock_report.setReadOnly(True)
+        self.stock_report.setLineWrapMode(
+            QPlainTextEdit.LineWrapMode.WidgetWidth)
+        self.stock_report.setPlainText(text)
+        self.stock_report.setVisible(False)
+        toggle.toggled.connect(self.stock_report.setVisible)
+        self.stock_body_layout.addWidget(toggle)
+        self.stock_body_layout.addWidget(self.stock_report, 1)
 
     def _copy_stock_report(self):
         clipboard = QApplication.clipboard()
         text = ""
-        if hasattr(self, "stock_report"):
+        if getattr(self, "stock_report", None) is not None:
             text = self.stock_report.toPlainText()
         if not text:
             self.stock_status.setText("No report text to copy.")
+            self.stock_status.setStyleSheet(f"color:{AMBER};")
             return
         clipboard.setText(text)
         self.stock_status.setText("Report copied to clipboard.")
         self.stock_status.setStyleSheet(f"color:{GREEN};")
 
     def _set_stock_ai(self, text, symbol=None):
-        """Show the AI report; on an AI error, preserve the previous successful
-        report for the same symbol (with its original content) instead of
-        replacing it with only an error/disclaimer."""
+        """Fill the raw report box; on an AI error, keep the previous good
+        report for the same symbol instead of only the error/disclaimer."""
         text = text or ""
+        if getattr(self, "stock_report", None) is None:
+            return
         is_error = (
             text.startswith("STOCK ANALYSIS AI ERROR")
             or text.startswith("MARKET LAB AI ERROR")
@@ -2021,33 +2055,10 @@ class MarketLabWindow(QMainWindow):
         prev = getattr(self, "_last_stock_report", None)
         if is_error and prev and prev.get("symbol") == symbol and prev.get("text"):
             self.stock_report.setPlainText(prev["text"])
-            self.stock_status.setText(
-                f"AI report failed; showing the previous good report "
-                f"for {symbol}.")
-            self.stock_status.setStyleSheet(f"color:{AMBER};")
             return
         self.stock_report.setPlainText(text)
         if not is_error and text:
             self._last_stock_report = {"symbol": symbol, "text": text}
-
-    def _stock_identity_panel(self, metrics):
-        frame, layout = W.panel("Selected security")
-        layout.addWidget(W.make_label(
-            f"{metrics.get('company_name') or metrics.get('symbol')}  •  "
-            f"{metrics.get('symbol')}  •  {metrics.get('exchange', 'NSE')}",
-            15, TEXT, True))
-        layout.addWidget(W.make_label(
-            f"Last {fmt_price(metrics.get('price'))}  "
-            f"({fmt_pct(metrics.get('change_percent'))})   "
-            f"H {fmt_points(metrics.get('high'))}  L {fmt_points(metrics.get('low'))}",
-            11, W.sign_color(metrics.get("change_percent")), mono=True))
-        layout.addWidget(W.make_label(
-            f"52W H {fmt_points(metrics.get('high_52w'))}  "
-            f"L {fmt_points(metrics.get('low_52w'))}  •  volume "
-            f"{metrics.get('volume') if isinstance(metrics.get('volume'), (int, float)) else vm.N_A}"
-            f"  •  as of {metrics.get('timestamp', vm.N_A)} (last session)",
-            9, MUTED))
-        return frame
 
     def build_overview(self):
         scroll = QScrollArea()

@@ -106,6 +106,33 @@ class TestOscillators(unittest.TestCase):
         self.assertEqual(stock_adapter.stock_oscillators(None)["rsi"], [])
 
 
+class TestObservations(unittest.TestCase):
+
+    def test_observations_grounded_in_present_fields(self):
+        metrics = {"price": 100.0, "ema_20": 105.0, "rsi_14": 35.4,
+                   "rsi_condition": "BEARISH", "macd_condition": "BEARISH",
+                   "relative_volume": 1.2, "high_52w": 120.0}
+        obs = stock_adapter.stock_observations(metrics)
+        joined = " ".join(obs)
+        self.assertIn("below EMA20", joined)   # 100 < 105
+        self.assertIn("RSI(14) 35.4 -> BEARISH", joined)
+        self.assertIn("1.20x the 20-day average", joined)
+        self.assertIn("below the 52-week high", joined)
+
+    def test_observations_insufficient_history(self):
+        obs = stock_adapter.stock_observations({"price": 100.0})
+        self.assertEqual(len(obs), 1)
+        self.assertIn("Insufficient indicator data", obs[0])
+
+    def test_observations_empty_without_price(self):
+        self.assertEqual(stock_adapter.stock_observations({"rsi_14": 50}), [])
+        self.assertEqual(stock_adapter.stock_observations(None), [])
+
+    def test_sector_returns_string(self):
+        # No cache present -> '' (never a guess).
+        self.assertIsInstance(stock_adapter.stock_sector("RELIANCE"), str)
+
+
 class TestKpiAndQuality(unittest.TestCase):
 
     def test_kpi_tiles(self):

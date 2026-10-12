@@ -1310,5 +1310,44 @@ compact and the previous successful report is preserved on a failed re-run.
 
 Not verified visually here: the on-screen tab/scroll/animation rendering and
 resize behavior at multiple widths (rendered offscreen + PNG proxy only).
+
+
+## 2026-10-12 - Stock Analysis page rebuilt (two-column, no chart)
+
+Code changed: `market_lab_ui.py` (Stock Analysis page only),
+`market_lab/stock_adapter.py` (`stock_observations`, `stock_sector`), tests in
+`tests/test_gui_smoke.py` and `tests/test_stock_adapter.py`. No engine,
+data-source, Ollama, cache, CLI or guardrail change.
+
+Shape (per the reference): controls panel on top; left "Stock Overview"
+(identity, four KPI cards, Key observations); right "AI Research Report"
+(header, Executive Summary + Overall Bias, Bullish/Bearish factors, slim Key
+Price Levels, collapsed raw report). No chart, no tabs, no oversized
+UNAVAILABLE cards, no giant raw-text box. `ResponsiveRow` stacks the two
+columns when narrow. Empty state before analysis: "Ready to analyze a stock".
+
+Checks run:
+
+- `ast.parse` on `market_lab_ui.py` and `market_lab/stock_adapter.py`: passed.
+- Offscreen render before analysis: empty-state heading + subtitle present.
+  After `render_stock_result`: Stock overview / Key observations / AI Research
+  Report / Executive Summary / Overall Bias / Bullish factors / Bearish factors
+  / Key price levels all present; bias rendered; Copy button present; raw report
+  hidden by default but preserving the full text; no chart widget; page PNG
+  proxy saved.
+- `tests.test_gui_smoke.TestStockAnalysisPage` -> OK (structure, empty state,
+  copy action, no-data honesty) and `tests.test_stock_adapter` -> OK
+  (observations, sector, kpi, candles, oscillators, validation).
+- Full offline suite (offscreen): `Ran 371 tests ... OK` (366 -> 371).
+
+Honesty: Key observations derive only from present metric fields; Key Price
+Levels state "support/resistance not calculated" when the engine provides none
+and never imply zero; market-wide FII/DII is labeled as market-wide context; the
+analysis-only disclaimer is compact. Observations use existing engine
+conditions (rsi/macd) — no new indicator math.
+
+Not verified visually here: the on-screen render at 1600x900 and the narrow
+(stacked) layout, plus the final pixel match to the reference (rendered
+offscreen + PNG proxy only).
   
  
