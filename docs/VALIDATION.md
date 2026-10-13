@@ -1386,5 +1386,33 @@ it is universally bullish or bearish.
 
 Not verified visually here: the on-screen render at 1600x900 and the exact
 pixel match to the reference; rendered headless + PNG proxy only.
+
+
+## 2026-10-13 - Market Breadth panel upgraded to visual layout
+
+Code changed: `market_lab_ui.py` (dashboard breadth panel only; the report's
+Section 02 already used this layout), `tests/test_gui_smoke.py` (+2). No
+engine, data-source, cache, or guardrail change; no new dependency.
+
+Checks run:
+
+- `ast.parse` on `market_lab_ui.py`: passed.
+- `tests.test_gui_smoke` -> 57 OK (incl. `test_market_breadth_visual_panel` and
+  `test_market_breadth_missing_data_is_na`).
+- Live render against a fresh report: advances 1,251 (63.0% of movers),
+  declines 734 (37.0%), A/D ratio 1.70, stacked bar with 2 segments,
+  above EMA20 28.01% / EMA50 27.61% / EMA200 34.97%, strong uptrend 13.26% /
+  strong downtrend 43.52%, unchanged 14. A note names the metrics the scanner
+  does not compute (new 52-week highs/lows, McClellan Summation).
+- Missing-data render (`breadth: {}`): all values N/A, empty stacked bar, no
+  zeros or fabricated numbers.
+- Full offline suite: `Ran 379 tests ... OK` (377 -> 379).
+
+Honesty: sections that show percentages compute movers as
+advances/(advances+declines); when counts are missing the panel shows N/A and
+an empty bar rather than substituting values.
+
+Not verified visually here: the exact on-screen pixel match at 1600x900
+(rendered headless + PNG proxy only).
   
  

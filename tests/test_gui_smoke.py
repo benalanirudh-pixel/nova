@@ -906,6 +906,43 @@ class TestTerminalLayout(unittest.TestCase):
         self.assertEqual(win.uptrend_table.rowCount(), 1)  # fill_table "—" row
         self.assertEqual(win.uptrend_table.item(0, 0).text(), "—")
 
+    def test_market_breadth_visual_panel(self):
+        win = self._window()
+        report = {
+            "market": "NSE",
+            "breadth": {
+                "advancing": 1251, "declining": 734, "unchanged": 14,
+                "ad_ratio": 1.70,
+                "above_ema20_percent": 28.01,
+                "above_ema50_percent": 27.61,
+                "above_ema200_percent": 34.97,
+                "strong_uptrend_percent": 13.26,
+                "strong_downtrend_percent": 43.52,
+            },
+        }
+        win.render_dashboard(report)
+
+        self.assertEqual(win.breadth_adv_value.text(), "1,251")
+        self.assertEqual(win.breadth_dec_value.text(), "734")
+        self.assertEqual(win.breadth_adv_pct.text(), "63.0% of movers")
+        self.assertEqual(win.breadth_dec_pct.text(), "37.0% of movers")
+        self.assertEqual(win.breadth_ad_value.text(), "1.70")
+        self.assertEqual(len(win.breadth_bar._segments), 2)
+        self.assertEqual(win.breadth_cards["above_ema20_percent"].text(),
+                         "28.01%")
+        self.assertEqual(win.breadth_cards["unchanged"].text(), "14")
+        # Metrics the scanner does not compute are explained, not fabricated.
+        self.assertIn("McClellan Summation", win.breadth_note.text())
+
+    def test_market_breadth_missing_data_is_na(self):
+        win = self._window()
+        win.render_dashboard({"market": "NSE", "breadth": {}})
+        self.assertEqual(win.breadth_adv_value.text(), "N/A")
+        self.assertEqual(win.breadth_dec_value.text(), "N/A")
+        self.assertEqual(win.breadth_adv_pct.text(), "N/A")
+        self.assertEqual(len(win.breadth_bar._segments), 0)
+        self.assertEqual(win.breadth_cards["above_ema20_percent"].text(), "N/A")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

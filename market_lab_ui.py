@@ -1654,6 +1654,21 @@ class MarketLabWindow(QMainWindow):
         layout.addStretch()
         return frame
 
+    def _mini_stat(self, title, note=""):
+        """A compact stat card whose value label can be updated in place."""
+        frame, layout = W.panel(title)
+        frame.setFixedHeight(64)
+        layout.setSpacing(1)
+        value_label = W.make_label("\u2014", 17, TEXT, bold=True, mono=True)
+        value_label.setWordWrap(False)
+        layout.addWidget(value_label)
+        if note:
+            note_label = W.make_label(note, 8, MUTED)
+            note_label.setWordWrap(False)
+            layout.addWidget(note_label)
+        layout.addStretch()
+        return frame, value_label
+
     def _cards_row(self, cards, spacing=10):
         row = QWidget()
         h = QHBoxLayout(row)
@@ -2225,13 +2240,72 @@ class MarketLabWindow(QMainWindow):
         )
         layout.addLayout(metrics)
 
-        # --- Breadth table ---
+        # --- Market breadth (advances/declines bar + EMA-breadth cards) ---
         bframe, blayout = W.panel(
             "Market breadth",
-            "Scanner breadth. Metrics the backend does not compute are N/A.",
+            "Scanner breadth across the analysed NSE universe. Metrics the "
+            "backend does not compute are N/A.",
         )
-        self.breadth_table = W.make_table(["Metric", "Value"], stretch_column=1)
-        blayout.addWidget(self.breadth_table)
+        summary = QHBoxLayout()
+        summary.setSpacing(14)
+        left = QVBoxLayout()
+        left.setSpacing(1)
+        left.addWidget(W.make_label("ADVANCES", 10, MUTED, True))
+        self.breadth_adv_value = W.make_label("\u2014", 24, GREEN, bold=True,
+                                              mono=True)
+        self.breadth_adv_value.setWordWrap(False)
+        left.addWidget(self.breadth_adv_value)
+        self.breadth_adv_pct = W.make_label("\u2014", 9, MUTED)
+        self.breadth_adv_pct.setWordWrap(False)
+        left.addWidget(self.breadth_adv_pct)
+        summary.addLayout(left)
+
+        self.breadth_bar = W.StackBar(height=18)
+        summary.addWidget(self.breadth_bar, 1)
+
+        right = QVBoxLayout()
+        right.setSpacing(1)
+        right.addWidget(W.make_label("DECLINES", 10, MUTED, True))
+        self.breadth_dec_value = W.make_label("\u2014", 24, RED, bold=True,
+                                              mono=True)
+        self.breadth_dec_value.setWordWrap(False)
+        right.addWidget(self.breadth_dec_value)
+        self.breadth_dec_pct = W.make_label("\u2014", 9, MUTED)
+        self.breadth_dec_pct.setWordWrap(False)
+        right.addWidget(self.breadth_dec_pct)
+        summary.addLayout(right)
+
+        summary.addWidget(self._vsep())
+        ad = QVBoxLayout()
+        ad.setSpacing(1)
+        ad.addWidget(W.make_label("A/D RATIO", 10, MUTED, True))
+        self.breadth_ad_value = W.make_label("\u2014", 22, TEXT, bold=True,
+                                            mono=True)
+        self.breadth_ad_value.setWordWrap(False)
+        ad.addWidget(self.breadth_ad_value)
+        ad.addWidget(W.make_label("advance / decline", 9, MUTED))
+        summary.addLayout(ad)
+        blayout.addLayout(summary)
+
+        cards = QHBoxLayout()
+        cards.setSpacing(10)
+        self.breadth_cards = {}
+        for key, title, note in (
+            ("above_ema20_percent", "ABOVE EMA20", "of analysed stocks"),
+            ("above_ema50_percent", "ABOVE EMA50", "of analysed stocks"),
+            ("above_ema200_percent", "ABOVE EMA200", "of analysed stocks"),
+            ("strong_uptrend_percent", "STRONG UPTREND", "of analysed stocks"),
+            ("strong_downtrend_percent", "STRONG DOWNTREND", "of analysed stocks"),
+            ("unchanged", "UNCHANGED", "stocks"),
+        ):
+            card, value_label = self._mini_stat(title, note)
+            self.breadth_cards[key] = value_label
+            cards.addWidget(card, 1)
+        blayout.addLayout(cards)
+
+        self.breadth_note = W.make_label("", 9, MUTED)
+        self.breadth_note.setWordWrap(True)
+        blayout.addWidget(self.breadth_note)
         layout.addWidget(bframe)
 
         # --- Live 1 s strip (pure in-memory repaint, no network) ---
@@ -2553,21 +2627,62 @@ class MarketLabWindow(QMainWindow):
 
         # --- Breadth ---
         b = vm.breadth_block(report)
-        rows = [
-            ["Advances", b["advancing"]],
-            ["Declines", b["declining"]],
-            ["Unchanged", b["unchanged"]],
-            ["A/D Ratio", fmt_num(b["ad_ratio"])],
-            ["% above EMA20", fmt_pct(b["above_ema20_percent"], signed=False)],
-            ["% above EMA50", fmt_pct(b["above_ema50_percent"], signed=False)],
-            ["% above EMA200", fmt_pct(b["above_ema200_percent"], signed=False)],
-            ["Strong uptrend %", fmt_pct(b["strong_uptrend_percent"], signed=False)],
-            ["Strong downtrend %", fmt_pct(b["strong_downtrend_percent"], signed=False)],
-            ["New 52w highs", b["new_52w_highs"]],
-            ["New 52w lows", b["new_52w_lows"]],
-            ["McClellan Summation", b["mcclellan_summation"]],
-        ]
-        W.fill_table(self.breadth_table, rows)
+        # --- Market breadth (advances/declines bar + EMA-breadth cards) ---
+        b = vm.breadth_block(report)
+        advances = b["advancing"]
+        declines = b["declining"]
+        total = None
+        if (isinstance(advances, (int, float))
+                and isinstance(declines, (int, float))
+                and (advances + declines) > 0):
+            total = advances + declines
+
+        self.breadth_adv_value.setText(
+            f"{advances:,}" if isinstance(advances, (int, float)) else vm.N_A)
+        self.breadth_dec_value.setText(
+            f"{declines:,}" if isinstance(declines, (int, float)) else vm.N_A)
+        self.breadth_adv_value.setStyleSheet(
+            f"color:{GREEN};background:transparent;border:none;")
+        self.breadth_dec_value.setStyleSheet(
+            f"color:{RED};background:transparent;border:none;")
+        if total:
+            adv_pct = advances / total * 100
+            dec_pct = declines / total * 100
+            self.breadth_adv_pct.setText(f"{adv_pct:.1f}% of movers")
+            self.breadth_dec_pct.setText(f"{dec_pct:.1f}% of movers")
+            self.breadth_bar.set_segments([(adv_pct / 100.0, GREEN),
+                                          (dec_pct / 100.0, RED)])
+        else:
+            self.breadth_adv_pct.setText(vm.N_A)
+            self.breadth_dec_pct.setText(vm.N_A)
+            self.breadth_bar.set_segments([])
+        self.breadth_ad_value.setText(fmt_num(b["ad_ratio"]))
+
+        for key, value_label in self.breadth_cards.items():
+            value = b.get(key)
+            if key == "unchanged":
+                value_label.setText(str(value))
+                value_label.setStyleSheet(
+                    f"color:{TEXT};background:transparent;border:none;")
+                continue
+            value_label.setText(fmt_pct(value, signed=False))
+            if isinstance(value, (int, float)):
+                value_label.setStyleSheet(
+                    f"color:{CYAN};background:transparent;border:none;")
+            else:
+                value_label.setStyleSheet(
+                    f"color:{MUTED};background:transparent;border:none;")
+
+        # Honest note for metrics the scanner does not compute.
+        missing = [name for name, value in (
+            ("new 52-week highs", b["new_52w_highs"]),
+            ("new 52-week lows", b["new_52w_lows"]),
+            ("McClellan Summation", b["mcclellan_summation"]),
+        ) if value == vm.N_A]
+        note = ""
+        if missing:
+            note = "Not computed by the scanner: " + ", ".join(missing) + "."
+        self.breadth_note.setText(note)
 
         self.update_header(report)
 

@@ -3,6 +3,31 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-13 - Market Breadth panel upgraded to visual layout
+
+Replaced the Market dashboard's plain field/value breadth table with the same
+visual language as the report's Section 02:
+
+- Big ADVANCES (green) and DECLINES (red) counts with their percentage of
+  movers, a green/red stacked proportion bar between them, and the
+  advance/decline ratio after a separator.
+- A row of compact cards: above EMA20 / EMA50 / EMA200, strong uptrend,
+  strong downtrend, and unchanged stocks.
+- A compact honest note naming the metrics the scanner does not compute
+  (new 52-week highs/lows, McClellan Summation) instead of silent N/A rows.
+
+Values update in place (no widget rebuild per refresh), and missing data
+renders as N/A rather than zeros or fabricated values. All values remain real
+scanner breadth output; no new dependencies.
+
+Files changed: `market_lab_ui.py`, `tests/test_gui_smoke.py`.
+
+Validation: `ast.parse` on `market_lab_ui.py`; `tests.test_gui_smoke` -> 57 OK
+(incl. two new breadth tests); full suite `Ran 379 tests ... OK`.
+Live render against a fresh report: Advances 1,251 (63.0%), Declines 734
+(37.0%), A/D 1.70, above EMA20 28.01% / EMA50 27.61% / EMA200 34.97%, strong
+uptrend 13.26% / strong downtrend 43.52%, unchanged 14.
+
 ## 2026-10-13 - NIFTY 50 + INDIA VIX index cards (Market dashboard)
 
 Upgraded the Market dashboard's index section to the two-card reference design
