@@ -42,6 +42,7 @@ from market_lab import widgets as W
 from market_lab import stock_adapter
 from market_lab import report_parser
 from market_lab import icons as icons_module
+from market_lab import theme
 
 
 # ============================================================
@@ -660,46 +661,7 @@ class MarketLabWindow(QMainWindow):
         self.resize(1500, 920)
         self.setMinimumSize(1050, 680)
 
-        self.setStyleSheet(f"""
-            QMainWindow, QWidget {{
-                background:{BG};
-                color:{TEXT};
-                font-family:'{FONT}';
-            }}
-            QLabel {{ background:transparent; border:none; }}
-            QFrame#panel {{
-                background:{PANEL};
-                border:1px solid {BORDER};
-                border-radius:8px;
-            }}
-            QFrame#sidebar {{
-                background:{SIDEBAR};
-                border:1px solid {BORDER};
-                border-radius:12px;
-            }}
-            QPlainTextEdit, QLineEdit {{
-                background:#070D12;
-                color:{TEXT};
-                border:1px solid {BORDER};
-                border-radius:8px;
-                padding:10px;
-                selection-background-color:#174B58;
-            }}
-            QPlainTextEdit {{
-                font-family:Consolas;
-                font-size:10pt;
-            }}
-            QScrollBar:vertical {{
-                background:{BG};
-                width:8px;
-                margin:0;
-            }}
-            QScrollBar::handle:vertical {{
-                background:{BORDER};
-                border-radius:4px;
-                min-height:28px;
-            }}
-        """)
+        self.setStyleSheet(theme.load_theme())
 
         self.build_ui()
         QTimer.singleShot(150, self.load_initial_report)

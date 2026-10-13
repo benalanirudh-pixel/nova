@@ -1,0 +1,67 @@
+# Nova Market Lab - centralized application theme
+#
+# Loaded by market_lab/theme.py from the project root (never the shell cwd).
+# Tokens mirror the palette in market_lab_ui.py; tests/test_theme.py keeps the
+# two in lock-step. Per-widget state styling (hover/pressed/active) and the
+# custom-painted chart widgets stay in code beside their widgets.
+
+/* Application shell ------------------------------------------------------ */
+QMainWindow, QWidget {
+    background:#050B10;
+    color:#F2F6FA;
+    font-family:'Segoe UI';
+}
+
+QLabel { background:transparent; border:none; }
+
+/* Panels ----------------------------------------------------------------- */
+QFrame#panel {
+    background:#091620;
+    border:1px solid #183746;
+    border-radius:8px;
+}
+QFrame#sidebar {
+    background:#061019;
+    border:1px solid #183746;
+    border-radius:12px;
+}
+QFrame#header {
+    background:#061019;
+    border-bottom:1px solid #183746;
+}
+
+/* Text surfaces ---------------------------------------------------------- */
+QPlainTextEdit, QLineEdit {
+    background:#070D12;
+    color:#F2F6FA;
+    border:1px solid #183746;
+    border-radius:8px;
+    padding:10px;
+    selection-background-color:#174B58;
+}
+QPlainTextEdit {
+    font-family:Consolas;
+    font-size:10pt;
+}
+
+/* Scrollbars ------------------------------------------------------------- */
+QScrollBar:vertical {
+    background:#050B10;
+    width:8px;
+    margin:0;
+}
+QScrollBar::handle:vertical {
+    background:#183746;
+    border-radius:4px;
+    min-height:28px;
+}
+QScrollBar:horizontal {
+    background:#050B10;
+    height:8px;
+    margin:0;
+}
+QScrollBar::handle:horizontal {
+    background:#183746;
+    border-radius:4px;
+    min-width:28px;
+}

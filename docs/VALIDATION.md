@@ -1414,5 +1414,26 @@ an empty bar rather than substituting values.
 
 Not verified visually here: the exact on-screen pixel match at 1600x900
 (rendered headless + PNG proxy only).
+
+
+## 2026-10-13 - Centralized QSS theme (styles/nova_theme.qss + loader)
+
+Code changed: `market_lab_ui.py` (applies the file-based theme). Added:
+`styles/nova_theme.qss`, `market_lab/theme.py`, `tests/test_theme.py` (7
+tests). No engine, data-source, cache, guardrail, or widget-behaviour change;
+the theme file uses the same tokens, so the rendered appearance is unchanged.
+
+Checks run:
+
+- `ast.parse` on `market_lab_ui.py` and `market_lab/theme.py`: passed.
+- `tests.test_theme` -> 7 OK.
+- Offscreen render from an unrelated cwd: theme loaded from the project root
+  path, `win.styleSheet()` equals the file text, `QFrame#panel` present, KPI
+  cards = nifty/vix/advances/declines/ad.
+- Full offline suite: `Ran 386 tests ... OK` (379 -> 386).
+
+Honesty: the tokens in the QSS match the Python palette (asserted); the theme
+loads by project path, not cwd. Not verified visually: exact pixel match
+(offscreen + PNG proxy only).
   
  

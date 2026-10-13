@@ -3,6 +3,34 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-13 - Centralized QSS theme (styles/nova_theme.qss + loader)
+
+Moved the Market Lab application-shell stylesheet out of an inline Python
+f-string into a real stylesheet file, with a path-based loader.
+
+- New `styles/nova_theme.qss`: the shared shell theme (background, panel,
+  sidebar, header, text surfaces, scrollbars) using the same tokens as the
+  Python palette, so the visual result is unchanged.
+- New `market_lab/theme.py`: `load_theme()` resolves the file from the project
+  root (`Path(__file__).parent.parent`), never the shell's working directory, so
+  Nova can be launched from anywhere. A missing/unreadable file returns an empty
+  string instead of breaking startup.
+- `market_lab_ui.py`: the window now applies `theme.load_theme()`; the inline
+  monolith stylesheet was removed.
+- Stateful styling (hover/pressed/active/disabled) and the custom-painted chart
+  widgets are deliberately kept beside their widgets, so the QSS does not erase
+  them.
+
+Files added: `styles/nova_theme.qss`, `market_lab/theme.py`,
+`tests/test_theme.py` (7 tests). Changed: `market_lab_ui.py`.
+
+Validation: `ast.parse` on `market_lab_ui.py`/`theme.py`; `tests.test_theme` ->
+7 OK (file exists at the project root, non-empty, carries the shell selectors,
+balanced braces, tokens match the Python palette, loads from an unrelated cwd,
+missing file -> empty string). Full suite: `Ran 386 tests ... OK`
+(379 -> 386). Offscreen render confirmed `theme.load_theme()` is applied
+verbatim to `MarketLabWindow`.
+
 ## 2026-10-13 - Market Breadth panel upgraded to visual layout
 
 Replaced the Market dashboard's plain field/value breadth table with the same
