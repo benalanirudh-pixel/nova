@@ -1349,5 +1349,42 @@ conditions (rsi/macd) — no new indicator math.
 Not verified visually here: the on-screen render at 1600x900 and the narrow
 (stacked) layout, plus the final pixel match to the reference (rendered
 offscreen + PNG proxy only).
+
+
+## 2026-10-13 - NIFTY 50 + INDIA VIX index cards (Market dashboard)
+
+Code changed: `market_lab/market_lab_data.py` (report now carries
+`india_vix_candles` for `^INDIAVIX`), `market_lab/view_model.py` (new
+`vix_card()`, `index_card()` gains `source_label`), `market_lab_ui.py`
+(index cards with a chart kind + trend marker, shared 1M/3M/6M range selector),
+tests in `tests/test_view_model.py` and `tests/test_gui_smoke.py`. Reused the
+existing chart widgets (`CandleChart`, `LineChart` from `market_lab/widgets.py`);
+no new dependency.
+
+Checks run:
+
+- `ast.parse` on `market_lab_ui.py`, `market_lab/view_model.py`,
+  `market_lab/market_lab_data.py` and the two test files: passed.
+- `tests.test_view_model` -> OK (NIFTY live-quote vs saved-history label,
+  VIX card from live quote, VIX fallback to series, VIX empty -> N/A, VIX
+  5/20/60-session changes computed from the VIX series).
+- `tests.test_gui_smoke` -> 55 OK (candles + line charts, independent scales,
+  range selector updates both cards, missing VIX history -> N/A and an empty
+  line series, never synthetic data).
+- Fresh report regenerated with `market_lab\market_lab_data.py --json`:
+  `india_vix_candles` = 125, `nifty_candles` = 125.
+- Live render against that report: NIFTY 22,721.95 (+1.60%, +359 pts), O/H/L/C
+  from the snapshot, 5d -0.24% / 20d -2.89% / 60d -6.63%, 63 candles with MA
+  overlays, trend marker; INDIA VIX 14.12 (-7.41%), own scale, 63 points,
+  5d +3.75% / 20d +14.89% / 60d +7.38%, trend marker. Page PNG proxy saved.
+- Full offline suite: `Ran 377 tests ... OK` (371 -> 377).
+
+Honesty: NIFTY and VIX keep independent y-scales; VIX never uses NIFTY prices.
+Missing history renders as N/A or an empty chart, never fabricated candles,
+volume, or VIX values; the direction of VIX change is coloured without claiming
+it is universally bullish or bearish.
+
+Not verified visually here: the on-screen render at 1600x900 and the exact
+pixel match to the reference; rendered headless + PNG proxy only.
   
  

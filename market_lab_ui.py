@@ -959,31 +959,53 @@ class MarketLabWindow(QMainWindow):
     # Reusable dashboard pieces
     # --------------------------------------------------------
 
-    def _index_card(self, name):
-        frame, layout = W.panel(name, "Backend index snapshot")
-        frame.setMinimumHeight(330)
-        self_price_row = QHBoxLayout()
-        price = W.make_label("—", 28, TEXT, bold=True, mono=True)
-        change = W.make_label("—", 15, MUTED, bold=True, mono=True)
+    def _index_card(self, name, subtitle="Backend index snapshot",
+                    chart_kind="candle"):
+        """One index card: header (name + value + change + trend), a real
+        historical chart, and a compact statistics footer.
+
+        `chart_kind` is "candle" for indices with valid OHLC and "line" for
+        series shown as values. The chart only ever draws real observations.
+        """
+        frame, layout = W.panel(name, subtitle)
+        frame.setMinimumHeight(360)
+
+        head = QHBoxLayout()
+        price = W.make_label("\u2014", 28, TEXT, bold=True, mono=True)
+        price.setWordWrap(False)
+        change = W.make_label("\u2014", 14, MUTED, bold=True, mono=True)
         change.setWordWrap(False)
-        self_price_row.addWidget(price)
-        self_price_row.addWidget(change)
-        self_price_row.addStretch()
-        layout.addLayout(self_price_row)
-        meta = W.make_label("—", 9, MUTED)
+        head.addWidget(price)
+        head.addWidget(change)
+        head.addStretch()
+        trend = W.make_label("", 10, MUTED, True)
+        trend.setWordWrap(False)
+        head.addWidget(trend)
+        layout.addLayout(head)
+
+        meta = W.make_label("\u2014", 9, MUTED)
         meta.setWordWrap(False)
+        meta.setToolTip(subtitle)
         layout.addWidget(meta)
-        chart = W.CandleChart()
-        chart.setMinimumHeight(160)
+
+        if chart_kind == "line":
+            chart = W.LineChart()
+        else:
+            chart = W.CandleChart()
+        chart.setMinimumHeight(170)
         layout.addWidget(chart, 1)
-        ohlc = W.make_label("O —  H —  L —  C —", 10, TEXT, mono=True)
+
+        ohlc = W.make_label("O \u2014  H \u2014  L \u2014  C \u2014", 10, TEXT, mono=True)
         ohlc.setWordWrap(False)
         layout.addWidget(ohlc)
-        returns = W.make_label("5d —  |  20d —  |  60d —", 9, MUTED, mono=True)
+        returns = W.make_label("5d \u2014  |  20d \u2014  |  60d \u2014", 9,
+                               MUTED, mono=True)
+        returns.setWordWrap(False)
         layout.addWidget(returns)
         return {
             "frame": frame, "price": price, "change": change, "meta": meta,
-            "chart": chart, "ohlc": ohlc, "returns": returns,
+            "trend": trend, "chart": chart, "ohlc": ohlc, "returns": returns,
+            "chart_kind": chart_kind,
         }
 
     def _indicator_card(self, name):
@@ -1009,25 +1031,94 @@ class MarketLabWindow(QMainWindow):
         limit = self._RANGE_BARS.get(rng, 63)
         return candles[-limit:] if candles else []
 
+    @staticmethod
+    def _trend_label(candles):
+        """Compact trend marker from the real series (last vs first close)."""
+        closes = [r.get("c") for r in candles
+                  if isinstance(r.get("c"), (int, float))]
+        if len(closes) < 2:
+            return ""
+        delta = closes[-1] - closes[0]
+        if delta > 0:
+            return f"\u25B2 +{delta:,.1f}"
+        if delta < 0:
+            return f"\u25BC {delta:,.1f}"
+        return "\u25AC flat"
+
+    def _render_index_card(self, which, card):
+        """Fill one index card (NIFTY 50 candles or INDIA VIX line)."""
+        c = self.index_cards[which]
+        value = card.get("value", card.get("price"))
+        change = card.get("change_percent")
+
+        c["price"].setText(fmt_price(value))
+        if isinstance(change, (int, float)):
+            c["change"].setText(
+                f"{fmt_pct(change)}  ({fmt_points(card.get('change_abs'))})")
+            c["change"].setStyleSheet(
+                f"color:{W.sign_color(change)};"
+                f"background:transparent;border:none;"
+            )
+        else:
+            c["change"].setText(vm.N_A)
+            c["change"].setStyleSheet(
+                f"color:{MUTED};background:transparent;border:none;"
+            )
+
+        close_value = (card.get("close")
+                       if card.get("close") is not None else value)
+        c["ohlc"].setText(
+            f"O {fmt_points(card.get('open'))}  "
+            f"H {fmt_points(card.get('high'))}  "
+            f"L {fmt_points(card.get('low'))}  "
+            f"C {fmt_points(close_value)}"
+        )
+        c["returns"].setText(
+            f"5d {fmt_pct(card.get('return_5d'))}  |  "
+            f"20d {fmt_pct(card.get('return_20d'))}  |  "
+            f"60d {fmt_pct(card.get('return_60d'))}"
+        )
+        c["meta"].setText(str(card.get("source_label", "\u2014")))
+
+        # Chart from the real series, sliced to the selected range.
+        candles = [dict(row) for row in (card.get("candles") or [])
+                   if isinstance(row, dict)]
+        if which == "nifty" and candles and isinstance(value, (int, float)):
+            # Last candle tracks the live price between refreshes.
+            candles[-1]["c"] = float(value)
+            if isinstance(card.get("high"), (int, float)):
+                candles[-1]["h"] = max(candles[-1]["h"], float(card["high"]))
+            if isinstance(card.get("low"), (int, float)):
+                candles[-1]["l"] = min(candles[-1]["l"], float(card["low"]))
+        sliced = self._slice_candles(candles, self.chart_range)
+
+        if c["chart_kind"] == "line":
+            c["chart"].set_series(
+                [r.get("c") for r in sliced],
+                [r.get("t", "") for r in sliced],
+            )
+        else:
+            c["chart"].set_candles(sliced)
+            c["chart"].set_overlays([
+                {"values": [r.get("ma20") for r in sliced], "color": CYAN},
+                {"values": [r.get("ma50") for r in sliced], "color": AMBER},
+                {"values": [r.get("ma200") for r in sliced], "color": PURPLE},
+            ])
+
+        c["trend"].setText(self._trend_label(sliced))
+
+    def _render_index_cards(self, report):
+        self._render_index_card("nifty", vm.index_card(report, "nifty"))
+        self._render_index_card("india_vix", vm.vix_card(report))
+
     def set_chart_range(self, rng):
         """Switch the index chart range (client-side slice of real candles;
-        no refetch)."""
+        no refetch). Both NIFTY 50 and INDIA VIX update together."""
         self.chart_range = rng
         for label, button in getattr(self, "_range_buttons", {}).items():
             button.setChecked(label == rng)
         if getattr(self, "report", None):
-            for which in ("nifty", "bank_nifty"):
-                card = vm.index_card(self.report, which)
-                c = self.index_cards[which]
-                candles = [dict(row) for row in (card.get("candles") or [])
-                           if isinstance(row, dict)]
-                if candles and isinstance(card["price"], (int, float)):
-                    candles[-1]["c"] = float(card["price"])
-                    if isinstance(card["high"], (int, float)):
-                        candles[-1]["h"] = max(candles[-1]["h"], float(card["high"]))
-                    if isinstance(card["low"], (int, float)):
-                        candles[-1]["l"] = min(candles[-1]["l"], float(card["low"]))
-                c["chart"].set_candles(self._slice_candles(candles, rng))
+            self._render_index_cards(self.report)
 
     # --------------------------------------------------------
     # KPI strip (real values only)
@@ -2072,31 +2163,46 @@ class MarketLabWindow(QMainWindow):
         # --- Market KPI strip ---
         layout.addLayout(self.build_kpi_strip())
 
-        # --- Chart range selector (slices the stored real candles) ---
+        # --- Shared chart range selector (NIFTY 50 + INDIA VIX) ---
         range_row = QHBoxLayout()
         range_row.setSpacing(6)
-        range_row.addWidget(W.make_label("INDEX CHART RANGE", 9, MUTED, True))
+        range_row.addWidget(W.make_label("CHART RANGE", 9, MUTED, True))
         for label in ("1M", "3M", "6M"):
             button = make_button(f" {label} ", self.chart_range == label)
             button.setCheckable(True)
             button.setChecked(self.chart_range == label)
+            button.setObjectName(f"range_{label}")
+            button.setStyleSheet(f"""
+                QPushButton {{
+                    background:{PANEL_ALT};
+                    color:{MUTED};
+                    border:1px solid {BORDER};
+                    border-radius:6px;
+                    padding:4px 12px;
+                }}
+                QPushButton:checked {{ color:{CYAN}; border:1px solid {CYAN}; }}
+                QPushButton:hover {{ color:{TEXT}; }}
+            """)
             button.clicked.connect(
                 lambda checked=False, r=label: self.set_chart_range(r)
             )
             self._range_buttons[label] = button
             range_row.addWidget(button)
         range_row.addStretch()
+        range_row.addWidget(W.make_label(
+            "Both charts update together", 9, MUTED))
         layout.addLayout(range_row)
 
-        # --- Index cards ---
+        # --- Index cards: NIFTY 50 + INDIA VIX ---
         indices = QHBoxLayout()
         indices.setSpacing(12)
         self.index_cards = {}
-        for which in ("nifty", "bank_nifty"):
-            self.index_cards[which] = self._index_card(
-                "NIFTY 50" if which == "nifty" else "BANK NIFTY"
-            )
-            indices.addWidget(self.index_cards[which]["frame"], 1)
+        self.index_cards["nifty"] = self._index_card(
+            "NIFTY 50", "NSE benchmark index", chart_kind="candle")
+        indices.addWidget(self.index_cards["nifty"]["frame"], 1)
+        self.index_cards["india_vix"] = self._index_card(
+            "INDIA VIX", "NSE volatility index", chart_kind="line")
+        indices.addWidget(self.index_cards["india_vix"]["frame"], 1)
         layout.addLayout(indices)
 
         # --- Technical indicator cards ---
@@ -2421,46 +2527,9 @@ class MarketLabWindow(QMainWindow):
             pass
 
     def render_dashboard(self, report):
-        # --- Index cards ---
+        # --- Index cards (NIFTY 50 + INDIA VIX) ---
         self.render_kpi(report)
-        for which in ("nifty", "bank_nifty"):
-            card = vm.index_card(report, which)
-            c = self.index_cards[which]
-            c["price"].setText(fmt_price(card["price"]))
-            if isinstance(card["change_percent"], (int, float)):
-                c["change"].setText(
-                    f"{fmt_pct(card['change_percent'])}"
-                    f"  ({fmt_points(card['change_abs'])})"
-                )
-                c["change"].setStyleSheet(
-                    f"color:{W.sign_color(card['change_percent'])};"
-                    f"background:transparent;border:none;"
-                )
-            else:
-                c["change"].setText(vm.N_A)
-                c["change"].setStyleSheet(
-                    f"color:{MUTED};background:transparent;border:none;"
-                )
-            c["ohlc"].setText(
-                f"O {fmt_points(card['open'])}  H {fmt_points(card['high'])}  "
-                f"L {fmt_points(card['low'])}  C {fmt_points(card['price'])}"
-            )
-            # Real daily OHLC candles; last candle tracks the live price so the
-            # chart feels live between refreshes. Sliced by the range selector.
-            candles = [dict(row) for row in (card.get("candles") or [])
-                       if isinstance(row, dict)]
-            if candles and isinstance(card["price"], (int, float)):
-                candles[-1]["c"] = float(card["price"])
-                if isinstance(card["high"], (int, float)):
-                    candles[-1]["h"] = max(candles[-1]["h"], float(card["high"]))
-                if isinstance(card["low"], (int, float)):
-                    candles[-1]["l"] = min(candles[-1]["l"], float(card["low"]))
-            c["chart"].set_candles(self._slice_candles(candles, self.chart_range))
-            c["returns"].setText(
-                f"5d {fmt_pct(card['return_5d'])}  |  "
-                f"20d {fmt_pct(card['return_20d'])}  |  "
-                f"60d {fmt_pct(card['return_60d'])}"
-            )
+        self._render_index_cards(report)
 
         # --- Indicator cards ---
         ind = vm.indicator_cards(report, "nifty")

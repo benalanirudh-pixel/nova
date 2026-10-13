@@ -3241,6 +3241,7 @@ def get_market_lab_data(
     bank_nifty_series = build_index_series("^NSEBANK")
     nifty_candles = build_index_candles("^NSEI")
     bank_nifty_candles = build_index_candles("^NSEBANK")
+    india_vix_candles = build_index_candles("^INDIAVIX")
 
     # --------------------------------------------------------
     # REGIME
@@ -3559,6 +3560,9 @@ def get_market_lab_data(
 
         "bank_nifty_candles":
             bank_nifty_candles,
+
+        "india_vix_candles":
+            india_vix_candles,
 
         "breadth":
             breadth,

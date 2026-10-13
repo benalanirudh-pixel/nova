@@ -200,6 +200,31 @@ def index_card(report, which, r5=None):
         prev_close = price / (1.0 + change_pct / 100.0)
         change_abs = price - prev_close
 
+    change_abs = None
+    prev_close = None
+    if price is not None and change_pct is not None:
+        prev_close = price / (1.0 + change_pct / 100.0)
+        change_abs = price - prev_close
+
+    nifty_snapshot = report.get("nifty_snapshot") or {}
+    live_quote = bool(
+        which == "nifty"
+        and nifty_snapshot.get("available")
+        and price is not None
+    )
+    label = (
+        "live NSE quote + saved daily history"
+        if live_quote
+        else "saved daily history (last close)"
+    )
+
+    nifty_snapshot = report.get("nifty_snapshot") or {}
+    live_quote = bool(
+        which == "nifty"
+        and nifty_snapshot.get("available")
+        and price is not None
+    )
+
     return {
         "name": name,
         "price": price if price is not None else N_A,
@@ -217,6 +242,64 @@ def index_card(report, which, r5=None):
                    else report.get("bank_nifty_series")) or [],
         "candles": candles,
         "derived_abs_change": change_abs is not None,
+        "source_label": (
+            "live NSE quote + saved daily history"
+            if live_quote
+            else "saved daily history (last close)"
+        ),
+    }
+
+
+def vix_card(report, which="india_vix"):
+    """India VIX card data: live quote from the report, OHLC + history from the
+    report's india_vix_candles. The chart uses VIX values on its own scale —
+    never NIFTY prices. Change/history are computed from the real series when
+    the live quote does not carry them.
+    """
+    live = _get(report, "volatility", "india_vix") or {}
+    candles = report.get("india_vix_candles") or []
+    closes = [_num(c.get("c")) for c in candles if isinstance(c, dict)]
+    closes = [c for c in closes if c is not None]
+    last = candles[-1] if candles else {}
+
+    value = _num(live.get("value"))
+    if value is None:
+        value = _num(last.get("c"))
+
+    change_percent = _num(live.get("change_percent"))
+    if change_percent is None and len(closes) >= 2 and closes[-2]:
+        change_percent = (closes[-1] - closes[-2]) / closes[-2] * 100.0
+
+    change_abs = None
+    if value is not None and change_percent is not None:
+        previous = value / (1.0 + change_percent / 100.0)
+        change_abs = value - previous
+
+    def _return(n):
+        if len(closes) > n and closes[-n - 1]:
+            return (closes[-1] - closes[-n - 1]) / closes[-n - 1] * 100.0
+        return None
+
+    return {
+        "name": "INDIA VIX",
+        "value": value if value is not None else N_A,
+        "change_percent": change_percent if change_percent is not None else N_A,
+        "change_abs": change_abs,
+        "open": _num(last.get("o")) if last else None,
+        "high": _num(last.get("h")) if last else None,
+        "low": _num(last.get("l")) if last else None,
+        "close": _num(last.get("c")) if last else None,
+        "return_5d": _return(5),
+        "return_20d": _return(20),
+        "return_60d": _return(60),
+        "regime": live.get("regime", N_A),
+        "direction": live.get("direction", N_A),
+        "live": bool(live.get("available")),
+        "candles": candles,
+        "source_label": (
+            "live VIX quote + saved VIX history"
+            if live.get("available") else "saved VIX history (last session)"
+        ),
     }
 
 

@@ -3,6 +3,46 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-13 - NIFTY 50 + INDIA VIX index cards (Market dashboard)
+
+Upgraded the Market dashboard's index section to the two-card reference design
+(NIFTY 50 + INDIA VIX), replacing the previous NIFTY 50 + BANK NIFTY pair. Bank
+Nifty remains available in the Market Report sections (05 Derivatives) and the
+nifty/bank_nifty_returns data.
+
+- `market_lab/market_lab_data.py`: the report now also stores
+  `india_vix_candles` (daily OHLC for `^INDIAVIX` via the existing
+  `build_index_candles`), so the VIX card has a real history on its own scale.
+- `market_lab/view_model.py`: new `vix_card()` and an added `source_label` on
+  `index_card()`. The VIX card prefers the live VIX quote for its value/change
+  and the saved VIX candles for OHLC/history; VIX changes are computed from the
+  VIX series (never NIFTY prices). If the report has no VIX history, values
+  stay N/A rather than being synthesised.
+- `market_lab/widgets.py` (unchanged): reused `CandleChart` for NIFTY OHLC +
+  MA overlays and `LineChart` for the VIX value series; both handle empty
+  series with an honest "no series" state.
+- `market_lab_ui.py`: `_index_card()` now supports a `chart_kind` and a compact
+  trend marker; the dashboard gained a shared 1M/3M/6M range selector (cyan
+  highlight) that re-slices both cards from the stored real series without a
+  refetch; NIFTY 50 shows candles + MA20/50/200, INDIA VIX shows a line chart
+  on an independent scale.
+
+Honesty and scope preserved: no fabricated candles/volume/VIX history, missing
+values render as `—`/`N/A`, no other Market page component was touched, and all
+analysis-only guardrails are unchanged.
+
+Files changed: `market_lab_ui.py`, `market_lab/view_model.py`,
+`market_lab/market_lab_data.py`, `tests/test_view_model.py`,
+`tests/test_gui_smoke.py`.
+
+Validation: `ast.parse` on all changed files; `tests.test_view_model` and
+`tests.test_gui_smoke` OK (NIFTY live-quote + saved-history labels, VIX card
+from quote/series/fallback, independent charts, range selector updates both,
+missing data -> N/A); full suite `Ran 377 tests ... OK` (371 -> 377).
+Live render against a fresh report: NIFTY 22,721.95 (+1.60%, OHLC, 5d/20d/60d
+returns, MA overlays, 63 candles) and INDIA VIX 14.12 (-7.41%, own scale, 63
+points, 5d/20d/60d VIX changes).
+
 ## 2026-10-12 - Stock Analysis page rebuilt (two-column, no chart)
 
 The Stock Analysis page now has only three areas: the controls panel, a Stock

@@ -872,20 +872,34 @@ class TestTerminalLayout(unittest.TestCase):
             for i in range(1, 40)
         ]
         report = {"market": "NSE", "generated": "2026-10-11T00:00:00Z",
-                  "nifty_candles": candles}
+                  "nifty_candles": candles,
+                  "india_vix_candles": [
+                      {"t": f"2026-10-{i:02d}", "o": 14.0, "h": 15.0,
+                       "l": 13.5, "c": 14.2}
+                      for i in range(1, 40)
+                  ]}
         win.display_report(report, 0.0, cached=True)
-        # default 3M keeps all 39
+        # default 3M keeps all 39 for both cards
         self.assertEqual(len(win.index_cards["nifty"]["chart"]._candles), 39)
-        self.assertEqual(len(win.index_cards["bank_nifty"]["chart"]._candles), 0)
-        # range selector slices the stored real candles (no refetch)
+        self.assertEqual(len(win.index_cards["india_vix"]["chart"]._values), 39)
+        # range selector slices the stored real series (no refetch), both cards
         win.set_chart_range("1M")
         self.assertEqual(len(win.index_cards["nifty"]["chart"]._candles), 22)
+        self.assertEqual(len(win.index_cards["india_vix"]["chart"]._values), 22)
+        # the two cards stay independent: the VIX card uses a line chart.
+        self.assertEqual(win.index_cards["india_vix"]["chart_kind"], "line")
+        self.assertEqual(win.index_cards["nifty"]["chart_kind"], "candle")
 
     def test_unavailable_renders_na_not_fabricated(self):
         win = self._window()
         win.display_report({"market": "NSE", "breadth": {}}, 0.0, cached=True)
-        # BANK NIFTY snapshot is not provided -> OHLC must be N/A, not zeros.
-        self.assertIn("N/A", win.index_cards["bank_nifty"]["ohlc"].text())
+        # No VIX history in the report -> the line chart is an empty series,
+        # never synthetic data.
+        self.assertEqual(len(win.index_cards["india_vix"]["chart"]._values), 0)
+        # Missing OHLC renders as N/A, never zeros.
+        self.assertEqual(win.index_cards["india_vix"]["ohlc"].text(),
+                         "O N/A  H N/A  L N/A  C N/A")
+        self.assertEqual(win.index_cards["india_vix"]["price"].text(), "N/A")
         # No technical top-list in the report -> uptrend screen shows the
         # honest empty state (never invented symbols).
         self.assertIn("No technical top-list", win.uptrend_note.text())

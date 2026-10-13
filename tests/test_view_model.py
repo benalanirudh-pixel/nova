@@ -250,6 +250,99 @@ class TestIndexCard(unittest.TestCase):
         self.assertEqual(card["low"], 95.0)
         self.assertEqual(len(card["candles"]), 1)
 
+class TestIndexCards(unittest.TestCase):
+
+    def _nifty_report(self, **overrides):
+        report = {
+            "nifty_snapshot": {
+                "available": True, "price": 22520.45,
+                "change_percent": 1.3, "open": 22315, "high": 22580,
+                "low": 22295,
+            },
+            "nifty_returns": {"1D": 1.3, "5D": -0.24, "20D": -2.89, "60D": -6.63},
+            "nifty_candles": [
+                {"t": "2026-10-07", "o": 100, "h": 105, "l": 99,
+                 "c": 103, "v": 10, "ma20": 101.0},
+                {"t": "2026-10-08", "o": 103, "h": 108, "l": 102,
+                 "c": 107, "v": 12, "ma20": 102.0},
+                {"t": "2026-10-09", "o": 107, "h": 110, "l": 106,
+                 "c": 109, "v": 15, "ma20": 103.0},
+            ],
+        }
+        report.update(overrides)
+        return report
+
+    def test_nifty_card_uses_live_quote(self):
+        card = vm.index_card(self._nifty_report(), "nifty")
+        self.assertEqual(card["price"], 22520.45)
+        self.assertEqual(card["change_percent"], 1.3)
+        self.assertEqual(card["return_5d"], -0.24)
+        self.assertIn("live", card["source_label"])
+        self.assertEqual(len(card["candles"]), 3)
+
+    def test_nifty_card_marks_saved_history(self):
+        report = self._nifty_report()
+        report["nifty_snapshot"] = {}
+        card = vm.index_card(report, "nifty")
+        self.assertEqual(card["price"], NA)
+        self.assertIn("saved daily history", card["source_label"])
+
+    def test_vix_card_from_live_quote(self):
+        report = {
+            "volatility": {
+                "india_vix": {"available": True, "value": 14.38,
+                              "change_percent": -5.9, "regime": "MODERATE"}
+            },
+            "india_vix_candles": [
+                {"t": "2026-10-08", "o": 15.0, "h": 15.4, "l": 14.6, "c": 14.8},
+                {"t": "2026-10-09", "o": 14.8, "h": 15.2, "l": 14.1, "c": 14.38},
+            ],
+        }
+        card = vm.vix_card(report)
+        self.assertEqual(card["name"], "INDIA VIX")
+        self.assertEqual(card["value"], 14.38)
+        self.assertEqual(card["change_percent"], -5.9)
+        self.assertEqual(card["close"], 14.38)
+        self.assertEqual(len(card["candles"]), 2)
+        self.assertTrue(card["live"])
+
+    def test_vix_card_falls_back_to_series(self):
+        report = {
+            "volatility": {"india_vix": {"available": False}},
+            "india_vix_candles": [
+                {"t": "2026-10-08", "o": 15.0, "h": 15.4, "l": 14.6, "c": 14.8},
+                {"t": "2026-10-09", "o": 14.8, "h": 15.2, "l": 14.1, "c": 14.38},
+            ],
+        }
+        card = vm.vix_card(report)
+        # Value falls back to the last real close.
+        self.assertEqual(card["value"], 14.38)
+        self.assertAlmostEqual(
+            card["change_percent"], (14.38 - 14.8) / 14.8 * 100, places=6)
+        self.assertFalse(card["live"])
+
+    def test_vix_card_empty_is_na(self):
+        card = vm.vix_card({})
+        self.assertEqual(card["value"], NA)
+        self.assertEqual(card["candles"], [])
+
+    def test_vix_returns_computed_from_series(self):
+        closes = [100.0 - i for i in range(10)]
+        report = {
+            "volatility": {"india_vix": {"available": True, "value": closes[-1]}},
+            "india_vix_candles": [
+                {"t": f"d{i}", "o": c, "h": c, "l": c, "c": c}
+                for i, c in enumerate(closes)
+            ],
+        }
+        card = vm.vix_card(report)
+        # 5 sessions ago the close was closes[-6] = 96 -> (91-96)/96.
+        self.assertAlmostEqual(card["return_5d"], (91.0 - 96.0) / 96.0 * 100,
+                               places=6)
+        # 20 sessions back does not exist -> N/A
+        self.assertEqual(card["return_20d"], None)
+
+
 class TestIndicatorCards(unittest.TestCase):
 
     def test_only_atr_is_real_without_candles(self):
