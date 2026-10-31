@@ -3,6 +3,33 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-01 - Nova Terminal: unified Bloomberg-style UI
+
+New `terminal/` package merges Nova Assistant and Market Lab into one window.
+Entry point: `terminal_main.py`. Original `main.py` / `market_lab_ui.py` untouched.
+
+**Files added:**
+- `terminal/__init__.py`, `terminal/pages/__init__.py`
+- `terminal/main_window.py` — `NovaTerminal(QMainWindow)`: header with tab bar,
+  regime badge, service dots, search; status bar with NSE open/closed, guardrail text,
+  CPU/RAM, IST clock. Lazy page creation via `QStackedWidget`.
+- `terminal/pages/market_overview.py` — scrollable dashboard wired to
+  `market_lab_data.get_market_lab_data()` and all `view_model` APIs
+  (macro, index_card, vix_card, breadth_block, sector_rows, indicator_cards,
+  derivatives_block, flow_block, risk_cards, factor_block). Emits
+  `regime_changed`, `scanner_age_changed`, `report_loaded`.
+- `terminal/pages/stock_analysis.py` — single-stock page: `_StockWorker(QThread)`
+  wraps `stock_adapter` + `analyze_stock_report`; overview card + AI report panel.
+- `terminal/pages/nova_ai.py` — chat workspace: `_BrainWorker(QThread)` wraps
+  `brain.think()`; message bubbles; graceful degradation when Ollama offline.
+- `terminal/pages/institutional.py` — FII/DII flows from `view_model.flow_block`.
+- `terminal/pages/market_lab.py` — JSON report viewer + AI narrative via
+  `market_lab_brain.analyze_market_lab`. Report pushed from MarketOverviewPage
+  via `report_loaded` signal.
+- `terminal_main.py` — standalone entry point for the terminal.
+
+**Safety:** analysis-only guardrails preserved; no broker, no orders, no BUY/SELL.
+
 ## 2026-10-30 - Stock Analysis UI improvements
 
 Added three presentation-only improvements to the Stock Analysis page
