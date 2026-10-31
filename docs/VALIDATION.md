@@ -1435,5 +1435,111 @@ Checks run:
 Honesty: the tokens in the QSS match the Python palette (asserted); the theme
 loads by project path, not cwd. Not verified visually: exact pixel match
 (offscreen + PNG proxy only).
-  
- 
+
+## 2026-10-16 - Market Lab background plane (cyan technical grid)
+
+Code changed: `market_lab/widgets.py` (`GridBackground` custom-painted backdrop)
+and `market_lab_ui.py` (`root = W.GridBackground()` as the central widget).
+No backend/engine/data/cache/refresh change; `nova3dcore.py` untouched; theme
+system unchanged; native window controls/title bar preserved (no custom title
+bar).
+
+Rendering method: a single custom-painted `QWidget` behind all foreground
+content (correct widget hierarchy/painting order; no CSS z-index relied on).
+Layers back to front: near-flat navy base gradient (`#08151D`/`#061019`/`#050B10`),
+restrained teal corner illumination, fixed-logical-spacing grid (minor ~38px,
+stronger major every 5th interval, sparse major-intersection dots at
+`rgba(0,210,235,0.16)`), thin rounded inset frame (8px radius, ~12px inset,
+outer `#123847` + inner `#0C2934`), corner crosshairs, faint diagonal guides in
+the corners, and a very faint teal edge glow. Fixed logical spacing keeps the
+grid pattern consistent on resize (lines are not stretched); nothing animates
+and nothing intercepts input. Opaque cards sit on top so the grid reads only in
+gaps and uncovered margins.
+
+Checks run:
+
+- `ast.parse` + `import market_lab_ui` offline: passed.
+- `tests.test_gui_smoke` -> `test_window_uses_grid_background` and
+  `test_grid_background_paints_without_error` OK; full offscreen suite:
+  `Ran 388 tests ... OK`.
+- Rendered `GridBackground` alone at 2560x1440 (`screenshots/kilo_bg_render.png`):
+  subtle, even, restrained cyan grid on a dark navy plane; no banding or
+  excessive density.
+- Rendered the full `MarketLabWindow` at 2560x1440 (`screenshots/kilo_marketlab_full.png`):
+  background sits behind header, four status chips, left rail, sector panel,
+  index cards (NIFTY 50 candle + INDIA VIX line), chart range controls, KPI
+  strip, macro/breadth cards, tables, uptrend panel and guardrails; foreground
+  remains readable and cards stay opaque.
+- Live desktop launch: `.\venv\Scripts\python.exe market_lab_ui.py` ran for
+  several seconds with zero stdout/stderr output and no traceback; closed cleanly
+  with no orphan process.
+
+Not run: a live `--refresh` full NSE scan (unchanged path; intentionally
+avoided), a user click-through of every page (layout/structure verified
+headlessly instead).
+
+
+## 2026-10-30 - Unified design system across both Nova surfaces
+
+Code changed: new files `styles/design_tokens.py` (shared color/typography/
+spacing/z-index tokens) and `styles/nova_theme.qss` (rewritten unified
+stylesheet covering both surfaces); updated `market_lab/theme.py` and
+`ui/theme.py` to load the unified theme with token validation; refactored
+`market_lab_ui.py` to import palette tokens from `styles.design_tokens`
+instead of local redefinitions; refactored `ui.py` (Nova Assistant) to import
+from `styles.design_tokens` and apply the unified theme via `apply_theme(app)`
+in `main()`. No backend, engine, cache, data-source, or report-schema change;
+analysis-only guardrails preserved unchanged.
+
+Design system:
+- `styles/design_tokens.py` — single source of truth: BG #050B10, SURFACE
+  #091620, SIDEBAR #061019, TEXT #F2F6FA, GREEN #00E6A0, RED #FF4058,
+  AMBER #FFBD4A, BLUE #3198FF, CYAN #00D9F5, PURPLE #B49AFF; freshness tiers
+  (green <10 min / amber <2 h / red <12 h / critical >12 h); typography
+  (Segoe UI / Consolas), spacing, border-radius, z-index, animation durations.
+- `styles/nova_theme.qss` — unified QSS covering both UIs: shell, panels,
+  sidebar, header, text inputs, buttons (primary/ghost/danger/nav), tables,
+  tabs, dropdowns, toggles, progress bars, sliders, scrollbars, status chips,
+  freshness indicators, guardrails banner, auto-refresh/live controls.
+- `market_lab/theme.py` / `ui/theme.py` — load the QSS, expose all tokens,
+  never raise on missing file.
+- `tests/test_theme.py` — updated to validate both `market_lab_ui` palette
+  tokens AND `design_tokens` tokens appear in the QSS.
+
+Checks run:
+
+- `ast.parse` on all changed files: passed.
+- `import market_lab_ui`, `import ui`: passed (PySide6 available via
+  `pythonw.exe`).
+- `styles.design_tokens` imports standalone (no Qt dependency): passed.
+- Full offline suite (offscreen): `Ran 388 tests ... OK` (unchanged count;
+  test_theme.py now validates both UIs' token sets).
+- `test_theme_tokens_match_python_palette`: verifies both `market_lab_ui`
+  palette constants AND `design_tokens` tokens appear in `nova_theme.qss`.
+- QSS brace balance, non-empty load, shell selectors present: all pass.
+
+Not run: on-desktop visual inspection at 1920x1080 (same as prior sessions —
+geometry + PNG proxy only). Live Dhan data not configured; placeholder mode
+shows "DATA UNAVAILABLE" gracefully. UI paint/layout verified headlessly, not
+via human pixel review.
+
+## 2026-10-30 - Stock Analysis UI improvements
+
+Code changed: `market_lab_ui.py` (watchlist pin button, data freshness badge,
+price sparkline) and `tests/test_gui_smoke.py` (+6 `TestStockAnalysisPage`
+tests). No backend, engine, cache, data-source, or report-schema change;
+analysis-only guardrails preserved unchanged.
+
+Checks run:
+
+- `ast.parse` on all changed files: passed (74 files).
+- `import market_lab_ui`: passed (PySide6 available via `pythonw.exe`).
+- Full offline suite (offscreen): `Ran 394 tests ... OK` (+6 new tests).
+- New tests: pin button disabled/enabled transitions, pin adds symbol to
+  `watch_symbols`, freshness badge renders relative age from `timestamp`,
+  sparkline present with real series, sparkline honest empty state when no
+  candles.
+
+Not run: on-desktop visual inspection (headless offscreen render only); live
+Dhan data not configured; `MAX_SYMBOLS` cap path not triggered in tests (watch
+list starts empty per test).

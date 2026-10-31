@@ -943,6 +943,23 @@ class TestTerminalLayout(unittest.TestCase):
         self.assertEqual(len(win.breadth_bar._segments), 0)
         self.assertEqual(win.breadth_cards["above_ema20_percent"].text(), "N/A")
 
+    def test_window_uses_grid_background(self):
+        win = self._window()
+        self.assertEqual(type(win.centralWidget()).__name__, "GridBackground")
+
+    def test_grid_background_paints_without_error(self):
+        if not QT_AVAILABLE:
+            self.skipTest("PySide6 (Qt) is not installed")
+        from PySide6.QtGui import QPixmap
+        win = self._window()
+        win.resize(400, 300)
+        win.show()
+        # Painting offscreen must not raise and must produce a non-empty image.
+        pixmap = QPixmap(win.size())
+        win.render(pixmap)
+        self.assertFalse(pixmap.isNull())
+        self.assertGreater(pixmap.width(), 0)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
@@ -1079,6 +1096,56 @@ class TestStockAnalysisPage(unittest.TestCase):
         btns = [b.text() for b in win.stock_body_host.findChildren(
             __import__("PySide6.QtWidgets", fromlist=["QPushButton"]).QPushButton)]
         self.assertIn("Copy", btns)
+
+    def test_pin_button_exists_disabled_then_enabled(self):
+        win = self._window()
+        self.assertIsNotNone(win.stock_pin_btn)
+        self.assertFalse(win.stock_pin_btn.isEnabled())
+        win.render_stock_result(self._ok_result())
+        self.assertTrue(win.stock_pin_btn.isEnabled())
+
+    def test_pin_adds_symbol_to_watchlist(self):
+        win = self._window()
+        win.render_stock_result(self._ok_result())
+        win.stock_symbol_input.setText("RELIANCE")
+        win.stock_pin_btn.click()
+        self.assertIn("RELIANCE", win.watch_symbols)
+        self.assertEqual(win.stock_pin_btn.isEnabled(), True)
+
+    def test_freshness_badge_renders_timestamp(self):
+        win = self._window()
+        win.render_stock_result(self._result())
+        labels = [l.text() for l in win.stock_body_host.findChildren(
+            __import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel)]
+        self.assertTrue(any("Data" in t and "old" in t for t in labels),
+                        f"expected a freshness label, got: {labels}")
+
+    def test_freshness_badge_na_without_timestamp(self):
+        win = self._window()
+        metrics_no_ts = dict(self._result()["metrics"])
+        metrics_no_ts.pop("timestamp", None)
+        result = dict(self._result())
+        result["metrics"] = metrics_no_ts
+        win.render_stock_result(result)
+        labels = [l.text() for l in win.stock_body_host.findChildren(
+            __import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel)]
+        self.assertTrue(any(t == "\u2014" or "Data" not in t for t in labels))
+
+    def test_sparkline_present_with_real_series(self):
+        from PySide6.QtWidgets import QLabel
+        win = self._window()
+        win.render_stock_result(self._result())
+        labels = [l.text() for l in win.stock_body_host.findChildren(QLabel)]
+        self.assertIn("Price (daily closes)", labels)
+
+    def test_sparkline_empty_state_without_candles(self):
+        win = self._window()
+        result = dict(self._result())
+        result["candles"] = []
+        win.render_stock_result(result)
+        labels = [l.text() for l in win.stock_body_host.findChildren(
+            __import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel)]
+        self.assertTrue(any("No price history" in t for t in labels))
 
 
 @unittest.skipIf(not QT_AVAILABLE, "PySide6 (Qt) is not installed")

@@ -3,11 +3,33 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-10-30 - Stock Analysis UI improvements
+
+Added three presentation-only improvements to the Stock Analysis page
+(`market_lab_ui.py::build_stock_page`). No backend, engine, cache, data-source,
+or report-schema changes; all values remain real and analysis-only guardrails
+preserved.
+
+- Watchlist pin button: "Pin to watchlist" in the controls row, enabled after a
+  successful analysis. Adds the resolved symbol to `watch_symbols` (dedup, cap
+  at `MAX_SYMBOLS=10`), renders the watchlist view, and switches to the Nova
+  Analysis page so the user sees the pinned symbol.
+- Data freshness badge: below the stock identity in Stock Overview, shows
+  relative age ("Data N minutes/hours old") derived from the metrics `timestamp`;
+  falls back to nothing when no timestamp is present.
+- Price sparkline: `W.LineChart` below the KPI cards in Stock Overview, fed from
+  real candle closing prices; honest "No price history in report." state when
+  no candles exist.
+
+Files changed: `market_lab_ui.py`, `tests/test_gui_smoke.py` (+6 new
+`TestStockAnalysisPage` tests).
+Validation: `ast.parse` on both files (74 files OK); full offline suite
+`Ran 394 tests ... OK`.
+
 ## 2026-10-13 - Centralized QSS theme (styles/nova_theme.qss + loader)
 
 Moved the Market Lab application-shell stylesheet out of an inline Python
 f-string into a real stylesheet file, with a path-based loader.
-
 - New `styles/nova_theme.qss`: the shared shell theme (background, panel,
   sidebar, header, text surfaces, scrollbars) using the same tokens as the
   Python palette, so the visual result is unchanged.
@@ -1654,4 +1676,32 @@ Validation:
   session badge, data age, countdown), and the REPORT TIME metric every
   second from memory only; zero network. The auto tick now only
   schedules polls.
+
+## 2026-10-16 - Market Lab background plane (cyan technical grid)
+
+Added a custom-painted `GridBackground` widget as the Market Lab central
+widget (`market_lab/widgets.py` + `market_lab_ui.py`). It renders a restrained
+dark technical backdrop behind all foreground content:
+
+- Near-flat navy base gradient (`#08151D`/`#061019`/`#050B10`) with faint teal
+  corner illumination.
+- Fixed-logical-spacing grid: thin minor lines ~38px apart, a slightly stronger
+  major line every fifth interval, sparse intersection dots at major
+  intersections (`rgba(0,210,235,0.16)`). Grid is not stretched on resize.
+- Thin rounded inset frame (8px radius, ~12px inset; outer `#123847`,
+  inner `#0C2934`) with faint corner crosshairs and subtle diagonal corner
+  guides plus a very faint teal edge glow.
+- Nothing animates, nothing intercepts input; opaque cards sit on top so the
+  grid reads only in gaps/uncovered margins. Native Windows title bar and
+  controls preserved (no custom title bar).
+
+Files changed: `market_lab/widgets.py`, `market_lab_ui.py`, `tests/test_gui_smoke.py`
+(+grid-background tests). `docs/VALIDATION.md` updated.
+
+Validation: `ast.parse` + `import market_lab_ui` pass; offscreen render of
+`GridBackground` at 2560x1440 and of the full `MarketLabWindow` at 2560x1440
+confirm the background sits behind header, cards, charts and tables while
+foreground stays readable; full offscreen suite `Ran 388 tests ... OK`;
+live desktop launch of `market_lab_ui.py` runs cleanly with no traceback and
+closes with no orphan process.
 

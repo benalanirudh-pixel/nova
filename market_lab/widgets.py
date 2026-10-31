@@ -14,8 +14,9 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import Qt, QRectF, QPointF
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtCore import Qt, QRectF, QPointF, Signal, QTimer
+from PySide6.QtGui import (QBrush, QColor, QFont, QLinearGradient, QPainter,
+                           QPen, QRadialGradient)
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -904,6 +905,151 @@ class GroupedBarChart(QWidget):
 
 
 # ---------------------------------------------------------------------------
+# Application background: deep navy plane + cyan technical grid + frame
+# ---------------------------------------------------------------------------
+
+class GridBackground(QWidget):
+    """The terminal backdrop (custom-painted, since QSS cannot express a
+    repeating grid or corner accents).
+
+    Layers, back to front:
+      1. a near-flat navy base gradient (secondary -> base -> deeper navy),
+      2. an extremely faint cyan corner illumination,
+      3. a fixed-logical-spacing grid: thin minor lines every ~38px with a
+         stronger major line every fifth interval and sparse intersection dots,
+      4. a thin rounded inset frame with faint corner crosshairs and diagonal
+         guides.
+
+    Opaque panel cards sit on top, so the grid reads as structure in the gaps
+    and uncovered margins and never competes with charts, text or tables. The
+    grid spacing is fixed in logical pixels so the pattern stays consistent
+    when the window is resized (lines are not stretched). Painting happens only
+    on resize; nothing here animates or intercepts input.
+    """
+
+    MINOR_STEP = 38           # ~36-40px between minor lines
+    MAJOR_EVERY = 5            # a stronger major line every fifth interval
+    MAJOR_STEP = MINOR_STEP * MAJOR_EVERY
+
+    BASE = QColor(6, 16, 25)            # #061019
+    SECONDARY = QColor(8, 21, 29)       # #08151D
+    DEEP = QColor(5, 13, 20)
+    GRID_MINOR = QColor(0, 210, 235, 14)   # rgba(0,210,235,0.055)
+    GRID_MAJOR = QColor(0, 210, 235, 26)   # rgba(0,210,235,0.10)
+    GRID_DOT = QColor(0, 210, 235, 41)     # rgba(0,210,235,0.16)
+    BORDER_OUTER = QColor(18, 56, 71)      # #123847
+    BORDER_INNER = QColor(12, 41, 52)      # #0C2934
+    ACCENT = QColor(0, 210, 235, 150)      # corner crosshair accents
+    GUIDE = QColor(0, 210, 235, 22)        # faint diagonal guides
+    GLOW_TOP = QColor(0, 210, 235, 12)
+    GLOW_BOTTOM = QColor(0, 210, 235, 9)
+
+    INSET = 12                 # frame inset from the outer content edges
+    CORNER_RADIUS = 8
+    _CROSS_ARM = 7
+    _CROSS_OFFSET = 12
+    _GUIDE_LEN = 30
+
+    # ------------------------------------------------------------------
+    def paintEvent(self, event):
+        rect = self.rect()
+        if rect.width() <= 0 or rect.height() <= 0:
+            return
+
+        painter = QPainter(self)
+        left, right = rect.left(), rect.right()
+        top, bottom = rect.top(), rect.bottom()
+
+        # 1. Base plane: a near-flat vertical navy gradient.
+        base = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+        base.setColorAt(0.0, self.SECONDARY)
+        base.setColorAt(0.5, self.BASE)
+        base.setColorAt(1.0, self.DEEP)
+        painter.fillRect(rect, base)
+
+        # 2. Restrained corner illumination (faint teal, corner-sized only so
+        #    the fill stays cheap at large window sizes).
+        span = max(rect.width(), rect.height())
+        glow_r = span * 0.42
+        corner = QRectF(left, top, rect.width() * 0.6, rect.height() * 0.6)
+        tl = QRadialGradient(left, top, glow_r)
+        tl.setColorAt(0.0, self.GLOW_TOP)
+        tl.setColorAt(1.0, QColor(0, 210, 235, 0))
+        painter.fillRect(corner, tl)
+        br = QRadialGradient(right, bottom, glow_r)
+        br.setColorAt(0.0, self.GLOW_BOTTOM)
+        br.setColorAt(1.0, QColor(0, 210, 235, 0))
+        painter.fillRect(
+            QRectF(right - rect.width() * 0.6, bottom - rect.height() * 0.6,
+                   rect.width() * 0.6, rect.height() * 0.6),
+            br,
+        )
+
+        # 3. Grid: fixed logical spacing so resizing keeps the pattern even.
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+
+        painter.setPen(QPen(self.GRID_MINOR, 1))
+        x = self.MINOR_STEP
+        while x <= right:
+            painter.drawLine(x, top, x, bottom)
+            x += self.MINOR_STEP
+        y = self.MINOR_STEP
+        while y <= bottom:
+            painter.drawLine(left, y, right, y)
+            y += self.MINOR_STEP
+
+        painter.setPen(QPen(self.GRID_MAJOR, 1))
+        x = self.MAJOR_STEP
+        while x <= right:
+            painter.drawLine(x, top, x, bottom)
+            x += self.MAJOR_STEP
+        y = self.MAJOR_STEP
+        while y <= bottom:
+            painter.drawLine(left, y, right, y)
+            y += self.MAJOR_STEP
+
+        # 4. Sparse intersection dots at the major intersections only.
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(self.GRID_DOT)
+        y = self.MAJOR_STEP
+        while y <= bottom:
+            x = self.MAJOR_STEP
+            while x <= right:
+                painter.drawRect(QRectF(x - 1.0, y - 1.0, 2.0, 2.0))
+                x += self.MAJOR_STEP
+            y += self.MAJOR_STEP
+
+        # 5 + 6. Rounded inset frame with corner accents.
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        frame = rect.adjusted(self.INSET, self.INSET,
+                              -self.INSET, -self.INSET)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(self.BORDER_OUTER, 1))
+        painter.drawRoundedRect(QRectF(frame), self.CORNER_RADIUS,
+                                self.CORNER_RADIUS)
+        inner = frame.adjusted(2, 2, -2, -2)
+        painter.setPen(QPen(self.BORDER_INNER, 1))
+        painter.drawRoundedRect(QRectF(inner), max(1, self.CORNER_RADIUS - 1),
+                                max(1, self.CORNER_RADIUS - 1))
+
+        for cx, cy, sx, sy in (
+            (frame.left(), frame.top(), 1, -1),
+            (frame.right(), frame.top(), -1, -1),
+            (frame.left(), frame.bottom(), 1, 1),
+            (frame.right(), frame.bottom(), -1, 1),
+        ):
+            ax, ay = cx + sx * self._CROSS_OFFSET, cy + sy * self._CROSS_OFFSET
+            painter.setPen(QPen(self.ACCENT, 1))
+            painter.drawLine(ax, ay - self._CROSS_ARM, ax, ay + self._CROSS_ARM)
+            painter.drawLine(ax - self._CROSS_ARM, ay, ax + self._CROSS_ARM, ay)
+            painter.setPen(QPen(self.GUIDE, 1))
+            painter.drawLine(ax, ay, ax + sx * self._GUIDE_LEN,
+                             ay + sy * self._GUIDE_LEN)
+
+        painter.end()
+
+
+# ---------------------------------------------------------------------------
 # Tables
 # ---------------------------------------------------------------------------
 
@@ -1266,3 +1412,304 @@ if PG_AVAILABLE:
             for name in ("volume", "macd"):
                 self.plots[name].enableAutoRange(axis=pg.ViewBox.YAxis)
                 self.plots[name].autoRange()
+
+
+# ---------------------------------------------------------------------------
+# Enhanced components - glass cards, sparklines, trend badges, drill-down
+# ---------------------------------------------------------------------------
+
+class GlassCard(QWidget):
+    """A glassmorphism card with subtle hover glow. Holds arbitrary content
+    in its vertical layout; emits clicked() when the whole card is clicked
+    (useful for drill-down navigation)."""
+
+    clicked = Signal()
+
+    def __init__(self, title=None, subtitle=None, parent=None):
+        super().__init__(parent)
+        self.setObjectName("interactive-card")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(16, 14, 16, 14)
+        self._layout.setSpacing(8)
+        if title:
+            self._layout.addWidget(make_label(title, 9, MUTED, bold=True))
+        if subtitle:
+            self._layout.addWidget(make_label(subtitle, 12, TEXT, bold=True, mono=True))
+
+    def set_content(self, widget):
+        """Add a widget below the title/subtitle."""
+        self._layout.addWidget(widget)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+    def enterEvent(self, event):
+        self.setStyleSheet(f"""
+            QFrame#interactive-card {{
+                background:#0A1E2E;
+                border:1px solid #00D9F5;
+                border-radius:8px;
+            }}
+        """)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self.setStyleSheet(f"""
+            QFrame#interactive-card {{
+                background:#091620;
+                border:1px solid #183746;
+                border-radius:8px;
+            }}
+        """)
+        super().leaveEvent(event)
+
+
+class KPIMetricCard(GlassCard):
+    """A key-performance-indicator card: big value, small change%, optional
+    mini sparkline, and a trend badge. All values are real backend data."""
+
+    def __init__(self, label="", value="—", change=None, sparkline=None,
+                 parent=None):
+        super().__init__(title=label, parent=None)
+        self._value_lbl = make_label(str(value), 26, TEXT, bold=True, mono=True)
+        self._layout.addWidget(self._value_lbl)
+
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        if change is not None:
+            self._change_lbl = make_label(str(change), 11,
+                                          GREEN if float(change) >= 0 else RED,
+                                          bold=True, mono=True)
+            row.addWidget(self._change_lbl)
+        self._trend = make_label("", 9, CYAN, bold=True, mono=True)
+        row.addWidget(self._trend)
+        row.addStretch()
+        self._layout.addLayout(row)
+
+        if sparkline is not None:
+            self._spark = Sparkline(width=120, height=24)
+            self._spark.set_series(sparkline)
+            self._layout.addWidget(self._spark)
+
+    def set_value(self, value, change=None):
+        self._value_lbl.setText(str(value))
+        if change is not None and hasattr(self, "_change_lbl"):
+            self._change_lbl.setText(str(change))
+            self._change_lbl.setStyleSheet(
+                f"color:{GREEN if float(change) >= 0 else RED}; "
+                f"background:transparent; border:none;"
+            )
+
+    def set_trend(self, text, direction="neutral"):
+        color = GREEN if direction == "up" else RED if direction == "down" else CYAN
+        self._trend.setText(text)
+        self._trend.setStyleSheet(f"color:{color}; background:transparent; border:none;")
+
+
+class TrendBadge(QWidget):
+    """A directional trend badge: up/down/neutral with colored text and dot."""
+
+    def __init__(self, text="—", direction="neutral", parent=None):
+        super().__init__(parent)
+        self.setLayout(QHBoxLayout())
+        self.layout().setContentsMargins(6, 2, 6, 2)
+        self.layout().setSpacing(4)
+        self._dot = QLabel("●")
+        self._dot.setFixedSize(6, 6)
+        self._dot.setStyleSheet(
+            f"color:{GREEN if direction=='up' else RED if direction=='down' else MUTED};"
+        )
+        self.layout().addWidget(self._dot)
+        self._text = make_label(text, 9, GREEN if direction == 'up'
+                                else RED if direction == 'down' else MUTED,
+                                bold=True)
+        self.layout().addWidget(self._text)
+
+    def set_trend(self, text, direction="neutral"):
+        self._text.setText(text)
+        color = GREEN if direction == 'up' else RED if direction == 'down' else MUTED
+        self._text.setStyleSheet(f"color:{color}; background:transparent; border:none;")
+        self._dot.setStyleSheet(f"color:{color};")
+
+
+class DrillDownCard(GlassCard):
+    """A GlassCard that emits a symbol string when clicked, for drill-down
+    navigation to a detailed stock view."""
+
+    symbolClicked = Signal(str)
+
+    def __init__(self, symbol, price, change, sector, parent=None):
+        super().__init__(title=symbol, subtitle=None, parent=None)
+        self._symbol = symbol
+        self._layout.addWidget(make_label(str(price), 20, TEXT, bold=True, mono=True))
+        row = QHBoxLayout()
+        row.setSpacing(6)
+        change_lbl = make_label(str(change), 10,
+                                GREEN if float(change) >= 0 else RED,
+                                bold=True, mono=True)
+        row.addWidget(change_lbl)
+        row.addWidget(make_label(sector, 9, MUTED))
+        row.addStretch()
+        self._layout.addLayout(row)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.symbolClicked.emit(self._symbol)
+        super().mousePressEvent(event)
+
+
+class LiveTicker(QWidget):
+    """A scrolling horizontal ticker showing latest prices and changes.
+    Accepts (symbol, price, change) tuples and scrolls them left-to-right."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(28)
+        self._items = []
+        self._offset = 0
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start(40)
+
+    def set_items(self, items):
+        self._items = items
+        self._offset = 0
+        self.update()
+
+    def _tick(self):
+        self._offset -= 0.6
+        if self._offset < -200:
+            self._offset = 0
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = self.rect()
+        painter.setPen(QPen(QColor(MUTED)))
+        painter.setFont(font(9, mono=True))
+        x = r.right() + self._offset
+        for symbol, price, change in self._items:
+            color = GREEN if change >= 0 else RED
+            text = f"  {symbol}  {price}  {change:+.2f}%  "
+            painter.setPen(QPen(QColor(color)))
+            painter.drawText(int(x), int(r.center().y() + 4), text)
+            x += painter.fontMetrics().horizontalAdvance(text) + 20
+        painter.end()
+
+
+class CollapsiblePanel(QWidget):
+    """Enhanced collapsible section with animated toggle, chevron arrow,
+    and optional availability badge. Keeps body state when collapsed."""
+
+    def __init__(self, number, title, availability_text=None, parent=None):
+        super().__init__(parent)
+        self.setObjectName("interactive-card")
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        self.header = QPushButton()
+        self.header.setCheckable(True)
+        self.header.setChecked(True)
+        self.header.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.header.setStyleSheet(f"""
+            QPushButton {{
+                text-align:left;
+                background:transparent;
+                border:none;
+                border-bottom:1px solid #0F202B;
+                padding:10px 14px;
+            }}
+            QPushButton:hover {{ background:#0A1E2E; border-radius:8px 8px 0 0; }}
+        """)
+        head_row = QHBoxLayout(self.header)
+        head_row.setContentsMargins(2, 0, 8, 0)
+        head_row.setSpacing(8)
+        num_text = f"{number:02d}" if isinstance(number, int) else str(number)
+        num = make_label(num_text, 11, CYAN, bold=True, mono=True)
+        head_row.addWidget(num)
+        title_lbl = make_label(title, 11, TEXT, bold=True)
+        head_row.addWidget(title_lbl)
+        head_row.addStretch()
+        self._avail = QLabel()
+        if availability_text is not None:
+            self.set_availability(availability_text)
+        head_row.addWidget(self._avail)
+        self.arrow = make_label("▾", 11, MUTED, bold=True)
+        head_row.addWidget(self.arrow)
+        outer.addWidget(self.header)
+
+        self.body = QWidget()
+        self.body_layout = QVBoxLayout(self.body)
+        self.body_layout.setContentsMargins(16, 4, 16, 12)
+        self.body_layout.setSpacing(8)
+        outer.addWidget(self.body)
+
+        self.header.toggled.connect(self._on_toggled)
+
+    def set_availability(self, text):
+        color = GREEN if str(text).upper() == "AVAILABLE" else (
+            MUTED if str(text).upper() in ("N/A", "UNKNOWN", "NOT_AVAILABLE") else AMBER
+        )
+        self._avail.setText(str(text))
+        self._avail.setFont(font(8, bold=True))
+        self._avail.setStyleSheet(
+            f"color:{color}; background:transparent; border:none;"
+        )
+
+    def add(self, widget):
+        self.body_layout.addWidget(widget)
+
+    def _on_toggled(self, expanded):
+        self.body.setVisible(expanded)
+        self.arrow.setText("▾" if expanded else "▸")
+
+
+class DashboardGrid(QWidget):
+    """Auto-arranging grid of KPIMetricCard widgets. Column count adapts to
+    width; cards are evenly sized."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self._layout.setSpacing(12)
+        self._cards = []
+
+    def add_card(self, card):
+        self._cards.append(card)
+        self._rebuild()
+
+    def clear(self):
+        while self._layout.count():
+            item = self._layout.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+        self._cards = []
+
+    def _rebuild(self):
+        # Simple 4-column grid; wraps automatically via wrap logic
+        from PySide6.QtWidgets import QGridLayout
+        # Remove old grid
+        while self._layout.count():
+            item = self._layout.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+        grid = QGridLayout()
+        grid.setSpacing(12)
+        cols = 4
+        for i, card in enumerate(self._cards):
+            r, c = divmod(i, cols)
+            grid.addWidget(card, r, c)
+        # Pad last row
+        rem = len(self._cards) % cols
+        if rem:
+            for c in range(rem, cols):
+                placeholder = QWidget()
+                placeholder.setFixedHeight(150)
+                grid.addWidget(placeholder, len(self._cards) // cols, c)
+        self._layout.addLayout(grid)

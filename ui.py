@@ -34,6 +34,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ui.theme import apply_theme
+
 from brain import (
     BrainError,
     MODEL,
@@ -53,6 +55,22 @@ from voice import (
     listen_for_session_event,
 )
 
+from styles.design_tokens import (
+    BG, SURFACE, SURFACE_ALT, SIDEBAR, HEADER,
+    BORDER, BORDER_BRIGHT, BORDER_DIM,
+    TEXT, SECONDARY, MUTED, MUTED2,
+    GREEN, RED, AMBER, BLUE, CYAN, PURPLE,
+    BG_SUCCESS, BG_WARNING, BG_ERROR, BG_INFO,
+    FONT_UI, FONT_MONO,
+    FONT_SIZE_CAPTION, FONT_SIZE_SMALL, FONT_SIZE_REGULAR,
+    FONT_SIZE_MEDIUM, FONT_SIZE_LARGE, FONT_SIZE_XLARGE,
+    SPACE_XS, SPACE_SM, SPACE_MD, SPACE_LG, SPACE_XL, SPACE_XXL,
+    BORDER_RADIUS_SM, BORDER_RADIUS_MD, BORDER_RADIUS_LG, BORDER_RADIUS_PILL,
+    HEADER_HEIGHT, SIDEBAR_WIDTH, SIDEBAR_ITEM_HEIGHT,
+    GUARDRAIL_TEXT, BUY_SELL_AUTHORIZED, TRADING_EXECUTION, SIGNAL_ELIGIBLE,
+    freshness_level, freshness_color, freshness_label,
+)
+
 
 # ============================================================
 # CONFIG
@@ -63,22 +81,11 @@ APP_NAME = "NOVA"
 OLLAMA_URL = "http://127.0.0.1:11434/api/tags"
 SEARXNG_URL = "http://127.0.0.1:8080/"
 
-BG = "#02070B"
-PANEL = "#061118"
+# Local-only palette aliases for ui.py-specific shades that differ from
+# design_tokens. All shared design tokens are imported above.
 PANEL_2 = "#081720"
 PANEL_3 = "#0A1C25"
-
-BORDER = "#12313D"
-BORDER_BRIGHT = "#1B6170"
-
-TEXT = "#EAF7FA"
-MUTED = "#64818A"
-
-GREEN = "#39F0B2"
-CYAN = "#35DFFF"
-PURPLE = "#A77CFF"
-RED = "#FF5C70"
-AMBER = "#FFC857"
+PANEL = "#061118"
 
 
 # ============================================================
@@ -2524,6 +2531,8 @@ def main():
     app.setStyle(
         "Fusion"
     )
+
+    apply_theme(app)
 
     window = NovaWindow()
 

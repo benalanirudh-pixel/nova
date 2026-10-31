@@ -43,7 +43,21 @@ from market_lab import stock_adapter
 from market_lab import report_parser
 from market_lab import icons as icons_module
 from market_lab import theme
-
+from styles.design_tokens import (
+    BG, SURFACE, SURFACE_ALT, SIDEBAR, HEADER,
+    BORDER, BORDER_BRIGHT, BORDER_DIM,
+    TEXT, SECONDARY, MUTED, MUTED2,
+    GREEN, RED, AMBER, BLUE, CYAN, PURPLE,
+    BG_SUCCESS, BG_WARNING, BG_ERROR, BG_INFO,
+    FONT_UI, FONT_MONO,
+    FONT_SIZE_CAPTION, FONT_SIZE_SMALL, FONT_SIZE_REGULAR,
+    FONT_SIZE_MEDIUM, FONT_SIZE_LARGE, FONT_SIZE_XLARGE,
+    SPACE_XS, SPACE_SM, SPACE_MD, SPACE_LG, SPACE_XL, SPACE_XXL,
+    BORDER_RADIUS_SM, BORDER_RADIUS_MD, BORDER_RADIUS_LG, BORDER_RADIUS_PILL,
+    HEADER_HEIGHT, SIDEBAR_WIDTH, SIDEBAR_ITEM_HEIGHT,
+    GUARDRAIL_TEXT, BUY_SELL_AUTHORIZED, TRADING_EXECUTION, SIGNAL_ELIGIBLE,
+    freshness_level, freshness_color, freshness_label,
+)
 
 # ============================================================
 # NOVA MARKET LAB
@@ -51,25 +65,12 @@ from market_lab import theme
 
 APP_NAME = "NOVA MARKET LAB"
 
-BG = "#050B10"
-SIDEBAR = "#061019"
-PANEL = "#091620"
-PANEL_ALT = "#0D1B26"
+# Local-only palette aliases not covered by design_tokens (kept for inline QSS
+# compatibility). All shared design tokens are imported above.
 ALT_ROW = "#0F202B"
-BORDER = "#183746"
 BORDER_ALT = "#102936"
-
-TEXT = "#F2F6FA"
-SECONDARY = "#91A9BE"
-MUTED = "#91A9BE"
-MUTED2 = "#617A91"
-
-GREEN = "#00E6A0"
-CYAN = "#00D9F5"
-PURPLE = "#B49AFF"
-AMBER = "#FFBD4A"
-RED = "#FF4058"
-BLUE = "#3198FF"
+PANEL_ALT = "#0D1B26"
+PANEL = "#091620"
 
 # Left-rail navigation styling: dark-blue active + cyan indicator; disabled dim.
 NAV_QSS = """
@@ -686,7 +687,7 @@ class MarketLabWindow(QMainWindow):
         return button
 
     def build_ui(self):
-        root = QWidget()
+        root = W.GridBackground()
         self.setCentralWidget(root)
 
         outer = QVBoxLayout(root)
@@ -858,11 +859,18 @@ class MarketLabWindow(QMainWindow):
         hl.addWidget(self.scan_age_badge)
 
         self.mode_chip = W.stat_chip("MODE: CACHE-FIRST", CYAN)
+        self.mode_chip.setObjectName("mode-chip")
         hl.addWidget(self.mode_chip)
         self.session_badge = W.stat_chip("SESSION —", AMBER)
         hl.addWidget(self.session_badge)
         self.vix_chip = W.stat_chip("VIX —", MUTED)
         hl.addWidget(self.vix_chip)
+
+        # Live scrolling ticker: latest prices/changes from cached report.
+        self.live_ticker = W.LiveTicker()
+        self.live_ticker.setFixedHeight(24)
+        self.live_ticker.setVisible(False)  # shown when AUTO: ON
+        hl.addWidget(self.live_ticker)
 
         self.connection_label = W.make_label("INITIALIZING", 9, AMBER, True)
         hl.addWidget(self.connection_label)
@@ -929,11 +937,12 @@ class MarketLabWindow(QMainWindow):
         `chart_kind` is "candle" for indices with valid OHLC and "line" for
         series shown as values. The chart only ever draws real observations.
         """
-        frame, layout = W.panel(name, subtitle)
-        frame.setMinimumHeight(360)
+        card = W.GlassCard(title=name, subtitle=subtitle)
+        card.setMinimumHeight(400)
+        layout = card.layout()
 
         head = QHBoxLayout()
-        price = W.make_label("\u2014", 28, TEXT, bold=True, mono=True)
+        price = W.make_label("\u2014", 26, TEXT, bold=True, mono=True)
         price.setWordWrap(False)
         change = W.make_label("\u2014", 14, MUTED, bold=True, mono=True)
         change.setWordWrap(False)
@@ -954,7 +963,7 @@ class MarketLabWindow(QMainWindow):
             chart = W.LineChart()
         else:
             chart = W.CandleChart()
-        chart.setMinimumHeight(170)
+        chart.setMinimumHeight(190)
         layout.addWidget(chart, 1)
 
         ohlc = W.make_label("O \u2014  H \u2014  L \u2014  C \u2014", 10, TEXT, mono=True)
@@ -965,23 +974,27 @@ class MarketLabWindow(QMainWindow):
         returns.setWordWrap(False)
         layout.addWidget(returns)
         return {
-            "frame": frame, "price": price, "change": change, "meta": meta,
+            "frame": card, "price": price, "change": change, "meta": meta,
             "trend": trend, "chart": chart, "ohlc": ohlc, "returns": returns,
             "chart_kind": chart_kind,
         }
 
     def _indicator_card(self, name):
-        frame, layout = W.panel(name, "")
-        frame.setFixedHeight(116)
+        card = W.GlassCard(title=name, parent=None)
+        card.setFixedHeight(116)
+        layout = card.layout()
         value = W.make_label("—", 18, TEXT, bold=True, mono=True)
         value.setWordWrap(False)
+        layout.addWidget(value)
         interp = W.make_label("—", 9, MUTED)
         interp.setWordWrap(False)
         interp.setToolTip(name)
-        layout.addWidget(value)
         layout.addWidget(interp)
+        trend = W.TrendBadge("—", "neutral")
+        layout.addWidget(trend)
         layout.addStretch()
-        return {"frame": frame, "value": value, "interp": interp}
+        return {"frame": card, "value": value, "interp": interp,
+                "trend": trend}
 
     # --------------------------------------------------------
     # PAGES
@@ -1096,7 +1109,7 @@ class MarketLabWindow(QMainWindow):
 
     def _kpi_card(self, title):
         frame, layout = W.panel(title)
-        frame.setFixedHeight(96)
+        frame.setFixedHeight(100)
         layout.setSpacing(4)
         value = W.make_label("—", 22, TEXT, bold=True, mono=True)
         value.setWordWrap(False)
@@ -1109,6 +1122,19 @@ class MarketLabWindow(QMainWindow):
         bar.setVisible(False)
         layout.addWidget(bar)
         layout.addStretch()
+        # Style as an interactive card
+        frame.setObjectName("interactive-card")
+        frame.setStyleSheet(f"""
+            QFrame#interactive-card {{
+                background:#091620;
+                border:1px solid #183746;
+                border-radius:8px;
+            }}
+            QFrame#interactive-card:hover {{
+                background:#0A1E2E;
+                border-color:#00D9F5;
+            }}
+        """)
         return {"frame": frame, "value": value, "sub": sub, "bar": bar}
 
     def build_kpi_strip(self):
@@ -1742,6 +1768,11 @@ class MarketLabWindow(QMainWindow):
         self.stock_analyze_btn = AnalyzeButton("ANALYZE")
         self.stock_analyze_btn.clicked.connect(self.run_stock_analysis)
         row.addWidget(self.stock_analyze_btn)
+        self.stock_pin_btn = make_button("Pin to watchlist", False)
+        self.stock_pin_btn.setEnabled(False)
+        self.stock_pin_btn.setToolTip("Add this symbol to the watchlist on the Nova Analysis page")
+        self.stock_pin_btn.clicked.connect(self._pin_stock_to_watchlist)
+        row.addWidget(self.stock_pin_btn)
         row.addStretch()
         cl.addLayout(row)
         layout.addWidget(controls)
@@ -1772,6 +1803,7 @@ class MarketLabWindow(QMainWindow):
             pass
 
     def _stock_show_empty(self):
+        self.stock_pin_btn.setEnabled(False)
         self._stock_clear_body()
         self.stock_report = None
         box = QWidget()
@@ -1795,6 +1827,7 @@ class MarketLabWindow(QMainWindow):
             self.run_stock_analysis()
 
     def _stock_show_loading(self):
+        self.stock_pin_btn.setEnabled(False)
         self._stock_clear_body()
         self.stock_report = None
         note = W.make_label(
@@ -1843,6 +1876,35 @@ class MarketLabWindow(QMainWindow):
                 "symbol": symbol, "metrics": metrics, "candles": candles,
                 "osc": osc, "ai": ai}
 
+    def _pin_stock_to_watchlist(self):
+        symbol = (self.stock_symbol_input.text() or "").strip().upper()
+        if not symbol:
+            self.stock_status.setText("Enter a symbol first.")
+            self.stock_status.setStyleSheet(f"color:{AMBER};")
+            return
+        resolved = stock_adapter.resolve_symbol(symbol)
+        if not resolved:
+            self.stock_status.setText(
+                f"No NSE security found for '{symbol}'.")
+            self.stock_status.setStyleSheet(f"color:{RED};")
+            return
+        sym = resolved["symbol"]
+        if sym in self.watch_symbols:
+            self.stock_status.setText(f"{sym} already on watchlist.")
+            self.stock_status.setStyleSheet(f"color:{AMBER};")
+            return
+        from analysis.data.watchlist_engine import MAX_SYMBOLS
+        if len(self.watch_symbols) >= MAX_SYMBOLS:
+            self.stock_status.setText(
+                f"Watchlist full ({MAX_SYMBOLS} max). Remove a symbol first.")
+            self.stock_status.setStyleSheet(f"color:{AMBER};")
+            return
+        self.watch_symbols.append(sym)
+        self.render_watchlist()
+        self.switch_page(3)  # Nova Analysis hosts the watchlist view
+        self.stock_status.setText(f"Pinned {sym} to watchlist.")
+        self.stock_status.setStyleSheet(f"color:{GREEN};")
+
     def _stock_append_label(self, text, color):
         layout = getattr(self, "stock_body_layout", None)
         if layout is not None:
@@ -1860,6 +1922,7 @@ class MarketLabWindow(QMainWindow):
         ai_text = result.get("ai", "") or ""
 
         if not metrics.get("price"):
+            self.stock_pin_btn.setEnabled(False)
             self.stock_report = None
             self._stock_append_label(
                 f"No usable live/history data for {symbol} right now "
@@ -1871,14 +1934,16 @@ class MarketLabWindow(QMainWindow):
             self._add_report_panel(text)
             return
 
-        overview = self._build_stock_overview(symbol, metrics)
+        self.stock_pin_btn.setEnabled(True)
+        overview = self._build_stock_overview(symbol, metrics,
+                                              result.get("candles") or [])
         report_panel = self._build_ai_report_panel(
             symbol, metrics, ai_text, result.get("candles") or [])
         layout.addWidget(ResponsiveRow(overview, report_panel))
 
     # -------------------- Stock Overview (left column) --------------------
 
-    def _build_stock_overview(self, symbol, metrics):
+    def _build_stock_overview(self, symbol, metrics, candles=None):
         frame, layout = W.panel("Stock overview")
         sector = stock_adapter.stock_sector(symbol)
         tags = [symbol, metrics.get("exchange", "NSE")]
@@ -1899,6 +1964,16 @@ class MarketLabWindow(QMainWindow):
         meta = W.make_label(meta_text, 9, MUTED)
         meta.setWordWrap(True)
         left.addWidget(meta)
+        if ts:
+            try:
+                parsed = _parse_iso(ts)
+                if parsed is not None:
+                    age_sec = max(0, (datetime.now(timezone.utc) - parsed).total_seconds())
+                    fresh = W.make_label(f"Data {display_age(age_sec)}", 8, MUTED)
+                    fresh.setWordWrap(False)
+                    left.addWidget(fresh)
+            except Exception:
+                pass
         id_row.addLayout(left, 1)
 
         right = QVBoxLayout()
@@ -1920,11 +1995,32 @@ class MarketLabWindow(QMainWindow):
                             self._trend_color(kt["trend"])),
             self._stat_card("MOMENTUM SCORE", fmt_num(kt["momentum_score"], 1),
                             CYAN, "scanner score, not a probability"),
-            self._stat_card("RSI 14", fmt_num(kt["rsi"]), None,
-                            str(kt["rsi_condition"])),
-            self._stat_card("MACD", fmt_num(kt["macd"]), None,
-                            str(kt["macd_condition"])),
+            self._stat_card("RSI 14", fmt_num(kt["rsi"], 1),
+                            None, str(kt["rsi_condition"])),
+            self._stat_card("MACD", fmt_num(kt["macd"], 2),
+                            None, str(kt["macd_condition"])),
         ]))
+
+        # Lightweight price sparkline from real candles (honest empty state if none).
+        spark_frame, spark_lay = W.panel("Price (daily closes)")
+        spark_lay.setContentsMargins(0, 0, 0, 0)
+        spark_lay.setSpacing(4)
+        closes = [
+            c.get("c") for c in (candles or [])
+            if isinstance(c, dict) and c.get("c") is not None
+        ]
+        dates = [
+            c.get("t", "") for c in (candles or [])
+            if isinstance(c, dict) and c.get("c") is not None
+        ]
+        spark = W.LineChart()
+        spark.setMinimumHeight(70)
+        spark.set_series(closes, dates)
+        spark_lay.addWidget(spark)
+        if not closes:
+            spark_lay.addWidget(W.make_label(
+                "No price history in report.", 8, MUTED))
+        layout.addWidget(spark_frame)
 
         obs_frame, obs_layout = W.panel("Key observations")
         obs_layout.addWidget(self._bullets(
@@ -2586,6 +2682,18 @@ class MarketLabWindow(QMainWindow):
                     f"color:{MUTED};background:transparent;border:none;"
                 )
             card["interp"].setText(str(data.get("interpretation", vm.N_A)))
+            # Trend badge from interpretation text
+            interp_text = str(data.get("interpretation", ""))
+            if "oversold" in interp_text.lower():
+                card["trend"].set_trend("OVERSOLD", "up")
+            elif "overbought" in interp_text.lower():
+                card["trend"].set_trend("OVERBOUGHT", "down")
+            elif "bullish" in interp_text.lower():
+                card["trend"].set_trend("BULLISH", "up")
+            elif "bearish" in interp_text.lower():
+                card["trend"].set_trend("BEARISH", "down")
+            else:
+                card["trend"].set_trend("NEUTRAL", "neutral")
 
         # --- Breadth ---
         b = vm.breadth_block(report)
@@ -3481,6 +3589,9 @@ class MarketLabWindow(QMainWindow):
         self.auto_btn.setText(
             "AUTO: ON" if self.auto_enabled else "AUTO: OFF"
         )
+        # Show/hide the live ticker based on auto state
+        if hasattr(self, "live_ticker"):
+            self.live_ticker.setVisible(self.auto_enabled)
         if self.auto_enabled:
             self.ensure_auto_timer()
             # First poll fires after one interval, not immediately,
@@ -3561,6 +3672,31 @@ class MarketLabWindow(QMainWindow):
         if getattr(self, "report", None) is not None and hasattr(self, "scan_age_badge"):
             try:
                 self.update_header(self.report)
+            except Exception:
+                pass
+
+        # Populate live ticker from current report data when AUTO is on.
+        if getattr(self, "live_ticker", None) is not None and self.auto_enabled:
+            try:
+                items = []
+                report = self.report
+                if report is not None:
+                    # NIFTY
+                    nifty = vm.index_card(report, "nifty")
+                    if nifty.get("price") is not None:
+                        ch = nifty.get("change_percent", 0) or 0
+                        items.append(("NIFTY 50", fmt_price(nifty["price"]), ch))
+                    # BANKNIFTY
+                    bnf = vm.index_card(report, "banknifty")
+                    if bnf.get("price") is not None:
+                        ch = bnf.get("change_percent", 0) or 0
+                        items.append(("BANKNIFTY", fmt_price(bnf["price"]), ch))
+                    # INDIA VIX
+                    vix = vm.vix_card(report)
+                    if vix.get("value") is not None:
+                        items.append(("INDIA VIX", fmt_num(vix["value"]), 0.0))
+                if items:
+                    self.live_ticker.set_items(items)
             except Exception:
                 pass
 
