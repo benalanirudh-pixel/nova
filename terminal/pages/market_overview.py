@@ -130,9 +130,13 @@ class IndexCard(QFrame):
         self.setObjectName("indexCard")
         self.setStyleSheet(f"""
             QFrame#indexCard {{
-                background: {SURFACE};
+                background: qlineargradient(
+                    x1:0, y1:0, x2:0, y2:1,
+                    stop:0 {SURFACE_ALT}, stop:1 {SURFACE}
+                );
                 border: 1px solid {BORDER};
-                border-radius: 8px;
+                border-top: 2px solid {CYAN};
+                border-radius: 6px;
             }}
         """)
 
@@ -169,9 +173,9 @@ class IndexCard(QFrame):
 
         # Chart placeholder
         self._chart_frame = QFrame()
-        self._chart_frame.setFixedHeight(100)
+        self._chart_frame.setFixedHeight(90)
         self._chart_frame.setStyleSheet(
-            f"background: {BG}; border: 1px solid {BORDER_DIM}; border-radius: 4px;"
+            f"background: {BG}; border: none; border-top: 1px solid {BORDER_DIM}; border-radius: 0px;"
         )
         layout.addWidget(self._chart_frame)
 
@@ -289,15 +293,23 @@ def _section(title, subtitle=None):
         QFrame#sectionPanel {{
             background: {SURFACE};
             border: 1px solid {BORDER};
-            border-radius: 8px;
+            border-left: 2px solid {CYAN};
+            border-radius: 4px;
         }}
     """)
     layout = QVBoxLayout(frame)
-    layout.setContentsMargins(14, 10, 14, 12)
-    layout.setSpacing(8)
-    layout.addWidget(_lbl(title.upper(), 9, CYAN, bold=True))
+    layout.setContentsMargins(12, 8, 12, 10)
+    layout.setSpacing(6)
+    hdr = QHBoxLayout()
+    hdr.addWidget(_lbl(title.upper(), 8, CYAN, bold=True))
+    hdr.addStretch()
     if subtitle:
-        layout.addWidget(_lbl(subtitle, 8, MUTED))
+        hdr.addWidget(_lbl(subtitle, 8, MUTED))
+    layout.addLayout(hdr)
+    sep = QFrame()
+    sep.setFixedHeight(1)
+    sep.setStyleSheet(f"background:{BORDER_DIM}; border:none;")
+    layout.addWidget(sep)
     return frame, layout
 
 

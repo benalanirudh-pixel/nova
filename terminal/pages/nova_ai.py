@@ -4,11 +4,11 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QFrame, QScrollArea, QTextEdit, QSizePolicy,
+    QFrame, QScrollArea, QTextEdit, QSizePolicy, QPushButton,
 )
 
 from styles.design_tokens import (
-    BG, SURFACE, CYAN, GREEN, RED, AMBER, MUTED, MUTED2, TEXT, BORDER, SECONDARY,
+    BG, SURFACE, SURFACE_ALT, CYAN, GREEN, RED, AMBER, MUTED, MUTED2, TEXT, BORDER, BORDER_BRIGHT, SECONDARY,
 )
 
 try:
@@ -116,14 +116,18 @@ class NovaAIPage(QWidget):
                                   GREEN if _BRAIN_AVAILABLE else AMBER)
         bl.addWidget(self._status_lbl)
 
-        reset_btn = QLabel("  RESET  ")
-        reset_btn.setFixedHeight(26)
-        reset_btn.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        reset_btn.setStyleSheet(
-            f"color:{MUTED}; font-size:9px; border:1px solid {BORDER};"
-            f" border-radius:3px; background:{BG}; padding:0 4px;"
-        )
-        reset_btn.mousePressEvent = lambda _: self._reset_chat()
+        reset_btn = QPushButton("RESET")
+        reset_btn.setFixedHeight(28)
+        reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        reset_btn.setStyleSheet(f"""
+            QPushButton {{
+                background:transparent; color:{MUTED}; border:1px solid {BORDER};
+                border-radius:3px; font-size:9px; font-weight:600; padding:0 10px;
+            }}
+            QPushButton:hover {{ color:{TEXT}; border-color:{BORDER_BRIGHT}; background:{SURFACE_ALT}; }}
+            QPushButton:pressed {{ background:{BORDER}; }}
+        """)
+        reset_btn.clicked.connect(self._reset_chat)
         bl.addWidget(reset_btn)
         outer.addWidget(bar)
 
@@ -173,14 +177,20 @@ class NovaAIPage(QWidget):
         self._input.returnPressed.connect(self._send)
         il.addWidget(self._input, 1)
 
-        send_btn = QLabel("  SEND  ")
-        send_btn.setFixedSize(70, 32)
-        send_btn.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        send_btn.setStyleSheet(
-            f"QLabel {{ background:{CYAN}; color:#000; font-size:11px;"
-            f" font-weight:bold; border-radius:3px; }}"
-        )
-        send_btn.mousePressEvent = lambda _: self._send()
+        send_btn = QPushButton("SEND")
+        send_btn.setFixedHeight(36)
+        send_btn.setMinimumWidth(70)
+        send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        send_btn.setStyleSheet(f"""
+            QPushButton {{
+                background:{CYAN}; color:#000; border:none;
+                border-radius:3px; font-size:11px; font-weight:700;
+                padding:0 18px; letter-spacing:1px;
+            }}
+            QPushButton:hover {{ background:#33E8FF; }}
+            QPushButton:pressed {{ background:#00B8D4; }}
+        """)
+        send_btn.clicked.connect(self._send)
         il.addWidget(send_btn)
         outer.addWidget(input_bar)
 

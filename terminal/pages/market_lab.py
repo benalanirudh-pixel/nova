@@ -6,7 +6,7 @@ import json
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
-    QScrollArea, QPlainTextEdit, QSplitter,
+    QScrollArea, QPlainTextEdit, QSplitter, QPushButton,
 )
 
 from market_lab import view_model as vm
@@ -63,14 +63,20 @@ class MarketLabPage(QWidget):
         self._status_lbl = _lbl("No report loaded", 9, MUTED)
         bl.addWidget(self._status_lbl)
 
-        narrate_btn = QLabel("  AI NARRATE  ")
-        narrate_btn.setFixedHeight(28)
-        narrate_btn.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        narrate_btn.setStyleSheet(
-            f"QLabel {{ background:{CYAN}; color:#000; font-size:10px;"
-            f" font-weight:bold; border-radius:3px; padding:0 6px; }}"
-        )
-        narrate_btn.mousePressEvent = lambda _: self._narrate()
+        narrate_btn = QPushButton("AI NARRATE")
+        narrate_btn.setFixedHeight(30)
+        narrate_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        narrate_btn.setStyleSheet(f"""
+            QPushButton {{
+                background:{CYAN}; color:#000; border:none;
+                border-radius:3px; font-size:10px; font-weight:700;
+                padding:0 14px; letter-spacing:0.8px;
+            }}
+            QPushButton:hover {{ background:#33E8FF; }}
+            QPushButton:pressed {{ background:#00B8D4; }}
+            QPushButton:disabled {{ background:{BORDER}; color:{MUTED}; }}
+        """)
+        narrate_btn.clicked.connect(self._narrate)
         bl.addWidget(narrate_btn)
         outer.addWidget(bar)
 

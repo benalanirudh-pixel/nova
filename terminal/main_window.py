@@ -115,8 +115,10 @@ class NovaTerminal(QMainWindow):
 
     def _apply_base_style(self):
         self.setStyleSheet(f"""
-            QMainWindow {{
+            QMainWindow, QWidget {{
                 background: {BG};
+                color: {TEXT};
+                font-family: '{FONT_UI}';
             }}
             QScrollArea {{
                 background: {BG};
@@ -124,44 +126,103 @@ class NovaTerminal(QMainWindow):
             }}
             QScrollBar:vertical {{
                 background: {BG};
-                width: 8px;
+                width: 7px;
                 margin: 0;
+                border: none;
             }}
             QScrollBar::handle:vertical {{
                 background: {BORDER};
                 min-height: 28px;
-                border-radius: 4px;
+                border-radius: 3px;
             }}
             QScrollBar::handle:vertical:hover {{
                 background: {BORDER_BRIGHT};
             }}
-            QScrollBar::add-line:vertical,
-            QScrollBar::sub-line:vertical {{
-                height: 0;
-            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
             QScrollBar:horizontal {{
                 background: {BG};
-                height: 8px;
+                height: 7px;
+                border: none;
             }}
             QScrollBar::handle:horizontal {{
                 background: {BORDER};
                 min-width: 28px;
-                border-radius: 4px;
+                border-radius: 3px;
             }}
-            QScrollBar::handle:horizontal:hover {{
-                background: {BORDER_BRIGHT};
-            }}
-            QScrollBar::add-line:horizontal,
-            QScrollBar::sub-line:horizontal {{
-                width: 0;
-            }}
-            QToolTip {{
+            QScrollBar::handle:horizontal:hover {{ background: {BORDER_BRIGHT}; }}
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
+            QLineEdit {{
                 background: {SURFACE};
                 color: {TEXT};
                 border: 1px solid {BORDER};
+                border-radius: 3px;
+                padding: 5px 9px;
+                font-size: 11px;
+                selection-background-color: {CYAN};
+                selection-color: #000;
+            }}
+            QLineEdit:focus {{ border-color: {CYAN}; }}
+            QComboBox {{
+                background: {SURFACE};
+                color: {TEXT};
+                border: 1px solid {BORDER};
+                border-radius: 3px;
+                padding: 4px 8px 4px 8px;
+                font-size: 11px;
+                min-width: 80px;
+            }}
+            QComboBox:hover {{ border-color: {BORDER_BRIGHT}; }}
+            QComboBox::drop-down {{ border: none; width: 16px; }}
+            QComboBox::down-arrow {{
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 5px solid {MUTED};
+                margin-right: 6px;
+            }}
+            QComboBox QAbstractItemView {{
+                background: {SURFACE_ALT};
+                color: {TEXT};
+                border: 1px solid {BORDER};
+                selection-background-color: {BORDER};
+                selection-color: {CYAN};
+                outline: none;
+                padding: 2px;
+            }}
+            QPushButton {{
+                background: transparent;
+                color: {SECONDARY};
+                border: 1px solid {BORDER};
+                border-radius: 3px;
+                font-size: 10px;
+                font-weight: 600;
+                padding: 4px 12px;
+                letter-spacing: 0.5px;
+            }}
+            QPushButton:hover {{
+                background: {SURFACE_ALT};
+                color: {TEXT};
+                border-color: {BORDER_BRIGHT};
+            }}
+            QPushButton:pressed {{ background: {BORDER}; }}
+            QPushButton:disabled {{ color: {MUTED2}; }}
+            QPlainTextEdit, QTextEdit {{
+                background: {SURFACE};
+                color: {SECONDARY};
+                border: 1px solid {BORDER};
+                border-radius: 3px;
+                padding: 6px;
+                font-family: '{FONT_MONO}';
+                font-size: 10px;
+                selection-background-color: {CYAN};
+            }}
+            QSplitter::handle {{ background: {BORDER}; }}
+            QToolTip {{
+                background: {SURFACE_ALT};
+                color: {TEXT};
+                border: 1px solid {BORDER};
                 padding: 4px 8px;
-                font-family: {FONT_UI};
-                font-size: 10pt;
+                font-size: 10px;
             }}
         """)
 

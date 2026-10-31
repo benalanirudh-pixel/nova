@@ -176,14 +176,20 @@ class StockAnalysisPage(QWidget):
         self._range_cb.setStyleSheet(self._mode_cb.styleSheet())
         bl.addWidget(self._range_cb)
 
-        self._analyze_btn = QLabel("ANALYZE")
-        self._analyze_btn.setFixedSize(90, 30)
-        self._analyze_btn.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._analyze_btn.setStyleSheet(
-            f"QLabel {{ background:{CYAN}; color:#000; font-size:11px;"
-            f" font-weight:bold; border-radius:3px; }}"
-        )
-        self._analyze_btn.mousePressEvent = lambda _: self._run_analysis()
+        self._analyze_btn = QPushButton("ANALYZE")
+        self._analyze_btn.setFixedHeight(32)
+        self._analyze_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._analyze_btn.setStyleSheet(f"""
+            QPushButton {{
+                background:{CYAN}; color:#000; border:none;
+                border-radius:3px; font-size:11px; font-weight:700;
+                padding:0 18px; letter-spacing:1px;
+            }}
+            QPushButton:hover {{ background:#33E8FF; }}
+            QPushButton:pressed {{ background:#00B8D4; }}
+            QPushButton:disabled {{ background:{BORDER}; color:{MUTED}; }}
+        """)
+        self._analyze_btn.clicked.connect(self._run_analysis)
         bl.addWidget(self._analyze_btn)
 
         bl.addStretch(1)
