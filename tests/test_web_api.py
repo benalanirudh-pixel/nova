@@ -26,3 +26,30 @@ class TestHealthEndpoint(unittest.TestCase):
             "Access-Control-Request-Method": "GET",
         })
         self.assertIn("access-control-allow-origin", r.headers)
+
+
+class TestMarketOverviewEndpoint(unittest.TestCase):
+    def setUp(self):
+        from starlette.testclient import TestClient
+        self.client = TestClient(create_app())
+
+    def test_market_overview_returns_200(self):
+        r = self.client.get("/api/market-overview")
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        for key in ("kpis", "chart", "breadth", "flows", "sectors",
+                    "derivatives", "freshness", "guardrails"):
+            self.assertIn(key, body)
+
+    def test_market_overview_guardrails_present(self):
+        body = self.client.get("/api/market-overview").json()
+        self.assertFalse(body["guardrails"]["buy_sell_authorization"])
+
+    def test_market_overview_no_cache_returns_null_kpis(self):
+        from unittest import mock
+        with mock.patch("web.api.routes.market.load_latest_saved_report", return_value=None):
+            r = self.client.get("/api/market-overview")
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertIsNone(body["kpis"])
+        self.assertFalse(body["guardrails"]["buy_sell_authorization"])
