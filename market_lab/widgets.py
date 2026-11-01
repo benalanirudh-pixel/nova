@@ -105,8 +105,8 @@ def panel(title=None, subtitle=None):
         }}
     """)
     layout = QVBoxLayout(frame)
-    layout.setContentsMargins(12, 10, 12, 12)
-    layout.setSpacing(8)
+    layout.setContentsMargins(10, 8, 10, 10)
+    layout.setSpacing(6)
     if title is not None:
         layout.addWidget(make_label(title, 9, MUTED, bold=True))
     if subtitle is not None:
@@ -1430,8 +1430,8 @@ class GlassCard(QWidget):
         self.setObjectName("interactive-card")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(16, 14, 16, 14)
-        self._layout.setSpacing(8)
+        self._layout.setContentsMargins(12, 10, 12, 10)
+        self._layout.setSpacing(6)
         if title:
             self._layout.addWidget(make_label(title, 9, MUTED, bold=True))
         if subtitle:
@@ -1645,8 +1645,8 @@ class CollapsiblePanel(QWidget):
 
         self.body = QWidget()
         self.body_layout = QVBoxLayout(self.body)
-        self.body_layout.setContentsMargins(16, 4, 16, 12)
-        self.body_layout.setSpacing(8)
+        self.body_layout.setContentsMargins(12, 4, 12, 10)
+        self.body_layout.setSpacing(6)
         outer.addWidget(self.body)
 
         self.header.toggled.connect(self._on_toggled)
@@ -1677,7 +1677,7 @@ class DashboardGrid(QWidget):
         super().__init__(parent)
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
-        self._layout.setSpacing(12)
+        self._layout.setSpacing(10)
         self._cards = []
 
     def add_card(self, card):

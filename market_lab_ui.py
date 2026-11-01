@@ -44,7 +44,8 @@ from market_lab import report_parser
 from market_lab import icons as icons_module
 from market_lab import theme
 from styles.design_tokens import (
-    BG, SURFACE, SURFACE_ALT, SIDEBAR, HEADER,
+    BG, SURFACE, SURFACE_ALT, SURFACE_RAISED, SURFACE_INSET,
+    SIDEBAR, HEADER,
     BORDER, BORDER_BRIGHT, BORDER_DIM,
     TEXT, SECONDARY, MUTED, MUTED2,
     GREEN, RED, AMBER, BLUE, CYAN, PURPLE,
@@ -52,9 +53,11 @@ from styles.design_tokens import (
     FONT_UI, FONT_MONO,
     FONT_SIZE_CAPTION, FONT_SIZE_SMALL, FONT_SIZE_REGULAR,
     FONT_SIZE_MEDIUM, FONT_SIZE_LARGE, FONT_SIZE_XLARGE,
+    FONT_SIZE_KPI, FONT_SIZE_TICKER,
     SPACE_XS, SPACE_SM, SPACE_MD, SPACE_LG, SPACE_XL, SPACE_XXL,
     BORDER_RADIUS_SM, BORDER_RADIUS_MD, BORDER_RADIUS_LG, BORDER_RADIUS_PILL,
     HEADER_HEIGHT, SIDEBAR_WIDTH, SIDEBAR_ITEM_HEIGHT,
+    PANEL_PADDING, PANEL_GAP,
     GUARDRAIL_TEXT, BUY_SELL_AUTHORIZED, TRADING_EXECUTION, SIGNAL_ELIGIBLE,
     freshness_level, freshness_color, freshness_label,
 )
@@ -573,8 +576,8 @@ def make_panel(title, subtitle=None):
     frame = QFrame()
     frame.setObjectName("panel")
     layout = QVBoxLayout(frame)
-    layout.setContentsMargins(15, 13, 15, 13)
-    layout.setSpacing(9)
+    layout.setContentsMargins(PANEL_PADDING, 10, PANEL_PADDING, 10)
+    layout.setSpacing(6)
     layout.addWidget(make_label(title.upper(), 9, CYAN, True))
 
     if subtitle:
@@ -711,8 +714,8 @@ class MarketLabWindow(QMainWindow):
 
         # --- Status chips row ---
         status_row = QHBoxLayout()
-        status_row.setContentsMargins(12, 8, 12, 4)
-        status_row.setSpacing(10)
+        status_row.setContentsMargins(10, 4, 10, 2)
+        status_row.setSpacing(8)
         self.status_data = self.add_status(
             status_row, "DATA PIPELINE", "STARTING", AMBER
         )
@@ -735,14 +738,14 @@ class MarketLabWindow(QMainWindow):
         left = QWidget()
         left.setObjectName("rail")
         left_layout = QVBoxLayout(left)
-        left_layout.setContentsMargins(10, 10, 10, 10)
-        left_layout.setSpacing(10)
+        left_layout.setContentsMargins(8, 8, 8, 8)
+        left_layout.setSpacing(8)
 
         rail = QFrame()
         rail.setObjectName("sidebar")
         rail_layout = QVBoxLayout(rail)
-        rail_layout.setContentsMargins(10, 12, 10, 12)
-        rail_layout.setSpacing(6)
+        rail_layout.setContentsMargins(8, 10, 8, 10)
+        rail_layout.setSpacing(4)
         rail_layout.addWidget(make_label("WORKSPACE", 9, MUTED, True))
 
         self.pages = QStackedWidget()
@@ -768,25 +771,8 @@ class MarketLabWindow(QMainWindow):
 
         rail_layout.addStretch()
 
-        # NOVA identity mark at the bottom of the rail.
-        identity = QHBoxLayout()
-        identity.setSpacing(8)
-        mark = QLabel("N")
-        mark.setFixedSize(28, 28)
-        mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        mark.setStyleSheet(
-            f"QLabel {{ background:{PANEL_ALT}; color:{CYAN};"
-            f" border:1px solid {CYAN}; border-radius:14px;"
-            f" font-weight:bold; }}"
-        )
-        identity.addWidget(mark)
-        idcol = QVBoxLayout()
-        idcol.setSpacing(0)
-        idcol.addWidget(make_label("NOVA", 11, TEXT, True))
-        idcol.addWidget(make_label("MARKET LAB · read-only", 8, MUTED2))
-        identity.addLayout(idcol)
-        identity.addStretch()
-        rail_layout.addLayout(identity)
+        # Compact version label at the rail bottom.
+        rail_layout.addWidget(make_label("read-only · analysis", 8, MUTED2))
 
         left_layout.addWidget(rail)
 
@@ -803,11 +789,11 @@ class MarketLabWindow(QMainWindow):
         body.setStretchFactor(0, 0)
         body.setStretchFactor(1, 1)
         body.setStretchFactor(2, 0)
-        body.setSizes([260, 1160, 380])
-        left.setMinimumWidth(230)
-        left.setMaximumWidth(280)
-        self.uptrend_panel.setMinimumWidth(320)
-        self.uptrend_panel.setMaximumWidth(420)
+        body.setSizes([240, 1160, 360])
+        left.setMinimumWidth(220)
+        left.setMaximumWidth(260)
+        self.uptrend_panel.setMinimumWidth(300)
+        self.uptrend_panel.setMaximumWidth(400)
         outer.addWidget(body, 1)
 
         # --- Footer status line (operational text) ---
@@ -825,7 +811,7 @@ class MarketLabWindow(QMainWindow):
     def build_header(self):
         header = QFrame()
         header.setObjectName("header")
-        header.setFixedHeight(56)
+        header.setFixedHeight(HEADER_HEIGHT)
         header.setStyleSheet(f"""
             QFrame#header {{
                 background:{SIDEBAR};
@@ -833,20 +819,31 @@ class MarketLabWindow(QMainWindow):
             }}
         """)
         hl = QHBoxLayout(header)
-        hl.setContentsMargins(14, 6, 14, 6)
-        hl.setSpacing(12)
+        hl.setContentsMargins(12, 4, 12, 4)
+        hl.setSpacing(10)
 
-        brand = QVBoxLayout()
-        brand.setSpacing(0)
-        brand.addWidget(W.make_label("NOVA MARKET LAB", 15, GREEN, True))
-        brand.addWidget(W.make_label("INDIAN MARKET INTELLIGENCE", 8, MUTED, True))
+        brand = QHBoxLayout()
+        brand.setSpacing(6)
+        mark = QLabel("N")
+        mark.setFixedSize(24, 24)
+        mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        mark.setStyleSheet(
+            f"QLabel {{ background:qlineargradient(x1:0,y1:0,x2:1,y2:1,"
+            f"stop:0 {CYAN}, stop:1 {GREEN}); color:{BG};"
+            f" border-radius:6px; font-weight:bold; font-size:13px; }}"
+        )
+        brand.addWidget(mark)
+        brand_text = QVBoxLayout()
+        brand_text.setSpacing(0)
+        brand_text.addWidget(W.make_label("NOVA", 12, TEXT, True))
+        brand_text.addWidget(W.make_label("MARKET LAB", 7, MUTED, True))
+        brand.addLayout(brand_text)
         hl.addLayout(brand)
-        hl.addSpacing(14)
+        hl.addSpacing(8)
 
-        # Symbol search pins a symbol into the existing watchlist engine.
         self.symbol_search = QLineEdit()
-        self.symbol_search.setFixedWidth(230)
-        self.symbol_search.setPlaceholderText("Search symbol, sector, or insight...")
+        self.symbol_search.setFixedWidth(200)
+        self.symbol_search.setPlaceholderText("Search symbol...")
         self.symbol_search.returnPressed.connect(self._search_symbol)
         hl.addWidget(self.symbol_search)
 
@@ -981,9 +978,9 @@ class MarketLabWindow(QMainWindow):
 
     def _indicator_card(self, name):
         card = W.GlassCard(title=name, parent=None)
-        card.setFixedHeight(116)
+        card.setFixedHeight(100)
         layout = card.layout()
-        value = W.make_label("—", 18, TEXT, bold=True, mono=True)
+        value = W.make_label("—", 16, TEXT, bold=True, mono=True)
         value.setWordWrap(False)
         layout.addWidget(value)
         interp = W.make_label("—", 9, MUTED)
@@ -1109,9 +1106,9 @@ class MarketLabWindow(QMainWindow):
 
     def _kpi_card(self, title):
         frame, layout = W.panel(title)
-        frame.setFixedHeight(100)
-        layout.setSpacing(4)
-        value = W.make_label("—", 22, TEXT, bold=True, mono=True)
+        frame.setFixedHeight(88)
+        layout.setSpacing(3)
+        value = W.make_label("—", 20, TEXT, bold=True, mono=True)
         value.setWordWrap(False)
         layout.addWidget(value)
         sub = W.make_label("—", 10, MUTED, mono=True)
@@ -1628,9 +1625,9 @@ class MarketLabWindow(QMainWindow):
 
     def _stat_card(self, title, value, color=None, note=None):
         frame, layout = W.panel(title)
-        frame.setFixedHeight(78)
+        frame.setFixedHeight(70)
         layout.setSpacing(2)
-        value_label = W.make_label(str(value), 18, color or TEXT,
+        value_label = W.make_label(str(value), 16, color or TEXT,
                                    bold=True, mono=True)
         value_label.setWordWrap(False)
         value_label.setToolTip(str(value))
@@ -1645,9 +1642,9 @@ class MarketLabWindow(QMainWindow):
     def _mini_stat(self, title, note=""):
         """A compact stat card whose value label can be updated in place."""
         frame, layout = W.panel(title)
-        frame.setFixedHeight(64)
+        frame.setFixedHeight(58)
         layout.setSpacing(1)
-        value_label = W.make_label("\u2014", 17, TEXT, bold=True, mono=True)
+        value_label = W.make_label("\u2014", 15, TEXT, bold=True, mono=True)
         value_label.setWordWrap(False)
         layout.addWidget(value_label)
         if note:

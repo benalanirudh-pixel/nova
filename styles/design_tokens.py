@@ -18,6 +18,8 @@ from __future__ import annotations
 BG = "#050B10"            # app shell / window background
 SURFACE = "#091620"       # elevated panel surface
 SURFACE_ALT = "#0D1B26"   # slightly elevated (hovered row / active tab)
+SURFACE_RAISED = "#0E1F2E" # raised card / hover state
+SURFACE_INSET = "#070D12"  # sunken input / inset field
 SIDEBAR = "#061019"       # navigation rail / left rail
 HEADER = "#061019"        # top header bar
 
@@ -65,6 +67,8 @@ FONT_SIZE_REGULAR = 11
 FONT_SIZE_MEDIUM = 13
 FONT_SIZE_LARGE = 16
 FONT_SIZE_XLARGE = 20
+FONT_SIZE_KPI = 28
+FONT_SIZE_TICKER = 9
 
 FONT_WEIGHT_REGULAR = 400
 FONT_WEIGHT_MEDIUM = 500
@@ -95,12 +99,12 @@ LINE_HEIGHT_RELAXED = 1.6
 # Component sizes
 # ---------------------------------------------------------------------------
 
-HEADER_HEIGHT = 56
+HEADER_HEIGHT = 48
 SIDEBAR_WIDTH = 240
-SIDEBAR_ITEM_HEIGHT = 40
-NAV_ITEM_PADDING_H = 12
-PANEL_PADDING = 16
-PANEL_GAP = 12
+SIDEBAR_ITEM_HEIGHT = 36
+NAV_ITEM_PADDING_H = 10
+PANEL_PADDING = 12
+PANEL_GAP = 10
 CARD_HEIGHT_SM = 80
 CARD_HEIGHT_MD = 120
 CARD_HEIGHT_LG = 160
@@ -188,7 +192,8 @@ def freshness_label(level: str) -> str:
     return FRESHNESS_LABELS.get(level, "UNKNOWN")
 
 __all__ = [
-    "BG", "SURFACE", "SURFACE_ALT", "SIDEBAR", "HEADER",
+    "BG", "SURFACE", "SURFACE_ALT", "SURFACE_RAISED", "SURFACE_INSET",
+    "SIDEBAR", "HEADER",
     "BORDER", "BORDER_BRIGHT", "BORDER_DIM",
     "TEXT", "SECONDARY", "MUTED", "MUTED2",
     "GREEN", "RED", "AMBER", "BLUE", "CYAN", "PURPLE",
@@ -198,6 +203,7 @@ __all__ = [
     "FONT_UI", "FONT_MONO",
     "FONT_SIZE_CAPTION", "FONT_SIZE_SMALL", "FONT_SIZE_REGULAR",
     "FONT_SIZE_MEDIUM", "FONT_SIZE_LARGE", "FONT_SIZE_XLARGE",
+    "FONT_SIZE_KPI", "FONT_SIZE_TICKER",
     "FONT_WEIGHT_REGULAR", "FONT_WEIGHT_MEDIUM", "FONT_WEIGHT_SEMIBOLD",
     "FONT_WEIGHT_BOLD",
     "SPACE_XS", "SPACE_SM", "SPACE_MD", "SPACE_LG", "SPACE_XL", "SPACE_XXL",
