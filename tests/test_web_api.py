@@ -47,7 +47,7 @@ class TestMarketOverviewEndpoint(unittest.TestCase):
 
     def test_market_overview_no_cache_returns_null_kpis(self):
         from unittest import mock
-        with mock.patch("web.api.routes.market.load_latest_saved_report", return_value=None):
+        with mock.patch("web.api.routes.market.load_cached_report", return_value=None):
             r = self.client.get("/api/market-overview")
         self.assertEqual(r.status_code, 200)
         body = r.json()
@@ -80,3 +80,23 @@ class TestStockEndpoint(unittest.TestCase):
             r = self.client.get("/api/symbols")
         self.assertEqual(r.json(), [])
         lm.assert_not_called()
+
+
+class TestMarketAnalysisEndpoint(unittest.TestCase):
+    def setUp(self):
+        from starlette.testclient import TestClient
+        self.client = TestClient(create_app())
+
+    def test_market_analysis_returns_200(self):
+        r = self.client.get("/api/market-analysis")
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        for key in ("regime", "breadth", "sectors", "flows", "derivatives"):
+            self.assertIn(key, body)
+
+    def test_market_analysis_no_cache(self):
+        from unittest import mock
+        with mock.patch("web.api.routes.analysis.load_cached_report", return_value=None):
+            r = self.client.get("/api/market-analysis")
+        self.assertEqual(r.status_code, 200)
+        self.assertIsNone(r.json()["regime"])

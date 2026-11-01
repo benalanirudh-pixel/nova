@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from web.api.routes.analysis import router as analysis_router
 from web.api.routes.market import router as market_router
 from web.api.routes.stock import router as stock_router
 from styles.design_tokens import BUY_SELL_AUTHORIZED, GUARDRAIL_TEXT
@@ -24,5 +25,6 @@ def create_app() -> FastAPI:
         }
 
     app.include_router(market_router, prefix="/api")
+    app.include_router(analysis_router, prefix="/api")
     app.include_router(stock_router, prefix="/api")
     return app
