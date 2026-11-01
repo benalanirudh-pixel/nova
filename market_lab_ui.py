@@ -712,6 +712,17 @@ class MarketLabWindow(QMainWindow):
         """)
         outer.addWidget(self.progress)
 
+        # --- Top navigation (workspaces) ---
+        self.top_nav = QHBoxLayout()
+        self.top_nav.setContentsMargins(12, 0, 12, 0)
+        self.top_nav.setSpacing(4)
+        top_nav_host = QWidget()
+        top_nav_host.setStyleSheet(
+            f"background:{SIDEBAR}; border-bottom:1px solid {BORDER};")
+        top_nav_host.setLayout(self.top_nav)
+        top_nav_host.setFixedHeight(36)
+        outer.addWidget(top_nav_host)
+
         # --- Status chips row ---
         status_row = QHBoxLayout()
         status_row.setContentsMargins(10, 4, 10, 2)
@@ -741,13 +752,6 @@ class MarketLabWindow(QMainWindow):
         left_layout.setContentsMargins(8, 8, 8, 8)
         left_layout.setSpacing(8)
 
-        rail = QFrame()
-        rail.setObjectName("sidebar")
-        rail_layout = QVBoxLayout(rail)
-        rail_layout.setContentsMargins(8, 10, 8, 10)
-        rail_layout.setSpacing(4)
-        rail_layout.addWidget(make_label("WORKSPACE", 9, MUTED, True))
-
         self.pages = QStackedWidget()
         self.nav_buttons = []
 
@@ -761,22 +765,17 @@ class MarketLabWindow(QMainWindow):
         ]
 
         for index, (title, builder) in enumerate(specs):
-            nav = self._make_nav(f"{index + 1:02d}  {title}", index == 0)
+            nav = self._make_nav(title, index == 0)
+            nav.setObjectName("topnav")
             nav.clicked.connect(
                 lambda checked=False, i=index: self.switch_page(i)
             )
-            rail_layout.addWidget(nav)
+            self.top_nav.addWidget(nav)
             self.nav_buttons.append(nav)
             self.pages.addWidget(builder())
+        self.top_nav.addStretch()
 
-        rail_layout.addStretch()
-
-        # Compact version label at the rail bottom.
-        rail_layout.addWidget(make_label("read-only · analysis", 8, MUTED2))
-
-        left_layout.addWidget(rail)
-
-        # Sector overview beneath the rail (real sector data only).
+        # Sector overview (real sector data only).
         self.sector_panel = self.build_sector_panel()
         left_layout.addWidget(self.sector_panel, 1)
 
@@ -789,7 +788,7 @@ class MarketLabWindow(QMainWindow):
         body.setStretchFactor(0, 0)
         body.setStretchFactor(1, 1)
         body.setStretchFactor(2, 0)
-        body.setSizes([240, 1160, 360])
+        self._body_split = body
         left.setMinimumWidth(220)
         left.setMaximumWidth(260)
         self.uptrend_panel.setMinimumWidth(300)
@@ -807,6 +806,20 @@ class MarketLabWindow(QMainWindow):
             bool(vm.guardrails({})["buy_sell_authorization"])
         )
         outer.addWidget(self.guardrails)
+
+    def _apply_body_sizes(self):
+        total = self._body_split.width()
+        if total <= 0:
+            return
+        right = min(400, max(300, total // 4))
+        left = 240
+        self._body_split.setSizes([left, max(600, total - left - right), right])
+        self._body_sized = True
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if not getattr(self, "_body_sized", False):
+            self._apply_body_sizes()
 
     def build_header(self):
         header = QFrame()
@@ -835,8 +848,8 @@ class MarketLabWindow(QMainWindow):
         brand.addWidget(mark)
         brand_text = QVBoxLayout()
         brand_text.setSpacing(0)
-        brand_text.addWidget(W.make_label("NOVA", 12, TEXT, True))
-        brand_text.addWidget(W.make_label("MARKET LAB", 7, MUTED, True))
+        brand_text.addWidget(W.make_label("Nova", 14, TEXT, True))
+        brand_text.addWidget(W.make_label("TRADING TERMINAL", 7, MUTED, True))
         brand.addLayout(brand_text)
         hl.addLayout(brand)
         hl.addSpacing(8)
@@ -1027,9 +1040,11 @@ class MarketLabWindow(QMainWindow):
         if isinstance(change, (int, float)):
             c["change"].setText(
                 f"{fmt_pct(change)}  ({fmt_points(card.get('change_abs'))})")
+            pill = W.sign_color(change)
             c["change"].setStyleSheet(
-                f"color:{W.sign_color(change)};"
-                f"background:transparent;border:none;"
+                f"color:{pill}; background:{PANEL_ALT};"
+                f" border:1px solid {pill}; border-radius:10px;"
+                f" padding:2px 8px;"
             )
         else:
             c["change"].setText(vm.N_A)
@@ -1106,11 +1121,18 @@ class MarketLabWindow(QMainWindow):
 
     def _kpi_card(self, title):
         frame, layout = W.panel(title)
-        frame.setFixedHeight(88)
+        frame.setFixedHeight(96)
         layout.setSpacing(3)
+        value_row = QHBoxLayout()
+        value_row.setSpacing(8)
         value = W.make_label("—", 20, TEXT, bold=True, mono=True)
         value.setWordWrap(False)
-        layout.addWidget(value)
+        value_row.addWidget(value)
+        value_row.addStretch()
+        spark = W.Sparkline(width=86, height=24)
+        spark.setVisible(False)
+        value_row.addWidget(spark)
+        layout.addLayout(value_row)
         sub = W.make_label("—", 10, MUTED, mono=True)
         sub.setWordWrap(False)
         sub.setToolTip(title)
@@ -1132,7 +1154,8 @@ class MarketLabWindow(QMainWindow):
                 border-color:#00D9F5;
             }}
         """)
-        return {"frame": frame, "value": value, "sub": sub, "bar": bar}
+        return {"frame": frame, "value": value, "sub": sub, "bar": bar,
+                "spark": spark}
 
     def build_kpi_strip(self):
         strip = QHBoxLayout()
@@ -1163,15 +1186,24 @@ class MarketLabWindow(QMainWindow):
                         f"color:{MUTED};background:transparent;border:none;"
                     )
 
+            def set_spark(cell, candles):
+                closes = [r.get("c") for r in candles
+                          if isinstance(r, dict)
+                          and isinstance(r.get("c"), (int, float))]
+                cell["spark"].set_series(closes[-40:])
+                cell["spark"].setVisible(len(closes) >= 2)
+
             c = self.kpi["nifty"]
             c["value"].setText(fmt_price(card["price"]))
             set_change(c["sub"], card["change_percent"])
             c["bar"].setVisible(False)
+            set_spark(c, card.get("candles") or [])
 
             c = self.kpi["vix"]
             c["value"].setText(fmt_num(macro["india_vix"]))
             set_change(c["sub"], macro["vix_change_percent"])
             c["bar"].setVisible(False)
+            set_spark(c, vm.vix_card(report).get("candles") or [])
 
             advances = breadth["advancing"]
             declines = breadth["declining"]
