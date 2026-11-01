@@ -100,3 +100,29 @@ class TestMarketAnalysisEndpoint(unittest.TestCase):
             r = self.client.get("/api/market-analysis")
         self.assertEqual(r.status_code, 200)
         self.assertIsNone(r.json()["regime"])
+
+
+class TestRefreshEndpoint(unittest.TestCase):
+    def setUp(self):
+        from starlette.testclient import TestClient
+        self.client = TestClient(create_app())
+
+    def test_refresh_returns_status(self):
+        from unittest import mock
+        with mock.patch("web.api.scheduler.get_market_lab_data"):
+            r = self.client.get("/api/refresh")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(r.json()["status"], ("refreshing", "already_running"))
+
+    def test_concurrent_refresh_blocked(self):
+        from unittest import mock
+        from web.api import scheduler
+        with mock.patch.object(scheduler, "_running", True):
+            r = self.client.get("/api/refresh")
+        self.assertEqual(r.json()["status"], "already_running")
+
+    def test_lifespan_starts_and_stops_scheduler(self):
+        from starlette.testclient import TestClient
+        app = create_app()
+        with TestClient(app):
+            self.assertEqual(len(app.state.scheduler.get_jobs()), 4)
