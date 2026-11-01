@@ -1,169 +1,151 @@
-# Architecture Map
+# Architecture
 
-Last audited: 2026-10-09.
+Last updated: 2026-11-01.
 
-## High-Level Shape
+## Surfaces
 
-Nova has two primary application surfaces:
+Nova has three user-facing entry points:
 
-```text
-main.py
-  -> ui.py
-     -> brain.py
-        -> tools.py
-           -> analysis/data/*
-     -> voice.py
-     -> tts.py
-     -> nova3dcore.py
+| Entry point         | Surface                                     |
+|---------------------|---------------------------------------------|
+| `main.py`           | Nova Assistant — personal AI desktop UI     |
+| `market_lab_ui.py`  | Market Lab — standalone analysis terminal   |
+| `terminal_main.py`  | Nova Terminal — unified Bloomberg-style UI  |
 
-market_lab_ui.py
-  -> market_lab/market_lab_data.py
-     -> analysis/data/*
-  -> market_lab/market_lab_brain.py
-     -> Ollama
+All three are PySide6 desktop applications. The original two remain functional;
+Nova Terminal merges them into one window.
+
+## Call Graph
+
+```
+main.py -> ui.py (NovaWindow)
+  -> brain.py           Ollama chat + tool calling (qwen3.5:4b)
+  -> tools.py           Tool registry, run_tool dispatcher
+     -> analysis/data/* Market data engines
+  -> voice.py           Faster-Whisper STT + wake phrase
+  -> tts.py             Piper TTS (Windows winsound)
+  -> nova3dcore.py      PyOpenGL 3D visual core
+
+market_lab_ui.py -> MarketLabWindow
+  -> market_lab/market_lab_data.py    Cache-first report generator
+     -> analysis/data/*               All market engines
+  -> market_lab/market_lab_brain.py   Ollama AI interpretation
+  -> market_lab/view_model.py         Pure report -> UI adapter
+  -> market_lab/widgets.py            Themed component library
+  -> market_lab/stock_adapter.py      Per-stock analysis adapter
+  -> market_lab/report_parser.py      AI report section parser
+  -> market_lab/icons.py              Inline SVG icon set
+  -> market_lab/theme.py              QSS theme loader
+
+terminal_main.py -> terminal/main_window.py (NovaTerminal)
+  -> terminal/pages/market_overview.py   Dashboard (wires market_lab_data + view_model)
+  -> terminal/pages/stock_analysis.py    Single-stock (wires stock_adapter + brain)
+  -> terminal/pages/nova_ai.py           Chat (wires brain.think)
+  -> terminal/pages/institutional.py     FII/DII flows (wires view_model)
+  -> terminal/pages/market_lab.py        JSON report + AI narrative
+  -> terminal/style.py                   Terminal-specific styling
 ```
 
-## Main Assistant Flow
+## Analysis Engines (`analysis/data/`)
 
-`main.py` creates a PySide6 `QApplication`, sets the app name/display name, and
-shows `NovaWindow` from `ui.py`.
+| Module                          | Responsibility                                    |
+|---------------------------------|---------------------------------------------------|
+| `nse_feed.py`                   | Indian Market MCP adapter (stdio_client)          |
+| `symbol_master.py`              | NSE equity security master cache                  |
+| `market_universe.py`            | NSE-first quote/history with Yahoo fallback       |
+| `market_data.py`                | Direct yfinance index helpers                     |
+| `market_scanner.py`             | Full NSE equity scanner + factor ranking          |
+| `technical_engine.py`           | RSI, MACD, ATR, EMA, trend, momentum             |
+| `volatility_engine.py`          | VIX context, realized vol, ATR, regime            |
+| `derivatives_engine.py`         | NIFTY/BANKNIFTY option chain analysis             |
+| `institutional_flow_engine.py`  | FII/DII flow history + primary-source validation  |
+| `sector_classification.py`      | Sector classification cache builder               |
+| `sector_engine.py`              | Sector + macro-sector intelligence                |
+| `risk_engine.py`                | Risk-budget and position-risk calculations        |
+| `event_risk_engine.py`          | Event-risk from `event_calendar.json`             |
+| `research_factor_engine.py`     | Multi-factor scoring                              |
+| `watchlist_engine.py`           | Per-symbol live snapshot                          |
+| `dhan_feed.py`                  | Optional Dhan market-data adapter (read-only)     |
 
-`ui.py` owns the main desktop experience:
-
-- System/service telemetry using `psutil`, `nvidia-smi`, Ollama tag endpoint,
-  and SearXNG health checks.
-- Chat UI and worker threads.
-- Voice session worker that calls `voice.listen_for_session_event`.
-- TTS calls through `tts.speak`.
-- Visual core from `nova3dcore.Nova3DCore`.
-
-`brain.py` owns local LLM orchestration:
-
-- Model: `qwen3.5:4b`.
-- Provider: local Ollama Python client.
-- Tool calling: `TOOL_SCHEMA` and `run_tool` from `tools.py`.
-- History trimming: keeps a bounded history after the system prompt.
-- Tool rounds: capped by `MAX_TOOL_ROUNDS`.
-
-`tools.py` owns the assistant's callable actions:
-
-- `get_time`
-- `get_market_data`
-- `get_market_analysis`
-- `get_market_lab_analysis`
-- `open_website`
-- `open_app`
-- `search_web`
-- `search_youtube`
-- `web_research`
-
-Tool safety is centralized in `run_tool`, which normalizes arguments and
-returns tool errors as text instead of raising into the chat loop.
-
-## Market Lab Flow
-
-`market_lab_ui.py` is a standalone PySide6 Market Lab terminal.
-
-It uses:
-
-- `get_market_lab_data` from `market_lab/market_lab_data.py`
-- `analyze_market_lab` from `market_lab/market_lab_brain.py`
-
-The UI loads the latest saved report if available, supports manual refresh, and
-keeps warnings visible for stale/missing data and analysis-only safety.
-
-`market_lab/market_lab_data.py` is the central analysis gateway. Its module
-header says normal mode uses the latest cached NSE equity scan and does not run
-the expensive full scan unless `--refresh` is used or no usable cache exists.
-
-The report integrates:
-
-- Market scanner.
-- Market regime.
-- Breadth.
-- Technical analysis.
-- Volatility.
-- Sector intelligence.
-- Derivatives intelligence.
-- Institutional flow intelligence.
-- Event-risk context.
-
-`market_lab/market_lab_brain.py` converts the generated report into a compact
-JSON payload and asks Ollama to interpret it. Its prompt requires values,
-signs, units, dates, and periods to be preserved exactly.
+Additional engines: `analysis/regime/regime_engine.py`,
+`analysis/sectors/sector_engine.py`, `analysis/backtest_harness.py`.
 
 ## Data Sources
 
-Verified from code:
+| Source                | Adapter                     | Notes                                  |
+|-----------------------|-----------------------------|----------------------------------------|
+| Indian Market MCP     | `nse_feed.py`               | Primary; `indian-market-mcp.exe`       |
+| Yahoo Finance         | `market_data.py`, `market_universe.py` | Fallback for history            |
+| NSE archives          | `symbol_master.py`, `derivatives_engine.py` | Equity master, option chains |
+| NSE FII/DII endpoints | `institutional_flow_engine.py` | Plus Groww secondary mirror         |
+| Dhan (optional)       | `dhan_feed.py`              | Candles + live quotes; off by default  |
+| Event calendar        | `event_risk_engine.py`      | Local `event_calendar.json`            |
+| Sector classification | `sector_engine.py`          | theannexure.com                        |
+| Local SearXNG         | `tools.py`                  | `http://localhost:8080`                |
+| Local Ollama          | `brain.py`, `market_lab_brain.py` | `qwen3.5:4b`                    |
 
-- Yahoo Finance via `yfinance`:
-  - `analysis/data/market_data.py`
-  - `analysis/data/market_scanner.py`
-  - fallback paths in `analysis/data/market_universe.py`
-- Indian Market MCP:
-  - `analysis/data/nse_feed.py`
-  - executable expected as `indian-market-mcp.exe` beside the active Python
-    interpreter.
-- NSE security master:
-  - `analysis/data/symbol_master.py`
-  - source URL: `https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv`
-- NSE options endpoints:
-  - `analysis/data/derivatives_engine.py`
-  - option-chain contract and v3 API endpoints.
-- NSE FII/DII endpoints plus Groww-labelled secondary mirror:
-  - `analysis/data/institutional_flow_engine.py`
-- Sector classification:
-  - `analysis/data/sector_engine.py`
-  - primary source URL in code: `https://theannexure.com/companies`
-- Local SearXNG:
-  - `tools.py`
-  - expected at `http://localhost:8080`.
+## Report Pipeline
+
+`market_lab/market_lab_data.py::get_market_lab_data()` is the central gateway:
+
+1. Loads cached NSE equity scan (or runs full scan if `--refresh` / no cache).
+2. Aggregates: scanner, regime, breadth, technical, volatility, sector,
+   derivatives, institutional flow, event risk, research factors.
+3. Optionally applies Dhan live overrides (NIFTY, BANK NIFTY, VIX).
+4. Saves JSON to `analysis/data/cache/market_lab/`.
+5. Returns the report dict consumed by all three UIs.
+
+**Modes:** `CACHE_FIRST` (default), `FORCED_REFRESH` (`--refresh`),
+`LIVE_ONLY` (`--live-only`; updates live layers without a full scan).
+
+## Design System
+
+`styles/design_tokens.py` is the single source of truth for colors, typography,
+spacing, z-index, freshness tiers, and the guardrail text. The unified QSS
+lives in `styles/nova_theme.qss`; loaders in `market_lab/theme.py` and
+`ui/theme.py`.
 
 ## Cache Layout
 
-Important cache paths:
+| Path                                      | Contents                        |
+|-------------------------------------------|---------------------------------|
+| `analysis/data/cache/scanner/`            | NSE equity scan CSVs            |
+| `analysis/data/cache/institutional_flow/` | FII/DII flow cache              |
+| `analysis/data/cache/derivatives/`        | Option chain cache              |
+| `analysis/data/cache/sector/`             | Sector classification cache     |
+| `analysis/data/cache/market_lab/`         | Saved Market Lab JSON reports   |
+| `analysis/data/cache/dhan/`               | Dhan candles + security map     |
+| `analysis/data/data/cache/`               | NSE equity master files         |
 
-- `analysis/data/cache/scanner/`
-- `analysis/data/cache/institutional_flow/`
-- `analysis/data/cache/derivatives/`
-- `analysis/data/cache/sector/`
-- `analysis/data/cache/market_lab/` for saved Market Lab JSON reports when
-  generated.
-- `analysis/data/data/cache/` for NSE equity master files used by
-  `symbol_master.py`.
+Caches are working state. Do not delete during agent work.
 
-Caches are part of the working local state. Do not delete them during normal
-agent work.
+## Voice and Audio
 
-## Voice And Audio
-
-`voice.py` implements:
-
-- Local Faster-Whisper STT.
-- Adaptive microphone noise detection.
-- Wake phrase activation.
-- Persistent active conversation mode.
-- Deactivation phrases such as "Bye Nova".
-
-`tts.py` implements:
-
-- Piper TTS using `python -m piper`.
-- Voice files under `voices/`.
-- Windows-only playback through `winsound`.
-- A lock to avoid overlapping speech playback.
+- `voice.py` — Faster-Whisper STT, wake phrase, active conversation mode.
+- `tts.py` — Piper TTS, `voices/` assets, Windows `winsound` playback.
+- `stt_models/` — local Faster-Whisper model files.
 
 ## Visual Core
 
-`nova3dcore.py` implements a PyOpenGL `QOpenGLWidget` with particles, nodes,
-and visual states. It is imported by `ui.py`.
+`nova3dcore.py` — PyOpenGL `QOpenGLWidget` with particles and visual states.
+Used only by `ui.py` (main assistant).
+
+## Test Suite
+
+`tests/` — 394+ stdlib `unittest` tests (no pytest). All offline.
+Run: `.\venv\Scripts\python.exe -m unittest discover -s tests -v`
+
+CI (`.github/workflows/ci.yml`) is dependency-free: ast-parse all sources +
+stdlib-only suites. Full suite runs locally only (heavy Windows stack).
 
 ## Safety Invariants
 
-Across market modules, maintain:
+Enforced across all market modules:
 
-- Analysis only.
-- No broker connection.
-- No order placement.
-- No automatic trading.
-- No invented market data.
-- Explicit handling of missing/stale/conflicting data.
+- **Analysis only.** No broker connection, no order placement, no trade
+  execution, no BUY/SELL authorization.
+- **No invented data.** Missing/stale/conflicting data is flagged, never
+  fabricated.
+- **Cache-first by default.** The expensive full NSE scan (2,333 stocks) runs
+  only on explicit `--refresh` or when no cache exists.
+- **Guardrails visible.** `GuardrailsBar` is always shown in the UI.

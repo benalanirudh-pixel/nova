@@ -1,9 +1,10 @@
 """
 Nova Terminal — unified Bloomberg-style main window.
 
-Merges Nova Assistant and Market Lab into a single professional terminal.
-All backend modules (brain, tools, market_lab_data, analysis engines) are
-preserved and wired into their respective workspace pages.
+Professional trading analysis terminal with sidebar navigation, command bar,
+live ticker strip, and dense information display. All backend modules
+(brain, tools, market_lab_data, analysis engines) are preserved and wired
+into their respective workspace pages.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from datetime import datetime, timezone, timedelta
 import psutil
 
 from PySide6.QtCore import Qt, QTimer, Signal, QSize
-from PySide6.QtGui import QFont, QColor, QIcon
+from PySide6.QtGui import QFont, QColor, QIcon, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -54,13 +55,17 @@ IST = timezone(timedelta(hours=5, minutes=30))
 OLLAMA_URL = "http://127.0.0.1:11434/api/tags"
 SEARXNG_URL = "http://127.0.0.1:8080/"
 
-TAB_DEFS = [
-    ("MARKET",       "Market Overview"),
-    ("STOCKS",       "Stock Analysis"),
-    ("FLOWS",        "Institutional Flows"),
-    ("LAB",          "Market Lab"),
-    ("AI",           "Nova AI"),
+# Sidebar navigation definitions: (key, icon_char, label, tooltip)
+NAV_ITEMS = [
+    ("market",  "M", "MARKET",  "Market Overview"),
+    ("stocks",  "S", "STOCKS",  "Stock Analysis"),
+    ("flows",   "F", "FLOWS",   "Institutional Flows"),
+    ("lab",     "L", "LAB",     "Market Lab"),
+    ("ai",      "A", "AI",      "Nova AI"),
 ]
+
+# Keep old TAB_DEFS for page creation compatibility
+TAB_DEFS = [(item[2], item[3]) for item in NAV_ITEMS]
 
 
 def _check_url(url, timeout=1.5):
@@ -85,8 +90,116 @@ def _nse_market_open(now=None):
     return 9 * 60 + 15 <= minutes < 15 * 60 + 30
 
 
+# =====================================================================
+# Sidebar nav button
+# =====================================================================
+
+class _NavButton(QPushButton):
+    """Vertical sidebar navigation button with icon letter + label."""
+
+    def __init__(self, icon_char, label, tooltip, parent=None):
+        super().__init__(parent)
+        self._icon_char = icon_char
+        self._label = label
+        self.setToolTip(tooltip)
+        self.setCheckable(True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedSize(56, 52)
+        self.setStyleSheet("background: transparent; border: none;")
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        is_active = self.isChecked()
+        is_hover = self.underMouse()
+
+        # Active indicator bar (left edge)
+        if is_active:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(CYAN))
+            p.drawRoundedRect(0, 8, 3, self.height() - 16, 1, 1)
+
+        # Background on hover
+        if is_hover and not is_active:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(SURFACE_ALT))
+            p.drawRoundedRect(4, 4, self.width() - 8, self.height() - 8, 4, 4)
+
+        # Icon letter
+        icon_color = QColor(CYAN) if is_active else QColor(MUTED)
+        if is_hover and not is_active:
+            icon_color = QColor(TEXT)
+        p.setPen(icon_color)
+        p.setFont(QFont(FONT_MONO, 14, QFont.Weight.Bold))
+        p.drawText(0, 2, self.width(), 28, Qt.AlignmentFlag.AlignCenter, self._icon_char)
+
+        # Label
+        label_color = QColor(SECONDARY) if is_active else QColor(MUTED2)
+        if is_hover and not is_active:
+            label_color = QColor(SECONDARY)
+        p.setPen(label_color)
+        p.setFont(QFont(FONT_UI, 7, QFont.Weight.DemiBold))
+        p.drawText(0, 28, self.width(), 18, Qt.AlignmentFlag.AlignCenter, self._label)
+
+        p.end()
+
+
+# =====================================================================
+# Ticker item widget
+# =====================================================================
+
+class _TickerItem(QWidget):
+    """Single index ticker chip: NAME  PRICE  CHANGE%"""
+
+    def __init__(self, name, parent=None):
+        super().__init__(parent)
+        self._name = name
+        self.setFixedHeight(28)
+
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(12, 0, 12, 0)
+        lay.setSpacing(6)
+
+        self._name_lbl = QLabel(name)
+        self._name_lbl.setFont(QFont(FONT_MONO, 8, QFont.Weight.Bold))
+        self._name_lbl.setStyleSheet(f"color: {MUTED}; background: transparent;")
+        lay.addWidget(self._name_lbl)
+
+        self._price_lbl = QLabel("—")
+        self._price_lbl.setFont(QFont(FONT_MONO, 9, QFont.Weight.Bold))
+        self._price_lbl.setStyleSheet(f"color: {TEXT}; background: transparent;")
+        lay.addWidget(self._price_lbl)
+
+        self._change_lbl = QLabel("")
+        self._change_lbl.setFont(QFont(FONT_MONO, 8))
+        self._change_lbl.setStyleSheet(f"color: {MUTED}; background: transparent;")
+        lay.addWidget(self._change_lbl)
+
+    def set_data(self, price, change_pct):
+        try:
+            self._price_lbl.setText(f"{float(price):,.2f}")
+        except (TypeError, ValueError):
+            self._price_lbl.setText("—")
+            return
+
+        try:
+            pct = float(change_pct)
+            sign = "+" if pct >= 0 else ""
+            color = GREEN if pct >= 0 else RED
+            self._change_lbl.setText(f"{sign}{pct:.2f}%")
+            self._change_lbl.setStyleSheet(f"color: {color}; background: transparent;")
+            self._price_lbl.setStyleSheet(f"color: {color}; background: transparent;")
+        except (TypeError, ValueError):
+            pass
+
+
+# =====================================================================
+# Main terminal window
+# =====================================================================
+
 class NovaTerminal(QMainWindow):
-    """Unified Bloomberg-style terminal window."""
+    """Unified professional trading analysis terminal."""
 
     def __init__(self):
         super().__init__()
@@ -95,59 +208,45 @@ class NovaTerminal(QMainWindow):
         self.setMinimumSize(1100, 700)
 
         self._active_tab = 0
-        self._tab_buttons: list[QPushButton] = []
+        self._nav_buttons: list[_NavButton] = []
         self._ollama_ok = False
         self._searxng_ok = False
 
         self._apply_base_style()
         self._build_ui()
+        self._load_initial_page()
 
-        self._clock_timer = QTimer(self)
-        self._clock_timer.timeout.connect(self._tick)
-        self._clock_timer.start(1000)
+        # Clocks and health checks
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start(1000)
 
-        QTimer.singleShot(200, self._check_services)
-        QTimer.singleShot(300, self._load_initial_page)
+        self._service_timer = QTimer(self)
+        self._service_timer.timeout.connect(self._check_services)
+        self._service_timer.start(15_000)
+
+        QTimer.singleShot(500, self._check_services)
 
     # ------------------------------------------------------------------
-    # Style
+    # Base stylesheet
     # ------------------------------------------------------------------
 
     def _apply_base_style(self):
         self.setStyleSheet(f"""
-            QMainWindow, QWidget {{
-                background: {BG};
-                color: {TEXT};
-                font-family: '{FONT_UI}';
-            }}
-            QScrollArea {{
-                background: {BG};
-                border: none;
-            }}
+            QMainWindow {{ background: {BG}; }}
             QScrollBar:vertical {{
-                background: {BG};
-                width: 7px;
-                margin: 0;
-                border: none;
+                background: {BG}; width: 8px; margin: 0;
             }}
             QScrollBar::handle:vertical {{
-                background: {BORDER};
-                min-height: 28px;
-                border-radius: 3px;
+                background: {BORDER}; min-height: 28px; border-radius: 4px;
             }}
-            QScrollBar::handle:vertical:hover {{
-                background: {BORDER_BRIGHT};
-            }}
+            QScrollBar::handle:vertical:hover {{ background: {BORDER_BRIGHT}; }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
             QScrollBar:horizontal {{
-                background: {BG};
-                height: 7px;
-                border: none;
+                background: {BG}; height: 8px; margin: 0;
             }}
             QScrollBar::handle:horizontal {{
-                background: {BORDER};
-                min-width: 28px;
-                border-radius: 3px;
+                background: {BORDER}; min-width: 28px; border-radius: 3px;
             }}
             QScrollBar::handle:horizontal:hover {{ background: {BORDER_BRIGHT}; }}
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
@@ -239,99 +338,111 @@ class NovaTerminal(QMainWindow):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        outer.addWidget(self._build_header())
+        # Command bar (top)
+        outer.addWidget(self._build_command_bar())
+
+        # Body: sidebar + content
+        body = QWidget()
+        body.setStyleSheet(f"background: {BG};")
+        body_layout = QHBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(0)
+
+        body_layout.addWidget(self._build_sidebar())
+
+        # Content: ticker + pages
+        content = QWidget()
+        content.setStyleSheet(f"background: {BG};")
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
+
+        content_layout.addWidget(self._build_ticker_strip())
 
         self._pages = QStackedWidget()
         self._pages.setStyleSheet(f"background: {BG};")
-        outer.addWidget(self._pages, 1)
+        content_layout.addWidget(self._pages, 1)
 
+        body_layout.addWidget(content, 1)
+
+        outer.addWidget(body, 1)
         outer.addWidget(self._build_statusbar())
 
     # ------------------------------------------------------------------
-    # Header
+    # Command bar (top header)
     # ------------------------------------------------------------------
 
-    def _build_header(self):
-        header = QFrame()
-        header.setFixedHeight(52)
-        header.setStyleSheet(f"""
+    def _build_command_bar(self):
+        bar = QFrame()
+        bar.setFixedHeight(44)
+        bar.setStyleSheet(f"""
             QFrame {{
                 background: {HEADER};
                 border-bottom: 1px solid {BORDER_DIM};
             }}
         """)
 
-        layout = QHBoxLayout(header)
-        layout.setContentsMargins(16, 0, 16, 0)
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(14, 0, 14, 0)
         layout.setSpacing(0)
 
-        # --- Branding ---
+        # Brand
         brand = QLabel("NOVA")
-        brand.setFont(QFont(FONT_UI, 16, QFont.Weight.Bold))
+        brand.setFont(QFont(FONT_MONO, 14, QFont.Weight.Bold))
         brand.setStyleSheet(f"color: {CYAN}; background: transparent; border: none;")
         layout.addWidget(brand)
 
+        sub = QLabel("TERMINAL")
+        sub.setFont(QFont(FONT_MONO, 8, QFont.Weight.DemiBold))
+        sub.setStyleSheet(
+            f"color: {MUTED}; background: transparent; border: none;"
+            " margin-left: 4px; padding-top: 4px;"
+        )
+        layout.addWidget(sub)
+
+        layout.addSpacing(24)
+
         # Regime badge
         self._regime_badge = QLabel("—")
-        self._regime_badge.setFont(QFont(FONT_MONO, 9, QFont.Weight.Bold))
+        self._regime_badge.setFont(QFont(FONT_MONO, 8, QFont.Weight.Bold))
         self._regime_badge.setStyleSheet(f"""
             color: {AMBER};
             background: {SURFACE};
             border: 1px solid {BORDER};
-            border-radius: 4px;
-            padding: 2px 10px;
-            margin-left: 12px;
+            border-radius: 3px;
+            padding: 2px 8px;
         """)
         layout.addWidget(self._regime_badge)
 
-        layout.addSpacing(32)
+        layout.addSpacing(20)
 
-        # --- Tab bar ---
-        tab_bar = QWidget()
-        tab_bar.setStyleSheet("background: transparent; border: none;")
-        tab_layout = QHBoxLayout(tab_bar)
-        tab_layout.setContentsMargins(0, 0, 0, 0)
-        tab_layout.setSpacing(2)
-
-        for idx, (label, tooltip) in enumerate(TAB_DEFS):
-            btn = QPushButton(label)
-            btn.setToolTip(tooltip)
-            btn.setCheckable(True)
-            btn.setChecked(idx == 0)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setFont(QFont(FONT_UI, 10, QFont.Weight.DemiBold))
-            btn.setFixedHeight(36)
-            btn.setStyleSheet(self._tab_qss())
-            btn.clicked.connect(lambda checked, i=idx: self._switch_tab(i))
-            tab_layout.addWidget(btn)
-            self._tab_buttons.append(btn)
-
-        layout.addWidget(tab_bar)
-        layout.addStretch(1)
-
-        # --- Search ---
+        # Command search
         self._search = QLineEdit()
-        self._search.setPlaceholderText("Search symbol or command...")
-        self._search.setFixedSize(220, 32)
-        self._search.setFont(QFont(FONT_UI, 10))
+        self._search.setPlaceholderText("Search symbol or /ai command...")
+        self._search.setFixedHeight(30)
+        self._search.setMinimumWidth(280)
+        self._search.setMaximumWidth(480)
+        self._search.setFont(QFont(FONT_MONO, 10))
         self._search.setStyleSheet(f"""
             QLineEdit {{
                 background: {SURFACE};
                 color: {TEXT};
                 border: 1px solid {BORDER};
-                border-radius: 6px;
-                padding: 0 10px;
+                border-radius: 4px;
+                padding: 0 12px;
+                font-family: '{FONT_MONO}';
             }}
             QLineEdit:focus {{
                 border-color: {CYAN};
+                background: {SURFACE_ALT};
             }}
         """)
         self._search.returnPressed.connect(self._on_search)
-        layout.addWidget(self._search)
+        layout.addWidget(self._search, 1)
 
         layout.addSpacing(16)
 
-        # --- Service indicators ---
+        # Service dots
         self._ollama_dot = self._make_dot("LLM", MUTED)
         self._searxng_dot = self._make_dot("WEB", MUTED)
         layout.addWidget(self._ollama_dot)
@@ -340,63 +451,97 @@ class NovaTerminal(QMainWindow):
 
         layout.addSpacing(16)
 
-        # --- Clock ---
+        # Clock
         self._clock_label = QLabel("--:--")
-        self._clock_label.setFont(QFont(FONT_MONO, 11, QFont.Weight.Bold))
+        self._clock_label.setFont(QFont(FONT_MONO, 13, QFont.Weight.Bold))
         self._clock_label.setStyleSheet(
             f"color: {TEXT}; background: transparent; border: none;"
         )
         layout.addWidget(self._clock_label)
 
-        return header
+        return bar
 
-    def _tab_qss(self):
-        return f"""
-            QPushButton {{
-                color: {SECONDARY};
-                background: transparent;
-                border: none;
-                border-bottom: 2px solid transparent;
-                padding: 4px 14px;
-                letter-spacing: 1px;
-            }}
-            QPushButton:hover {{
-                color: {TEXT};
-                background: rgba(255, 255, 255, 0.03);
-            }}
-            QPushButton:checked {{
-                color: {CYAN};
-                border-bottom: 2px solid {CYAN};
-            }}
-        """
+    # ------------------------------------------------------------------
+    # Sidebar
+    # ------------------------------------------------------------------
 
-    def _make_dot(self, label, color):
-        w = QWidget()
-        w.setStyleSheet("background: transparent; border: none;")
-        lay = QHBoxLayout(w)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(4)
-        dot = QLabel()
-        dot.setFixedSize(8, 8)
-        dot.setStyleSheet(
-            f"background: {color}; border-radius: 4px; border: none;"
-        )
-        lay.addWidget(dot)
-        lbl = QLabel(label)
-        lbl.setFont(QFont(FONT_MONO, 8))
-        lbl.setStyleSheet(
-            f"color: {MUTED}; background: transparent; border: none;"
-        )
-        lay.addWidget(lbl)
-        w._dot = dot
-        w._lbl = lbl
-        return w
+    def _build_sidebar(self):
+        sidebar = QFrame()
+        sidebar.setFixedWidth(56)
+        sidebar.setStyleSheet(f"""
+            QFrame {{
+                background: {SIDEBAR};
+                border-right: 1px solid {BORDER_DIM};
+            }}
+        """)
 
-    def _update_dot(self, widget, ok):
-        color = GREEN if ok else RED
-        widget._dot.setStyleSheet(
-            f"background: {color}; border-radius: 4px; border: none;"
+        layout = QVBoxLayout(sidebar)
+        layout.setContentsMargins(0, 8, 0, 8)
+        layout.setSpacing(2)
+
+        for idx, (key, icon, label, tooltip) in enumerate(NAV_ITEMS):
+            btn = _NavButton(icon, label, tooltip)
+            btn.setChecked(idx == 0)
+            btn.clicked.connect(lambda checked, i=idx: self._switch_tab(i))
+            layout.addWidget(btn)
+            self._nav_buttons.append(btn)
+
+        layout.addStretch(1)
+
+        # Version tag at bottom of sidebar
+        ver = QLabel("v2")
+        ver.setFont(QFont(FONT_MONO, 7))
+        ver.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ver.setStyleSheet(f"color: {MUTED2}; background: transparent; border: none;")
+        layout.addWidget(ver)
+
+        return sidebar
+
+    # ------------------------------------------------------------------
+    # Ticker strip
+    # ------------------------------------------------------------------
+
+    def _build_ticker_strip(self):
+        strip = QFrame()
+        strip.setFixedHeight(30)
+        strip.setStyleSheet(f"""
+            QFrame {{
+                background: {SURFACE};
+                border-bottom: 1px solid {BORDER_DIM};
+            }}
+        """)
+
+        layout = QHBoxLayout(strip)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        self._ticker_nifty = _TickerItem("NIFTY")
+        self._ticker_banknifty = _TickerItem("BANKNIFTY")
+        self._ticker_vix = _TickerItem("VIX")
+
+        # Separators between tickers
+        layout.addWidget(self._ticker_nifty)
+        layout.addWidget(self._ticker_sep())
+        layout.addWidget(self._ticker_banknifty)
+        layout.addWidget(self._ticker_sep())
+        layout.addWidget(self._ticker_vix)
+        layout.addStretch(1)
+
+        # Freshness badge
+        self._freshness_badge_ticker = QLabel("")
+        self._freshness_badge_ticker.setFont(QFont(FONT_MONO, 7, QFont.Weight.Bold))
+        self._freshness_badge_ticker.setStyleSheet(
+            f"color: {MUTED2}; background: transparent; padding-right: 12px;"
         )
+        layout.addWidget(self._freshness_badge_ticker)
+
+        return strip
+
+    def _ticker_sep(self):
+        sep = QFrame()
+        sep.setFixedSize(1, 16)
+        sep.setStyleSheet(f"background: {BORDER_DIM};")
+        return sep
 
     # ------------------------------------------------------------------
     # Status bar
@@ -404,7 +549,7 @@ class NovaTerminal(QMainWindow):
 
     def _build_statusbar(self):
         bar = QFrame()
-        bar.setFixedHeight(28)
+        bar.setFixedHeight(26)
         bar.setStyleSheet(f"""
             QFrame {{
                 background: {HEADER};
@@ -485,6 +630,38 @@ class NovaTerminal(QMainWindow):
         layout.addWidget(sep)
 
     # ------------------------------------------------------------------
+    # Service indicator dots
+    # ------------------------------------------------------------------
+
+    def _make_dot(self, label, color):
+        w = QWidget()
+        w.setStyleSheet("background: transparent; border: none;")
+        lay = QHBoxLayout(w)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(4)
+        dot = QLabel()
+        dot.setFixedSize(8, 8)
+        dot.setStyleSheet(
+            f"background: {color}; border-radius: 4px; border: none;"
+        )
+        lay.addWidget(dot)
+        lbl = QLabel(label)
+        lbl.setFont(QFont(FONT_MONO, 8))
+        lbl.setStyleSheet(
+            f"color: {MUTED}; background: transparent; border: none;"
+        )
+        lay.addWidget(lbl)
+        w._dot = dot
+        w._lbl = lbl
+        return w
+
+    def _update_dot(self, widget, ok):
+        color = GREEN if ok else RED
+        widget._dot.setStyleSheet(
+            f"background: {color}; border-radius: 4px; border: none;"
+        )
+
+    # ------------------------------------------------------------------
     # Page management
     # ------------------------------------------------------------------
 
@@ -493,8 +670,9 @@ class NovaTerminal(QMainWindow):
         self._pages.setCurrentIndex(0)
 
     def _switch_tab(self, index):
-        for i, btn in enumerate(self._tab_buttons):
+        for i, btn in enumerate(self._nav_buttons):
             btn.setChecked(i == index)
+            btn.update()
         self._active_tab = index
         self._ensure_page(index)
         self._pages.setCurrentIndex(index)
@@ -560,9 +738,8 @@ class NovaTerminal(QMainWindow):
             color: {color};
             background: {SURFACE};
             border: 1px solid {color};
-            border-radius: 4px;
-            padding: 2px 10px;
-            margin-left: 12px;
+            border-radius: 3px;
+            padding: 2px 8px;
         """)
 
     def _on_scanner_age(self, text, color):
@@ -572,7 +749,7 @@ class NovaTerminal(QMainWindow):
         )
 
     def _on_report_loaded(self, report):
-        """Push report to flows and market-lab pages if already created."""
+        """Push report to flows/lab/stocks pages + update ticker strip."""
         flows = self._pages.widget(2)
         if hasattr(flows, "set_report"):
             flows.set_report(report)
@@ -582,6 +759,37 @@ class NovaTerminal(QMainWindow):
         stocks = self._pages.widget(1)
         if hasattr(stocks, "set_market_report"):
             stocks.set_market_report(report)
+
+        # Update ticker strip from report data
+        self._update_ticker(report)
+
+    def _update_ticker(self, report):
+        if not isinstance(report, dict):
+            return
+
+        # NIFTY: flat snapshot dict with price/change_percent
+        snap = report.get("nifty_snapshot") or {}
+        self._ticker_nifty.set_data(snap.get("price"), snap.get("change_percent"))
+
+        # BANK NIFTY: price in volatility.bank_nifty, pct in bank_nifty_returns.1D
+        bn = (report.get("volatility") or {}).get("bank_nifty") or {}
+        bn_pct = (report.get("bank_nifty_returns") or {}).get("1D")
+        self._ticker_banknifty.set_data(bn.get("price"), bn_pct)
+
+        # VIX: in volatility.india_vix
+        vix = (report.get("volatility") or {}).get("india_vix") or {}
+        self._ticker_vix.set_data(vix.get("value"), vix.get("change_pct"))
+
+        # Freshness
+        age = report.get("scanner_age_seconds")
+        if age is not None:
+            level = freshness_level(int(age))
+            color = freshness_color(level)
+            label = freshness_label(level)
+            self._freshness_badge_ticker.setText(f"DATA: {label}")
+            self._freshness_badge_ticker.setStyleSheet(
+                f"color: {color}; background: transparent; padding-right: 12px;"
+            )
 
     # ------------------------------------------------------------------
     # Search
@@ -646,20 +854,3 @@ class NovaTerminal(QMainWindow):
     @property
     def searxng_ok(self):
         return self._searxng_ok
-
-    def get_current_report(self):
-        page = self._pages.widget(0)
-        if hasattr(page, "report"):
-            return page.report
-        return None
-
-    # ------------------------------------------------------------------
-    # Lifecycle
-    # ------------------------------------------------------------------
-
-    def closeEvent(self, event):
-        for i in range(self._pages.count()):
-            page = self._pages.widget(i)
-            if hasattr(page, "shutdown"):
-                page.shutdown()
-        event.accept()
