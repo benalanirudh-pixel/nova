@@ -1071,7 +1071,7 @@ class TestStockAnalysisPage(unittest.TestCase):
         self.assertIn("Stock overview", labels)
         self.assertIn("Key observations", labels)
         # Right column: AI Research Report structure.
-        for want in ("AI Research Report", "Executive Summary", "Overall Bias",
+        for want in ("AI Research Report", "Executive summary", "Overall bias",
                      "Bullish factors", "Bearish factors", "Key price levels"):
             self.assertIn(want, labels)
         # Bias rendered.
@@ -1146,6 +1146,28 @@ class TestStockAnalysisPage(unittest.TestCase):
         labels = [l.text() for l in win.stock_body_host.findChildren(
             __import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel)]
         self.assertTrue(any("No price history" in t for t in labels))
+
+    def test_momentum_gauge_present(self):
+        win = self._window()
+        win.render_stock_result(self._ok_result())
+        gauges = win.stock_body_host.findChildren(
+            __import__("market_lab.widgets", fromlist=["MomentumGauge"]).MomentumGauge)
+        self.assertGreaterEqual(len(gauges), 1)
+
+    def test_bias_badge_renders(self):
+        win = self._window()
+        win.render_stock_result(self._ok_result())
+        labels = [l.text() for l in win.stock_body_host.findChildren(
+            __import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel)]
+        self.assertIn("BIAS: NEUTRAL", labels)
+        self.assertIn("Neutral", labels)
+
+    def test_key_levels_table_present(self):
+        from PySide6.QtWidgets import QTableWidget
+        win = self._window()
+        win.render_stock_result(self._ok_result())
+        tables = win.stock_body_host.findChildren(QTableWidget)
+        self.assertGreaterEqual(len(tables), 1)  # key-levels table
 
 
 @unittest.skipIf(not QT_AVAILABLE, "PySide6 (Qt) is not installed")

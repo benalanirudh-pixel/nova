@@ -3,6 +3,29 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-01 - Stock Analysis page redesign (purple/teal trading terminal)
+
+Redesigned the Stock Analysis page (`market_lab_ui.py::build_stock_page`) into
+a professional dark trading terminal with purple/teal accents, polished cards,
+clean typography, and a large momentum gauge. All analysis calculations, data,
+components, and functionality are preserved — no engine change, no mock data.
+
+- New `W.MomentumGauge` (radial dial, 0-100 with red/amber/green threshold
+  zones, honest N/A state) and `W.StatusPill` in `market_lab/widgets.py`.
+- Left column (Stock overview): identity header, large price + change, momentum
+  gauge beside a compact KPI row (Trend/RSI/MACD), price sparkline from real
+  candles, Key observations.
+- Right column (AI research report): header with bias badge, executive summary
+  + overall bias side-by-side, bullish/bearish factors, key price levels table,
+  market-wide context note, collapsed raw report.
+- All values real; honest N/A states preserved; analysis-only guardrails
+  unchanged.
+
+Files changed: `market_lab_ui.py`, `market_lab/widgets.py`,
+`tests/test_gui_smoke.py` (+5 new `TestStockAnalysisPage` tests).
+Validation: `ast.parse` on all changed files (74 files OK); full offline suite
+`Ran 397 tests ... OK`.
+
 ## 2026-11-01 - Nova Terminal: unified Bloomberg-style UI
 
 New `terminal/` package merges Nova Assistant and Market Lab into one window.

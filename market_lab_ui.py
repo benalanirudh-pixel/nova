@@ -1974,6 +1974,7 @@ class MarketLabWindow(QMainWindow):
 
     def _build_stock_overview(self, symbol, metrics, candles=None):
         frame, layout = W.panel("Stock overview")
+        layout.setSpacing(14)
         sector = stock_adapter.stock_sector(symbol)
         tags = [symbol, metrics.get("exchange", "NSE")]
         if sector:
@@ -1982,23 +1983,31 @@ class MarketLabWindow(QMainWindow):
         change = metrics.get("change_percent")
         ts = metrics.get("timestamp")
 
+        # ---- Identity header: name + tags (left) | price + change (right) ----
         id_row = QHBoxLayout()
+        id_row.setContentsMargins(0, 0, 0, 0)
+        id_row.setSpacing(10)
+
         left = QVBoxLayout()
         left.setSpacing(2)
-        left.addWidget(W.make_label(
-            metrics.get("company_name") or symbol, 16, TEXT, True))
+        name = W.make_label(
+            metrics.get("company_name") or symbol, 17, TEXT, True)
+        name.setWordWrap(True)
+        left.addWidget(name)
         meta_text = "  \u2022  ".join(str(t) for t in tags)
         if ts:
             meta_text += f"  \u2022  as of {ts}"
-        meta = W.make_label(meta_text, 9, MUTED)
+        meta = W.make_label(meta_text, 8.5, MUTED)
         meta.setWordWrap(True)
         left.addWidget(meta)
         if ts:
             try:
                 parsed = _parse_iso(ts)
                 if parsed is not None:
-                    age_sec = max(0, (datetime.now(timezone.utc) - parsed).total_seconds())
-                    fresh = W.make_label(f"Data {display_age(age_sec)}", 8, MUTED)
+                    age_sec = max(
+                        0, (datetime.now(timezone.utc) - parsed).total_seconds())
+                    fresh = W.make_label(
+                        f"Data {display_age(age_sec)}", 8, MUTED)
                     fresh.setWordWrap(False)
                     left.addWidget(fresh)
             except Exception:
@@ -2007,7 +2016,8 @@ class MarketLabWindow(QMainWindow):
 
         right = QVBoxLayout()
         right.setSpacing(2)
-        price_lbl = W.make_label(fmt_price(price), 22, TEXT, True, mono=True)
+        right.setContentsMargins(0, 0, 0, 0)
+        price_lbl = W.make_label(fmt_price(price), 24, TEXT, True, mono=True)
         price_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
         right.addWidget(price_lbl)
         change_lbl = W.make_label(
@@ -2018,19 +2028,50 @@ class MarketLabWindow(QMainWindow):
         id_row.addLayout(right)
         layout.addLayout(id_row)
 
+        # ---- Momentum gauge (large) + KPI row ----
         kt = stock_adapter.kpi_tiles(metrics)
-        layout.addWidget(self._cards_row([
-            self._stat_card("TREND", kt["trend"],
-                            self._trend_color(kt["trend"])),
-            self._stat_card("MOMENTUM SCORE", fmt_num(kt["momentum_score"], 1),
-                            CYAN, "scanner score, not a probability"),
-            self._stat_card("RSI 14", fmt_num(kt["rsi"], 1),
-                            None, str(kt["rsi_condition"])),
-            self._stat_card("MACD", fmt_num(kt["macd"], 2),
-                            None, str(kt["macd_condition"])),
-        ]))
+        momentum = kt["momentum_score"]
+        gauge_row = QHBoxLayout()
+        gauge_row.setContentsMargins(0, 0, 0, 0)
+        gauge_row.setSpacing(14)
 
-        # Lightweight price sparkline from real candles (honest empty state if none).
+        gauge = W.MomentumGauge(size=200)
+        gauge_score = momentum if isinstance(momentum, (int, float)) else None
+        gauge.set_score(
+            gauge_score,
+            label="Momentum Score",
+            sub="scanner score, not a probability")
+        gauge.setMinimumHeight(200)
+        gauge_row.addWidget(gauge, 0)
+
+        kpis = QVBoxLayout()
+        kpis.setSpacing(8)
+        kpis.setContentsMargins(0, 0, 0, 0)
+        for title, value, color, note in [
+            ("TREND", kt["trend"], self._trend_color(kt["trend"]), ""),
+            ("RSI 14", fmt_num(kt["rsi"], 1),
+             W.sign_color(kt["rsi"]), str(kt["rsi_condition"])),
+            ("MACD", fmt_num(kt["macd"], 2),
+             W.sign_color(kt["macd"]), str(kt["macd_condition"])),
+        ]:
+            card, lay = W.panel(title)
+            lay.setContentsMargins(8, 6, 8, 6)
+            lay.setSpacing(4)
+            v_lbl = W.make_label(str(value), 15, color or TEXT,
+                                 bold=True, mono=True)
+            v_lbl.setWordWrap(False)
+            lay.addWidget(v_lbl)
+            if note:
+                n_lbl = W.make_label(note, 8, MUTED)
+                n_lbl.setWordWrap(False)
+                lay.addWidget(n_lbl)
+            lay.addStretch()
+            kpis.addWidget(card)
+        kpis.addStretch()
+        gauge_row.addLayout(kpis, 1)
+        layout.addLayout(gauge_row)
+
+        # ---- Price sparkline from real candles ----
         spark_frame, spark_lay = W.panel("Price (daily closes)")
         spark_lay.setContentsMargins(0, 0, 0, 0)
         spark_lay.setSpacing(4)
@@ -2051,6 +2092,7 @@ class MarketLabWindow(QMainWindow):
                 "No price history in report.", 8, MUTED))
         layout.addWidget(spark_frame)
 
+        # ---- Key observations ----
         obs_frame, obs_layout = W.panel("Key observations")
         obs_layout.addWidget(self._bullets(
             stock_adapter.stock_observations(metrics), TEXT))
@@ -2070,29 +2112,35 @@ class MarketLabWindow(QMainWindow):
         is_error = ai_text.startswith((
             "STOCK ANALYSIS AI ERROR", "MARKET LAB AI ERROR"))
 
-        report_frame, report_layout = W.panel()
+        report_frame, report_layout = W.panel("AI research report")
+        report_layout.setSpacing(12)
 
-        # Header
+        # ---- Header: title + bias badge + actions ----
         hdr = QHBoxLayout()
-        ai_pm = icons_module.icon_pixmap("zap", CYAN, 22)
+        hdr.setContentsMargins(0, 0, 0, 0)
+        hdr.setSpacing(10)
+        ai_pm = icons_module.icon_pixmap("zap", CYAN, 20)
         if ai_pm is not None:
             icon_lbl = QLabel()
             icon_lbl.setPixmap(ai_pm)
             hdr.addWidget(icon_lbl)
         titles = QVBoxLayout()
         titles.setSpacing(1)
+        titles.setContentsMargins(0, 0, 0, 0)
         titles.addWidget(W.make_label("AI Research Report", 15, TEXT, True))
         sub = W.make_label(
             "Stock-specific analysis based on available market data. Not a "
-            "buy/sell recommendation.", 9, MUTED)
+            "buy/sell recommendation.", 8.5, MUTED)
         sub.setWordWrap(True)
         titles.addWidget(sub)
         hdr.addLayout(titles)
         hdr.addStretch()
-        hdr.addWidget(W.make_label("Generated just now", 9, GREEN))
+        bias_badge = W.StatusPill(f"BIAS: {bias}", bias_color)
+        hdr.addWidget(bias_badge, 0)
+        hdr.addWidget(W.make_label("Generated just now", 8.5, GREEN), 0)
         copy_btn = make_button("Copy", False)
         copy_btn.clicked.connect(self._copy_stock_report)
-        hdr.addWidget(copy_btn)
+        hdr.addWidget(copy_btn, 0)
         report_layout.addLayout(hdr)
 
         if is_error:
@@ -2115,22 +2163,29 @@ class MarketLabWindow(QMainWindow):
             report_layout.addStretch()
             return report_frame
 
-        # Executive Summary (bullets + bias card)
+        # ---- Executive Summary + Overall Bias (side by side) ----
         summary_items = report_parser.collect_bullets(
             report_parser.sections_matching(
                 parsed, "executive", "conclusion", "summary", "overall")
         ) or report_parser.collect_bullets(parsed.get("sections", {}))
-        exec_summary_card, sum_layout = W.panel("Executive Summary")
+        exec_row = QHBoxLayout()
+        exec_row.setSpacing(12)
+        exec_summary_card, sum_layout = W.panel("Executive summary")
+        sum_layout.setContentsMargins(10, 8, 10, 10)
         sum_layout.addWidget(self._bullets(
             summary_items, TEXT, "The analysis did not include a summary."))
-        exec_row = QHBoxLayout()
         exec_row.addWidget(exec_summary_card, 3)
-        bias_card, bias_layout = W.panel("Overall Bias")
-        bias_layout.addWidget(W.make_label(bias, 22, bias_color, bold=True))
+        bias_card, bias_lay = W.panel("Overall bias")
+        bias_lay.setContentsMargins(10, 8, 10, 10)
+        bias_lay.setSpacing(6)
+        bias_lay.addWidget(W.StatusPill(bias, bias_color))
+        bias_lay.addWidget(W.make_label(bias.title(), 16, bias_color, bold=True))
+        bias_lay.addWidget(W.make_label("from AI report text", 8, MUTED))
+        bias_lay.addStretch()
         exec_row.addWidget(bias_card, 1)
         report_layout.addLayout(exec_row)
 
-        # Bullish / Bearish factors
+        # ---- Bullish / Bearish factors (side by side) ----
         bull_items = report_parser.collect_bullets(
             report_parser.sections_matching(parsed, "bullish", "positive"))
         bear_items = report_parser.collect_bullets(
@@ -2144,10 +2199,10 @@ class MarketLabWindow(QMainWindow):
             "Bearish factors", bear_items, RED, "trending-down"), 1)
         report_layout.addLayout(bb)
 
-        # Key Price Levels (slim)
+        # ---- Key Price Levels ----
         report_layout.addWidget(self._key_levels_panel(parsed, metrics))
 
-        # Compact market-wide context + unavailable-capability note
+        # ---- Compact market-wide context + unavailable-capability note ----
         ctx = stock_adapter.market_context(self.report or {})
         note = W.make_label(
             f"Market-wide context (not this stock): regime "
@@ -2159,19 +2214,22 @@ class MarketLabWindow(QMainWindow):
         note.setWordWrap(True)
         report_layout.addWidget(note)
 
-        # Full raw report, collapsed by default (compact toggle, not a box).
+        # ---- Full raw report, collapsed by default ----
         self._attach_raw_report(ai_text, symbol, report_layout)
         report_layout.addStretch()
         return report_frame
 
     def _key_levels_panel(self, parsed, metrics):
-        levels_frame, levels_layout = W.panel()
+        levels_frame, levels_layout = W.panel("Key price levels")
+        levels_layout.setContentsMargins(10, 8, 10, 10)
+        levels_layout.setSpacing(8)
         hdr = QHBoxLayout()
-        hdr.addWidget(W.make_label("Key price levels", 10, MUTED, True))
+        hdr.setContentsMargins(0, 0, 0, 0)
+        hdr.addWidget(W.make_label("Key price levels", 9, MUTED, True))
         hdr.addStretch()
         calculated = parsed.get("levels") or {}
         hdr.addWidget(W.make_label(
-            "From analysis" if calculated else "Support/resistance not calculated",
+            "From analysis" if calculated else "Not calculated",
             8, GREEN if calculated else MUTED))
         levels_layout.addLayout(hdr)
         table = W.make_table(
@@ -2184,6 +2242,14 @@ class MarketLabWindow(QMainWindow):
             fmt_price(calculated.get("s1")),
             fmt_price(calculated.get("s2")),
         ]])
+        # Header row styling: muted, right-aligned numerics
+        for col in range(table.columnCount()):
+            item = table.item(0, col)
+            if item:
+                item.setForeground(QColor(MUTED2))
+                item.setFont(W.font(8, bold=True, mono=True))
+                item.setTextAlignment(
+                    Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
         levels_layout.addWidget(table)
         return levels_frame
 

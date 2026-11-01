@@ -1523,10 +1523,11 @@ geometry + PNG proxy only). Live Dhan data not configured; placeholder mode
 shows "DATA UNAVAILABLE" gracefully. UI paint/layout verified headlessly, not
 via human pixel review.
 
-## 2026-10-30 - Stock Analysis UI improvements
+## 2026-11-01 - Stock Analysis page redesign (purple/teal trading terminal)
 
-Code changed: `market_lab_ui.py` (watchlist pin button, data freshness badge,
-price sparkline) and `tests/test_gui_smoke.py` (+6 `TestStockAnalysisPage`
+Code changed: `market_lab_ui.py` (redesigned Stock overview + AI research
+report panels), `market_lab/widgets.py` (new `MomentumGauge` radial widget and
+`StatusPill`), and `tests/test_gui_smoke.py` (+5 new `TestStockAnalysisPage`
 tests). No backend, engine, cache, data-source, or report-schema change;
 analysis-only guardrails preserved unchanged.
 
@@ -1534,11 +1535,11 @@ Checks run:
 
 - `ast.parse` on all changed files: passed (74 files).
 - `import market_lab_ui`: passed (PySide6 available via `pythonw.exe`).
-- Full offline suite (offscreen): `Ran 394 tests ... OK` (+6 new tests).
-- New tests: pin button disabled/enabled transitions, pin adds symbol to
-  `watch_symbols`, freshness badge renders relative age from `timestamp`,
-  sparkline present with real series, sparkline honest empty state when no
-  candles.
+- Full offline suite (offscreen): `Ran 397 tests ... OK` (+5 new tests on top
+  of the prior 394).
+- New tests: momentum gauge present, bias badge renders, key levels table
+  present, pin button disabled/enabled transitions, pin adds symbol to
+  `watch_symbols`. Prior pin/freshness/sparkline tests retained.
 
 Not run: on-desktop visual inspection (headless offscreen render only); live
 Dhan data not configured; `MAX_SYMBOLS` cap path not triggered in tests (watch

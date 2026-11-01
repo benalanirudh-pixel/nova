@@ -1,24 +1,20 @@
-"""Terminal Stock Analysis page — professional trading-terminal layout.
+"""Terminal Stock Analysis page — spacious data layout with momentum gauge.
 
-Three-column top (stock info + candlestick chart + momentum gauge),
-technicals grid, AI report panel, and data-quality footer.
-All data from stock_adapter / report_parser — nothing fabricated.
+Big fonts, generous spacing, momentum circle as the verdict.
+All data from stock_adapter — nothing fabricated.
 """
 from __future__ import annotations
 
 import math
-from datetime import datetime, timezone
 
-from PySide6.QtCore import Qt, QThread, Signal, QRectF, QPointF
+from PySide6.QtCore import Qt, QThread, Signal, QRectF
 from PySide6.QtGui import QPainter, QPen, QColor, QFont
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QComboBox, QFrame, QScrollArea, QSizePolicy, QPlainTextEdit,
-    QPushButton,
+    QComboBox, QFrame, QSizePolicy, QPushButton,
 )
 
 from market_lab import stock_adapter, report_parser
-from market_lab import widgets as W
 from market_lab.market_lab_brain import analyze_stock_report
 from styles.design_tokens import (
     BG, SURFACE, SURFACE_ALT, SURFACE_INSET,
@@ -27,11 +23,8 @@ from styles.design_tokens import (
     FONT_UI, FONT_MONO, GUARDRAIL_TEXT,
 )
 
-N_A = "N/A"
+N_A = "—"
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def _fmt_price(v):
     if v is None:
@@ -61,6 +54,20 @@ def _fmt_num(v, decimals=2):
         return str(v)
 
 
+def _fmt_vol(v):
+    if v is None:
+        return N_A
+    try:
+        n = float(v)
+        if n >= 1e7:
+            return f"{n/1e7:.2f} Cr"
+        if n >= 1e5:
+            return f"{n/1e5:.2f} L"
+        return f"{int(n):,}"
+    except (TypeError, ValueError):
+        return str(v)
+
+
 def _sign_color(v):
     try:
         return GREEN if float(v) >= 0 else RED
@@ -68,31 +75,22 @@ def _sign_color(v):
         return MUTED
 
 
-def _lbl(text, size=10, color=TEXT, bold=False, mono=False):
+def _lbl(text, size=11, color=TEXT, bold=False, mono=False):
     lbl = QLabel(str(text))
-    weight = "bold" if bold else "normal"
     family = FONT_MONO if mono else FONT_UI
     lbl.setStyleSheet(
-        f"color:{color}; font-size:{size}px; font-weight:{weight};"
+        f"color:{color}; font-size:{size}px;"
+        f" font-weight:{'bold' if bold else 'normal'};"
         f" font-family:'{family}'; background:transparent;"
     )
     return lbl
 
 
-def _kv_row(key, value, color=SECONDARY):
-    row = QHBoxLayout()
-    row.setSpacing(8)
-    row.addWidget(_lbl(key, 9, MUTED))
-    row.addStretch(1)
-    row.addWidget(_lbl(str(value) if value is not None else N_A, 9, color, mono=True))
-    return row
-
-
-def _pill(text, color=CYAN, bg=SURFACE_ALT):
+def _pill(text, color=CYAN):
     lbl = QLabel(str(text))
     lbl.setStyleSheet(
         f"color:{color}; font-size:9px; font-weight:bold;"
-        f" background:{bg}; border:1px solid {color}; border-radius:9px;"
+        f" background:{SURFACE_ALT}; border:1px solid {color}; border-radius:10px;"
         f" padding:2px 10px; font-family:'{FONT_UI}';"
     )
     return lbl
@@ -105,18 +103,78 @@ def _divider():
     return line
 
 
+def _metric_row(key, value, color=TEXT):
+    """Spacious key-value row with big value font."""
+    row = QHBoxLayout()
+    row.setSpacing(12)
+    row.setContentsMargins(0, 3, 0, 3)
+    row.addWidget(_lbl(key, 11, MUTED))
+    row.addStretch(1)
+    v = _lbl(str(value) if value is not None else N_A, 13, color, bold=True, mono=True)
+    v.setAlignment(Qt.AlignmentFlag.AlignRight)
+    row.addWidget(v)
+    return row
+
+
 # ---------------------------------------------------------------------------
-# Momentum gauge — QPainter arc widget
+# Sparkline — tiny price line for header corner
+# ---------------------------------------------------------------------------
+
+class _Sparkline(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(110, 44)
+        self._prices = []
+
+    def set_prices(self, candles):
+        self._prices = []
+        for c in (candles or []):
+            p = c.get("close")
+            if p is not None:
+                try:
+                    self._prices.append(float(p))
+                except (TypeError, ValueError):
+                    pass
+        self.update()
+
+    def paintEvent(self, event):
+        if len(self._prices) < 2:
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = self.rect().adjusted(2, 6, -2, -6)
+
+        mn, mx = min(self._prices), max(self._prices)
+        rng = mx - mn if mx != mn else 1.0
+        n = len(self._prices)
+
+        color = GREEN if self._prices[-1] >= self._prices[0] else RED
+        painter.setPen(QPen(QColor(color), 1.5))
+
+        pts = []
+        for i, p in enumerate(self._prices):
+            x = r.left() + (i / (n - 1)) * r.width()
+            y = r.bottom() - ((p - mn) / rng) * r.height()
+            pts.append(QRectF(x, y, 0, 0).center())
+        for i in range(len(pts) - 1):
+            painter.drawLine(pts[i], pts[i + 1])
+        painter.end()
+
+
+# ---------------------------------------------------------------------------
+# Momentum gauge — big arc widget, the verdict
 # ---------------------------------------------------------------------------
 
 class _MomentumGauge(QWidget):
-    """Arc gauge 0-100 with color gradient and center readout."""
+    """Large arc gauge 0-100. This IS the verdict."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(180, 180)
+        self.setMinimumSize(200, 200)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._value = None
-        self._label = "MOMENTUM"
+        self._label = "MOMENTUM SCORE"
+        self._zone = ""
 
     def set_value(self, value, label=None):
         try:
@@ -125,15 +183,27 @@ class _MomentumGauge(QWidget):
             self._value = None
         if label:
             self._label = str(label)
+        if self._value is not None:
+            if self._value >= 70:
+                self._zone = "STRONG"
+            elif self._value >= 50:
+                self._zone = "MODERATE"
+            elif self._value >= 30:
+                self._zone = "WEAK"
+            else:
+                self._zone = "VERY WEAK"
+        else:
+            self._zone = ""
         self.update()
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = self.rect()
+        size = min(r.width(), r.height())
         cx, cy = r.center().x(), r.center().y()
-        radius = min(r.width(), r.height()) / 2 - 12
-        arc_width = 10
+        radius = size / 2 - 16
+        arc_width = 12
         start_angle = 225
         total_sweep = -270
 
@@ -146,6 +216,7 @@ class _MomentumGauge(QWidget):
         if self._value is not None:
             frac = self._value / 100.0
             sweep = total_sweep * frac
+
             if frac < 0.3:
                 color = QColor(RED)
             elif frac < 0.5:
@@ -154,106 +225,50 @@ class _MomentumGauge(QWidget):
                 color = QColor(CYAN)
             else:
                 color = QColor(GREEN)
+
             painter.setPen(QPen(color, arc_width, Qt.PenStyle.SolidLine,
                                 Qt.PenCapStyle.RoundCap))
             painter.drawArc(arc_rect, int(start_angle * 16), int(sweep * 16))
 
-            # center value
+            # big center number
             painter.setPen(QPen(color))
-            painter.setFont(QFont(FONT_MONO, 28, QFont.Weight.Bold))
-            painter.drawText(r, Qt.AlignmentFlag.AlignCenter, f"{self._value:.0f}")
+            painter.setFont(QFont(FONT_MONO, 36, QFont.Weight.Bold))
+            num_rect = QRectF(r.left(), cy - 30, r.width(), 50)
+            painter.drawText(num_rect, Qt.AlignmentFlag.AlignCenter, f"{self._value:.0f}")
+
+            # zone label below number
+            if self._zone:
+                painter.setFont(QFont(FONT_UI, 11, QFont.Weight.Bold))
+                zone_rect = QRectF(r.left(), cy + 18, r.width(), 20)
+                painter.drawText(zone_rect, Qt.AlignmentFlag.AlignCenter, self._zone)
         else:
             painter.setPen(QPen(QColor(MUTED)))
-            painter.setFont(QFont(FONT_MONO, 20, QFont.Weight.Bold))
+            painter.setFont(QFont(FONT_MONO, 28, QFont.Weight.Bold))
             painter.drawText(r, Qt.AlignmentFlag.AlignCenter, N_A)
 
-        # label below
+        # title below arc
         painter.setPen(QPen(QColor(MUTED)))
-        painter.setFont(QFont(FONT_UI, 8, QFont.Weight.Bold))
-        label_rect = QRectF(r.left(), cy + radius * 0.45, r.width(), 20)
-        painter.drawText(label_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+        painter.setFont(QFont(FONT_UI, 9, QFont.Weight.Bold))
+        title_rect = QRectF(r.left(), cy + radius * 0.55, r.width(), 20)
+        painter.drawText(title_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
                          self._label)
 
-        # ticks: 0, 50, 100
-        painter.setFont(QFont(FONT_MONO, 7))
+        # tick labels: 0, 25, 50, 75, 100
+        painter.setFont(QFont(FONT_MONO, 8))
         painter.setPen(QPen(QColor(MUTED2)))
-        tick_r = radius + 8
-        for val, angle_deg in ((0, 225), (50, 90), (100, -45)):
+        tick_r = radius + 12
+        for val, angle_deg in ((0, 225), (25, 157.5), (50, 90), (75, 22.5), (100, -45)):
             rad = math.radians(angle_deg)
             tx = cx + tick_r * math.cos(rad)
             ty = cy - tick_r * math.sin(rad)
-            painter.drawText(QRectF(tx - 12, ty - 6, 24, 12),
+            painter.drawText(QRectF(tx - 14, ty - 7, 28, 14),
                              Qt.AlignmentFlag.AlignCenter, str(val))
 
         painter.end()
 
 
 # ---------------------------------------------------------------------------
-# RSI mini gauge — horizontal bar with zones
-# ---------------------------------------------------------------------------
-
-class _RSIBar(QWidget):
-    """Horizontal RSI bar with oversold/neutral/overbought zones."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setFixedHeight(28)
-        self.setMinimumWidth(120)
-        self._value = None
-
-    def set_value(self, value):
-        try:
-            self._value = max(0.0, min(100.0, float(value)))
-        except (TypeError, ValueError):
-            self._value = None
-        self.update()
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        r = self.rect()
-        bar_h = 6
-        bar_y = r.center().y() - bar_h // 2
-        bar_left = r.left() + 4
-        bar_right = r.right() - 4
-        bar_w = bar_right - bar_left
-
-        # zones: 0-30 oversold (green), 30-70 neutral (muted), 70-100 overbought (red)
-        zones = [(0.30, GREEN), (0.40, BORDER_DIM), (0.30, RED)]
-        x = bar_left
-        for frac, col in zones:
-            w = int(bar_w * frac)
-            painter.fillRect(QRectF(x, bar_y, w, bar_h), QColor(col).darker(200))
-            x += w
-
-        if self._value is not None:
-            pos = bar_left + (self._value / 100.0) * bar_w
-            if self._value < 30:
-                color = QColor(GREEN)
-            elif self._value > 70:
-                color = QColor(RED)
-            else:
-                color = QColor(CYAN)
-            painter.setBrush(color)
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawEllipse(QPointF(pos, r.center().y()), 5, 5)
-            painter.setPen(QPen(color))
-            painter.setFont(QFont(FONT_MONO, 8, QFont.Weight.Bold))
-            painter.drawText(QRectF(pos - 16, bar_y - 12, 32, 12),
-                             Qt.AlignmentFlag.AlignCenter, f"{self._value:.1f}")
-
-        # labels
-        painter.setPen(QPen(QColor(MUTED2)))
-        painter.setFont(QFont(FONT_MONO, 7))
-        painter.drawText(QRectF(bar_left, bar_y + bar_h + 1, 20, 10),
-                         Qt.AlignmentFlag.AlignLeft, "0")
-        painter.drawText(QRectF(bar_right - 20, bar_y + bar_h + 1, 20, 10),
-                         Qt.AlignmentFlag.AlignRight, "100")
-        painter.end()
-
-
-# ---------------------------------------------------------------------------
-# Worker thread (unchanged contract)
+# Worker thread
 # ---------------------------------------------------------------------------
 
 class _StockWorker(QThread):
@@ -292,7 +307,7 @@ class _StockWorker(QThread):
 # ---------------------------------------------------------------------------
 
 class StockAnalysisPage(QWidget):
-    """Professional single-stock deep-dive: chart + technicals + AI report."""
+    """Spacious stock analysis — big fonts, momentum gauge as verdict."""
 
     _MODE_KEYS = {
         "Quick Scan": "quick",
@@ -312,10 +327,6 @@ class StockAnalysisPage(QWidget):
         self._last_report: dict | None = None
         self._setup_ui()
 
-    # ------------------------------------------------------------------
-    # Public API (contract with main_window)
-    # ------------------------------------------------------------------
-
     def set_market_report(self, report: dict):
         self._market_report = report
 
@@ -327,35 +338,21 @@ class StockAnalysisPage(QWidget):
         self.analyze_symbol(symbol)
 
     # ------------------------------------------------------------------
-    # UI construction
+    # UI
     # ------------------------------------------------------------------
 
     def _setup_ui(self):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
-
         outer.addWidget(self._build_toolbar())
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setStyleSheet(
-            f"QScrollArea {{ background:{BG}; border:none; }}"
-            f"QScrollBar:vertical {{ background:{BG}; width:8px; border:none; }}"
-            f"QScrollBar::handle:vertical {{ background:{BORDER_DIM}; border-radius:4px; min-height:28px; }}"
-            f"QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height:0; }}"
-        )
 
         self._body = QWidget()
         self._body.setStyleSheet(f"background:{BG};")
         self._body_lay = QVBoxLayout(self._body)
-        self._body_lay.setContentsMargins(16, 12, 16, 16)
-        self._body_lay.setSpacing(12)
-        self._body_lay.setAlignment(Qt.AlignmentFlag.AlignTop)
-
-        scroll.setWidget(self._body)
-        outer.addWidget(scroll, 1)
+        self._body_lay.setContentsMargins(16, 12, 16, 12)
+        self._body_lay.setSpacing(10)
+        outer.addWidget(self._body, 1)
 
         self._show_empty()
 
@@ -368,15 +365,15 @@ class StockAnalysisPage(QWidget):
             f" border-bottom:1px solid {BORDER_DIM}; }}"
         )
         bl = QHBoxLayout(bar)
-        bl.setContentsMargins(14, 0, 14, 0)
-        bl.setSpacing(8)
+        bl.setContentsMargins(16, 0, 16, 0)
+        bl.setSpacing(10)
 
         self._sym_input = QLineEdit()
         self._sym_input.setFixedWidth(180)
         self._sym_input.setPlaceholderText("Symbol (e.g. RELIANCE)")
         self._sym_input.setStyleSheet(
             f"QLineEdit {{ background:{SURFACE_INSET}; color:{TEXT}; border:1px solid {BORDER_DIM};"
-            f" border-radius:3px; padding:4px 10px; font-size:12px;"
+            f" border-radius:4px; padding:6px 12px; font-size:13px;"
             f" font-family:'{FONT_MONO}'; font-weight:bold; }}"
             f"QLineEdit:focus {{ border-color:{CYAN}; }}"
         )
@@ -388,7 +385,7 @@ class StockAnalysisPage(QWidget):
         self._mode_cb.setCurrentIndex(1)
         cb_style = (
             f"QComboBox {{ background:{SURFACE_INSET}; color:{TEXT}; border:1px solid {BORDER_DIM};"
-            f" border-radius:3px; padding:3px 8px; font-size:10px; }}"
+            f" border-radius:4px; padding:4px 10px; font-size:11px; }}"
             f"QComboBox::drop-down {{ border:none; }}"
             f"QComboBox QAbstractItemView {{ background:{SURFACE}; color:{TEXT};"
             f" border:1px solid {BORDER_DIM}; selection-background-color:{SURFACE_ALT}; }}"
@@ -403,14 +400,13 @@ class StockAnalysisPage(QWidget):
         bl.addWidget(self._range_cb)
 
         self._analyze_btn = QPushButton("ANALYZE")
-        self._analyze_btn.setFixedHeight(30)
+        self._analyze_btn.setFixedHeight(32)
         self._analyze_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._analyze_btn.setStyleSheet(f"""
             QPushButton {{
                 background:{CYAN}; color:#000; border:none;
-                border-radius:3px; font-size:10px; font-weight:700;
-                padding:0 16px; letter-spacing:1px;
-                font-family:'{FONT_UI}';
+                border-radius:4px; font-size:11px; font-weight:700;
+                padding:0 18px; letter-spacing:1px; font-family:'{FONT_UI}';
             }}
             QPushButton:hover {{ background:#33E8FF; }}
             QPushButton:pressed {{ background:#00B8D4; }}
@@ -420,12 +416,9 @@ class StockAnalysisPage(QWidget):
         bl.addWidget(self._analyze_btn)
 
         bl.addStretch(1)
-
-        self._status_lbl = _lbl("Enter a symbol", 9, MUTED)
+        self._status_lbl = _lbl("Enter a symbol", 10, MUTED)
         bl.addWidget(self._status_lbl)
-
-        bl.addWidget(_lbl("ANALYSIS ONLY", 8, MUTED2, bold=True))
-
+        bl.addWidget(_lbl("ANALYSIS ONLY", 9, MUTED2, bold=True))
         return bar
 
     # ------------------------------------------------------------------
@@ -440,30 +433,27 @@ class StockAnalysisPage(QWidget):
 
     def _show_empty(self):
         self._clear_body()
-        container = QWidget()
-        cl = QVBoxLayout(container)
+        c = QWidget()
+        cl = QVBoxLayout(c)
         cl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cl.setSpacing(8)
-        msg = _lbl("Enter an NSE symbol and press ANALYZE", 13, MUTED)
-        msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        cl.addWidget(msg)
-        sub = _lbl("Supports all NSE-listed equities", 9, MUTED2)
+        cl.addWidget(_lbl("Enter an NSE symbol and press ANALYZE", 16, MUTED))
+        sub = _lbl("Supports all NSE-listed equities", 11, MUTED2)
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cl.addWidget(sub)
-        self._body_lay.addWidget(container, 1)
+        self._body_lay.addWidget(c, 1)
 
     def _show_loading(self, symbol: str):
         self._clear_body()
-        container = QWidget()
-        cl = QVBoxLayout(container)
+        c = QWidget()
+        cl = QVBoxLayout(c)
         cl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        cl.setSpacing(6)
-        cl.addWidget(_lbl(f"Analyzing {symbol}…", 14, CYAN, bold=True))
-        cl.addWidget(_lbl("Fetching data from NSE + running technical analysis", 9, MUTED))
-        self._body_lay.addWidget(container, 1)
+        cl.addWidget(_lbl(f"Analyzing {symbol}…", 18, CYAN, bold=True))
+        cl.addWidget(_lbl("Fetching data + running technical analysis", 11, MUTED))
+        self._body_lay.addWidget(c, 1)
 
     # ------------------------------------------------------------------
-    # Analysis trigger
+    # Analysis
     # ------------------------------------------------------------------
 
     def _run_analysis(self):
@@ -497,7 +487,7 @@ class StockAnalysisPage(QWidget):
         self._worker.start()
 
     # ------------------------------------------------------------------
-    # Result rendering
+    # Result
     # ------------------------------------------------------------------
 
     def _on_result(self, result: dict):
@@ -510,7 +500,6 @@ class StockAnalysisPage(QWidget):
 
         self._status_lbl.setText(f"{symbol} — done")
         self._status_lbl.setStyleSheet(f"color:{GREEN}; background:transparent;")
-
         if result.get("symbol"):
             self._last_report = {"symbol": symbol, "text": ai_text}
 
@@ -518,47 +507,101 @@ class StockAnalysisPage(QWidget):
 
         if not metrics.get("price"):
             self._body_lay.addWidget(
-                _lbl(f"No live/history data for {symbol}. Nothing fabricated.", 11, AMBER)
+                _lbl(f"No data for {symbol}. Nothing fabricated.", 13, AMBER)
             )
-            if ai_text:
-                self._body_lay.addWidget(self._build_ai_panel(symbol, ai_text))
             return
 
-        # ROW 1: Stock header
-        self._body_lay.addWidget(self._build_stock_header(symbol, metrics))
+        # === HEADER: company + price + sparkline ===
+        self._body_lay.addWidget(self._build_header(symbol, metrics, candles))
 
-        # ROW 2: Three-column top (info | chart | momentum)
-        top_row = QHBoxLayout()
-        top_row.setSpacing(10)
-        top_row.addWidget(self._build_info_column(symbol, metrics), 0)
-        top_row.addWidget(self._build_chart_column(candles), 1)
-        top_row.addWidget(self._build_momentum_column(metrics, osc), 0)
-        top_container = QWidget()
-        top_container.setLayout(top_row)
-        self._body_lay.addWidget(top_container)
+        # === MAIN: left data panels | right momentum gauge ===
+        main_row = QHBoxLayout()
+        main_row.setSpacing(12)
 
-        # ROW 3: Technicals grid (3 columns)
-        self._body_lay.addWidget(self._build_technicals_grid(metrics, osc))
+        # Left: two data columns
+        left = QVBoxLayout()
+        left.setSpacing(10)
 
-        # ROW 4: AI report
-        if ai_text:
-            self._body_lay.addWidget(self._build_ai_panel(symbol, ai_text))
+        # Top data row: Price & Returns | Technicals
+        data_row = QHBoxLayout()
+        data_row.setSpacing(10)
+        data_row.addWidget(self._build_price_panel(metrics), 1)
+        data_row.addWidget(self._build_technicals_panel(metrics, osc), 1)
+        data_w = QWidget()
+        data_w.setLayout(data_row)
+        left.addWidget(data_w)
 
-        # ROW 5: Data quality footer
-        self._body_lay.addWidget(self._build_data_quality(metrics, candles))
+        # Bottom: Trend + EMA signals + AI points
+        bottom_row = QHBoxLayout()
+        bottom_row.setSpacing(10)
+        bottom_row.addWidget(self._build_trend_panel(metrics), 1)
+        ai_panel = self._build_ai_panel(ai_text)
+        if ai_panel:
+            bottom_row.addWidget(ai_panel, 1)
+        bottom_w = QWidget()
+        bottom_w.setLayout(bottom_row)
+        left.addWidget(bottom_w)
+
+        main_row.addLayout(left, 3)
+
+        # Right: big momentum gauge
+        gauge_frame = QFrame()
+        gauge_frame.setStyleSheet(
+            f"QFrame {{ background:{SURFACE}; border:1px solid {BORDER_DIM};"
+            f" border-radius:6px; }}"
+        )
+        gauge_lay = QVBoxLayout(gauge_frame)
+        gauge_lay.setContentsMargins(12, 12, 12, 12)
+        gauge_lay.setSpacing(4)
+
+        gauge = _MomentumGauge()
+        gauge.set_value(metrics.get("momentum_score"), "MOMENTUM SCORE")
+        gauge_lay.addWidget(gauge, 1)
+
+        # RSI mini-summary under gauge
+        rsi = metrics.get("rsi_14")
+        if rsi is not None:
+            try:
+                r = float(rsi)
+                rc = GREEN if r < 30 else (RED if r > 70 else SECONDARY)
+                zone = "Oversold" if r < 30 else ("Overbought" if r > 70 else "Neutral")
+                rsi_lbl = _lbl(f"RSI {r:.1f} · {zone}", 11, rc, bold=True)
+                rsi_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                gauge_lay.addWidget(rsi_lbl)
+            except (TypeError, ValueError):
+                pass
+
+        macd_cond = metrics.get("macd_condition", "")
+        if macd_cond:
+            mc = _sign_color(metrics.get("macd"))
+            macd_lbl = _lbl(f"MACD · {macd_cond}", 10, mc)
+            macd_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            gauge_lay.addWidget(macd_lbl)
+
+        main_row.addWidget(gauge_frame, 2)
+
+        main_w = QWidget()
+        main_w.setLayout(main_row)
+        self._body_lay.addWidget(main_w, 1)
+
+        # === GUARDRAIL ===
+        guard = QLabel(GUARDRAIL_TEXT)
+        guard.setStyleSheet(f"color:{MUTED2}; font-size:8px; background:transparent; padding:2px 0;")
+        guard.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._body_lay.addWidget(guard)
 
     def _on_error(self, err: str):
         self._analyze_btn.setEnabled(True)
         self._status_lbl.setText(f"Error: {err[:60]}")
         self._status_lbl.setStyleSheet(f"color:{RED}; background:transparent;")
         self._clear_body()
-        self._body_lay.addWidget(_lbl(f"Analysis failed: {err}", 10, RED))
+        self._body_lay.addWidget(_lbl(f"Analysis failed: {err}", 12, RED))
 
     # ------------------------------------------------------------------
-    # Stock header row
+    # Header
     # ------------------------------------------------------------------
 
-    def _build_stock_header(self, symbol, metrics):
+    def _build_header(self, symbol, metrics, candles):
         frame = QFrame()
         frame.setStyleSheet(
             f"QFrame {{ background:{SURFACE}; border:1px solid {BORDER_DIM};"
@@ -568,344 +611,214 @@ class StockAnalysisPage(QWidget):
         lay.setContentsMargins(16, 10, 16, 10)
         lay.setSpacing(12)
 
+        # Left: company + pills
         left = QVBoxLayout()
-        left.setSpacing(2)
+        left.setSpacing(4)
         company = metrics.get("company_name") or symbol
-        left.addWidget(_lbl(company, 16, TEXT, bold=True))
-
+        left.addWidget(_lbl(company, 18, TEXT, bold=True))
         tags = QHBoxLayout()
         tags.setSpacing(6)
         tags.addWidget(_pill(symbol, CYAN))
-        tags.addWidget(_pill("NSE", MUTED))
         sector = stock_adapter.stock_sector(symbol)
         if sector:
             tags.addWidget(_pill(sector, PURPLE))
         trend = metrics.get("trend", "")
         if trend:
-            tc = self._trend_color(trend)
-            tags.addWidget(_pill(str(trend).upper(), tc))
+            tags.addWidget(_pill(str(trend).upper(), self._trend_color(trend)))
         tags.addStretch()
         left.addLayout(tags)
         lay.addLayout(left, 1)
 
-        right = QVBoxLayout()
-        right.setSpacing(0)
-        right.setAlignment(Qt.AlignmentFlag.AlignRight)
-        price_lbl = _lbl(_fmt_price(metrics.get("price")), 24, TEXT, bold=True, mono=True)
-        price_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
-        right.addWidget(price_lbl)
+        # Right: price + change + sparkline
+        right = QHBoxLayout()
+        right.setSpacing(16)
+        right.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
+        price_col = QVBoxLayout()
+        price_col.setSpacing(0)
+        price_col.setAlignment(Qt.AlignmentFlag.AlignRight)
+        price_col.addWidget(_lbl(_fmt_price(metrics.get("price")), 22, TEXT, bold=True, mono=True))
         chg = metrics.get("change_percent")
         chg_lbl = _lbl(_fmt_pct(chg), 14, _sign_color(chg), bold=True, mono=True)
         chg_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
-        right.addWidget(chg_lbl)
+        price_col.addWidget(chg_lbl)
+        right.addLayout(price_col)
 
-        ts = metrics.get("timestamp", "")
-        if ts:
-            ts_lbl = _lbl(f"as of {ts}", 8, MUTED2)
-            ts_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
-            right.addWidget(ts_lbl)
+        spark = _Sparkline()
+        spark.set_prices(candles)
+        right.addWidget(spark)
+
         lay.addLayout(right)
-
         return frame
 
     # ------------------------------------------------------------------
-    # Three-column top
+    # Data panels
     # ------------------------------------------------------------------
 
-    def _build_info_column(self, symbol, metrics):
-        frame = QFrame()
-        frame.setFixedWidth(260)
-        frame.setStyleSheet(
-            f"QFrame {{ background:{SURFACE}; border:1px solid {BORDER_DIM};"
-            f" border-radius:6px; }}"
-        )
-        lay = QVBoxLayout(frame)
-        lay.setContentsMargins(12, 10, 12, 10)
-        lay.setSpacing(4)
-
-        lay.addWidget(_lbl("KEY STATISTICS", 9, MUTED, bold=True))
-        lay.addWidget(_divider())
-
-        for key, label in [
-            ("volume", "Volume"),
-            ("avg_volume_20d", "Avg Vol 20D"),
-            ("relative_volume", "Rel Volume"),
-            ("week_52_high", "52W High"),
-            ("week_52_low", "52W Low"),
-            ("high_52w", "52W High"),
-            ("low_52w", "52W Low"),
-            ("market_cap", "Market Cap"),
-            ("pe_ratio", "P/E"),
-            ("eps", "EPS"),
-        ]:
-            val = metrics.get(key)
-            if val is not None:
-                lay.addLayout(_kv_row(label, val))
-
-        lay.addWidget(_divider())
-        lay.addWidget(_lbl("KEY OBSERVATIONS", 9, MUTED, bold=True))
-        obs = stock_adapter.stock_observations(metrics)
-        for o in (obs or [])[:4]:
-            ol = _lbl(f"• {o}", 9, SECONDARY)
-            ol.setWordWrap(True)
-            lay.addWidget(ol)
-
-        lay.addStretch()
-        return frame
-
-    def _build_chart_column(self, candles):
+    def _build_price_panel(self, metrics):
         frame = QFrame()
         frame.setStyleSheet(
             f"QFrame {{ background:{SURFACE}; border:1px solid {BORDER_DIM};"
             f" border-radius:6px; }}"
         )
         lay = QVBoxLayout(frame)
-        lay.setContentsMargins(8, 8, 8, 8)
-        lay.setSpacing(4)
+        lay.setContentsMargins(14, 10, 14, 10)
+        lay.setSpacing(2)
 
-        header = QHBoxLayout()
-        header.addWidget(_lbl("PRICE", 9, MUTED, bold=True))
-        header.addStretch()
-        for label, color in [("MA20", CYAN), ("MA50", AMBER), ("MA200", PURPLE)]:
-            header.addWidget(_lbl("●", 8, color))
-            header.addWidget(_lbl(label, 8, MUTED))
-        lay.addLayout(header)
-
-        chart = W.CandleChart()
-        chart.setMinimumHeight(260)
-        chart.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        chart.set_candles(candles)
-
-        overlays = []
-        for key, color in [("ma20", CYAN), ("ma50", AMBER), ("ma200", PURPLE)]:
-            values = [c.get(key) for c in candles]
-            if any(v is not None for v in values):
-                overlays.append({"values": values, "color": color})
-        if overlays:
-            chart.set_overlays(overlays)
-
-        lay.addWidget(chart, 1)
-        return frame
-
-    def _build_momentum_column(self, metrics, osc):
-        frame = QFrame()
-        frame.setFixedWidth(200)
-        frame.setStyleSheet(
-            f"QFrame {{ background:{SURFACE}; border:1px solid {BORDER_DIM};"
-            f" border-radius:6px; }}"
-        )
-        lay = QVBoxLayout(frame)
-        lay.setContentsMargins(10, 10, 10, 10)
-        lay.setSpacing(8)
-        lay.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
-
-        gauge = _MomentumGauge()
-        gauge.set_value(metrics.get("momentum_score"), "MOMENTUM SCORE")
-        lay.addWidget(gauge, 0, Qt.AlignmentFlag.AlignHCenter)
-
+        lay.addWidget(_lbl("PRICE & VOLUME", 10, CYAN, bold=True))
         lay.addWidget(_divider())
 
-        lay.addWidget(_lbl("RSI (14)", 9, MUTED, bold=True))
-        rsi_bar = _RSIBar()
-        rsi_bar.set_value(metrics.get("rsi_14"))
-        lay.addWidget(rsi_bar)
-        cond = metrics.get("rsi_condition", "")
-        if cond:
-            lay.addWidget(_lbl(str(cond), 8, MUTED2))
+        h52 = metrics.get("week_52_high") or metrics.get("high_52w")
+        l52 = metrics.get("week_52_low") or metrics.get("low_52w")
+        lay.addLayout(_metric_row("52W High", _fmt_price(h52), GREEN))
+        lay.addLayout(_metric_row("52W Low", _fmt_price(l52), RED))
 
-        lay.addWidget(_divider())
-
-        lay.addWidget(_lbl("MACD", 9, MUTED, bold=True))
-        macd_val = metrics.get("macd")
-        macd_sig = metrics.get("macd_signal")
-        macd_cond = metrics.get("macd_condition", "")
-        mc = _sign_color(macd_val) if macd_val is not None else MUTED
-        lay.addLayout(_kv_row("Line", _fmt_num(macd_val), mc))
-        lay.addLayout(_kv_row("Signal", _fmt_num(macd_sig), MUTED))
-        if macd_cond:
-            lay.addWidget(_pill(str(macd_cond), mc, SURFACE_ALT))
-
-        lay.addStretch()
-        return frame
-
-    # ------------------------------------------------------------------
-    # Technicals grid
-    # ------------------------------------------------------------------
-
-    def _build_technicals_grid(self, metrics, osc):
-        frame = QFrame()
-        frame.setStyleSheet(
-            f"QFrame {{ background:{SURFACE}; border:1px solid {BORDER_DIM};"
-            f" border-radius:6px; }}"
-        )
-        grid_outer = QVBoxLayout(frame)
-        grid_outer.setContentsMargins(14, 10, 14, 10)
-        grid_outer.setSpacing(8)
-
-        grid_outer.addWidget(_lbl("TECHNICAL INDICATORS", 10, MUTED, bold=True))
-
-        cols = QHBoxLayout()
-        cols.setSpacing(14)
-
-        # Column 1: Oscillators
-        c1 = QVBoxLayout()
-        c1.setSpacing(3)
-        c1.addWidget(_lbl("OSCILLATORS", 9, CYAN, bold=True))
-        c1.addWidget(_divider())
-        for key, label in [
-            ("rsi_14", "RSI (14)"),
-            ("macd", "MACD"),
-            ("macd_signal", "Signal"),
-            ("atr_14", "ATR (14)"),
-        ]:
-            val = metrics.get(key)
-            c1.addLayout(_kv_row(label, _fmt_num(val), _sign_color(val) if key == "macd" else SECONDARY))
-        c1.addStretch()
-        cols.addLayout(c1, 1)
-
-        # Column 2: Moving Averages
-        c2 = QVBoxLayout()
-        c2.setSpacing(3)
-        c2.addWidget(_lbl("MOVING AVERAGES", 9, CYAN, bold=True))
-        c2.addWidget(_divider())
         price = metrics.get("price")
-        for key, label in [
-            ("ema_20", "EMA 20"),
-            ("ema_50", "EMA 50"),
-            ("ema_200", "EMA 200"),
-            ("sma_20", "SMA 20"),
-            ("sma_50", "SMA 50"),
-            ("sma_200", "SMA 200"),
-        ]:
-            val = metrics.get(key)
-            if val is not None:
-                try:
-                    color = GREEN if float(price) >= float(val) else RED
-                except (TypeError, ValueError):
-                    color = MUTED
-                c2.addLayout(_kv_row(label, _fmt_price(val), color))
-        c2.addStretch()
-        cols.addLayout(c2, 1)
+        if price and h52 and l52:
+            try:
+                p, h, l = float(price), float(h52), float(l52)
+                if h != l:
+                    pct = (p - l) / (h - l) * 100
+                    lay.addLayout(_metric_row("52W Position", f"{pct:.0f}%", CYAN))
+            except (TypeError, ValueError):
+                pass
 
-        # Column 3: Structure & Returns
-        c3 = QVBoxLayout()
-        c3.setSpacing(3)
-        c3.addWidget(_lbl("STRUCTURE & RETURNS", 9, CYAN, bold=True))
-        c3.addWidget(_divider())
-        for key, label in [
-            ("trend", "Trend"),
-            ("structure", "Structure"),
-        ]:
-            val = metrics.get(key)
-            if val is not None:
-                c3.addLayout(_kv_row(label, str(val).title(), SECONDARY))
-        c3.addWidget(_divider())
-        for key, label in [
-            ("return_1d", "Return 1D"),
-            ("return_5d", "Return 5D"),
-            ("return_20d", "Return 20D"),
-            ("return_60d", "Return 60D"),
-        ]:
-            val = metrics.get(key)
-            if val is not None:
-                c3.addLayout(_kv_row(label, _fmt_pct(val), _sign_color(val)))
-        c3.addStretch()
-        cols.addLayout(c3, 1)
+        lay.addLayout(_metric_row("Volume", _fmt_vol(metrics.get("volume")), SECONDARY))
+        rel_vol = metrics.get("relative_volume")
+        if rel_vol is not None:
+            lay.addLayout(_metric_row("Rel Volume", _fmt_num(rel_vol, 1), SECONDARY))
 
-        grid_outer.addLayout(cols)
+        lay.addWidget(_divider())
+        lay.addWidget(_lbl("RETURNS", 10, CYAN, bold=True))
+
+        for key, label in [("return_1d", "1 Day"), ("return_5d", "5 Day"),
+                           ("return_20d", "20 Day"), ("return_60d", "60 Day")]:
+            val = metrics.get(key)
+            if val is not None:
+                lay.addLayout(_metric_row(label, _fmt_pct(val), _sign_color(val)))
+
+        lay.addStretch(1)
         return frame
 
-    # ------------------------------------------------------------------
-    # AI report panel
-    # ------------------------------------------------------------------
-
-    def _build_ai_panel(self, symbol: str, ai_text: str) -> QFrame:
+    def _build_technicals_panel(self, metrics, osc):
         frame = QFrame()
         frame.setStyleSheet(
             f"QFrame {{ background:{SURFACE}; border:1px solid {BORDER_DIM};"
             f" border-radius:6px; }}"
         )
         lay = QVBoxLayout(frame)
-        lay.setContentsMargins(14, 12, 14, 12)
-        lay.setSpacing(8)
+        lay.setContentsMargins(14, 10, 14, 10)
+        lay.setSpacing(2)
 
-        hdr = QHBoxLayout()
-        hdr.addWidget(_lbl("AI RESEARCH REPORT", 11, CYAN, bold=True))
-        hdr.addStretch()
-        hdr.addWidget(_lbl("analysis-only · no buy/sell recommendation", 8, MUTED2))
-        lay.addLayout(hdr)
+        lay.addWidget(_lbl("TECHNICALS", 10, CYAN, bold=True))
+        lay.addWidget(_divider())
 
+        rsi = metrics.get("rsi_14")
+        if rsi is not None:
+            try:
+                r = float(rsi)
+                rc = GREEN if r < 30 else (RED if r > 70 else SECONDARY)
+                lay.addLayout(_metric_row("RSI (14)", f"{r:.1f}", rc))
+            except (TypeError, ValueError):
+                lay.addLayout(_metric_row("RSI (14)", N_A, MUTED))
+        else:
+            lay.addLayout(_metric_row("RSI (14)", N_A, MUTED))
+
+        macd = metrics.get("macd")
+        lay.addLayout(_metric_row("MACD", _fmt_num(macd), _sign_color(macd)))
+        lay.addLayout(_metric_row("Signal", _fmt_num(metrics.get("macd_signal")), MUTED))
+
+        lay.addLayout(_metric_row("ADX", _fmt_num(metrics.get("adx"), 1), SECONDARY))
+        lay.addLayout(_metric_row("ATR (14)", _fmt_num(metrics.get("atr_14")), SECONDARY))
+
+        lay.addWidget(_divider())
+        lay.addWidget(_lbl("MOVING AVERAGES", 10, CYAN, bold=True))
+
+        price = metrics.get("price")
+        for key, label in [("ema_20", "EMA 20"), ("ema_50", "EMA 50"), ("ema_200", "EMA 200")]:
+            ema = metrics.get(key)
+            if ema is not None and price is not None:
+                try:
+                    above = float(price) >= float(ema)
+                    signal = "Above" if above else "Below"
+                    lay.addLayout(_metric_row(label, f"{signal}  {_fmt_price(ema)}",
+                                             GREEN if above else RED))
+                except (TypeError, ValueError):
+                    lay.addLayout(_metric_row(label, _fmt_price(ema), MUTED))
+
+        lay.addStretch(1)
+        return frame
+
+    def _build_trend_panel(self, metrics):
+        frame = QFrame()
+        frame.setStyleSheet(
+            f"QFrame {{ background:{SURFACE}; border:1px solid {BORDER_DIM};"
+            f" border-radius:6px; }}"
+        )
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(14, 10, 14, 10)
+        lay.setSpacing(2)
+
+        lay.addWidget(_lbl("TREND & STRUCTURE", 10, CYAN, bold=True))
+        lay.addWidget(_divider())
+
+        trend = metrics.get("trend", "")
+        if trend:
+            lay.addLayout(_metric_row("Trend", str(trend).title(), self._trend_color(trend)))
+
+        structure = metrics.get("structure", "")
+        if structure:
+            lay.addLayout(_metric_row("Structure", str(structure).title(), SECONDARY))
+
+        rsi_cond = metrics.get("rsi_condition", "")
+        if rsi_cond:
+            lay.addLayout(_metric_row("RSI Zone", str(rsi_cond), SECONDARY))
+
+        macd_cond = metrics.get("macd_condition", "")
+        if macd_cond:
+            lay.addLayout(_metric_row("MACD Signal", str(macd_cond), _sign_color(metrics.get("macd"))))
+
+        # Key observations
+        obs = stock_adapter.stock_observations(metrics)
+        if obs:
+            lay.addWidget(_divider())
+            lay.addWidget(_lbl("KEY OBSERVATIONS", 10, CYAN, bold=True))
+            for o in (obs or [])[:3]:
+                ol = _lbl(f"• {o}", 10, SECONDARY)
+                ol.setWordWrap(True)
+                lay.addWidget(ol)
+
+        lay.addStretch(1)
+        return frame
+
+    def _build_ai_panel(self, ai_text):
         if not ai_text or ai_text.startswith(("STOCK ANALYSIS AI ERROR", "MARKET LAB AI ERROR")):
-            if ai_text:
-                err = _lbl(ai_text[:200], 9, RED)
-                err.setWordWrap(True)
-                lay.addWidget(err)
-            else:
-                lay.addWidget(_lbl("No AI report generated.", 10, MUTED))
-            lay.addStretch()
-            return frame
+            return None
 
         parsed = report_parser.parse_report(ai_text)
-        bias = parsed.get("bias", "UNAVAILABLE")
-        bias_color = {
-            "BULLISH": GREEN, "BEARISH": RED, "NEUTRAL": MUTED,
-            "MIXED": AMBER, "INSUFFICIENT EVIDENCE": AMBER,
-        }.get(bias, MUTED)
-
-        bias_row = QHBoxLayout()
-        bias_row.addWidget(_pill(bias, bias_color))
-        bias_row.addStretch()
-        lay.addLayout(bias_row)
-
-        summary_items = report_parser.collect_bullets(
+        bullets = report_parser.collect_bullets(
             report_parser.sections_matching(parsed, "executive", "conclusion", "summary", "overall")
         )
-        if summary_items:
-            lay.addWidget(_lbl("EXECUTIVE SUMMARY", 9, MUTED, bold=True))
-            for item in summary_items[:5]:
-                lbl = _lbl(f"• {item}", 10, SECONDARY)
-                lbl.setWordWrap(True)
-                lay.addWidget(lbl)
+        if not bullets:
+            return None
 
-        text_edit = QPlainTextEdit()
-        text_edit.setReadOnly(True)
-        text_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
-        text_edit.setPlainText(ai_text)
-        text_edit.setStyleSheet(
-            f"QPlainTextEdit {{ background:{SURFACE_INSET}; color:{SECONDARY};"
-            f" border:1px solid {BORDER_DIM}; border-radius:4px;"
-            f" font-size:10px; font-family:'{FONT_MONO}'; padding:8px; }}"
-        )
-        text_edit.setMinimumHeight(180)
-        lay.addWidget(text_edit, 1)
-
-        return frame
-
-    # ------------------------------------------------------------------
-    # Data quality footer
-    # ------------------------------------------------------------------
-
-    def _build_data_quality(self, metrics, candles):
         frame = QFrame()
         frame.setStyleSheet(
             f"QFrame {{ background:{SURFACE}; border:1px solid {BORDER_DIM};"
-            f" border-radius:4px; }}"
+            f" border-radius:6px; }}"
         )
-        lay = QHBoxLayout(frame)
-        lay.setContentsMargins(12, 6, 12, 6)
-        lay.setSpacing(16)
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(14, 10, 14, 10)
+        lay.setSpacing(4)
 
-        lay.addWidget(_lbl("DATA QUALITY", 8, MUTED2, bold=True))
+        lay.addWidget(_lbl("AI KEY POINTS", 10, CYAN, bold=True))
+        lay.addWidget(_divider())
+        for item in bullets[:4]:
+            lbl = _lbl(f"• {item}", 10, SECONDARY)
+            lbl.setWordWrap(True)
+            lay.addWidget(lbl)
 
-        dq = stock_adapter.data_quality(metrics, candles)
-        for component, status in dq.items():
-            color = GREEN if status == "AVAILABLE" else (AMBER if status == "PARTIAL" else MUTED2)
-            lay.addWidget(_lbl(f"{component}: {status}", 8, color))
-
-        lay.addStretch()
-        lay.addWidget(_lbl(GUARDRAIL_TEXT, 8, MUTED2))
-
+        lay.addStretch(1)
         return frame
 
     # ------------------------------------------------------------------

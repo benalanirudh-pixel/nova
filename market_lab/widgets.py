@@ -771,6 +771,154 @@ class FillBar(QWidget):
 
 
 # ---------------------------------------------------------------------------
+# Momentum gauge (radial dial) — single KPI measured against 0-100 scale
+# ---------------------------------------------------------------------------
+
+class MomentumGauge(QWidget):
+    """A radial momentum gauge showing a single score (0-100) against colored
+    threshold zones: red (<40), amber (40-60), green (>60). Never fabricates:
+    a missing/non-numeric score renders an explicit N/A placeholder.
+
+    The number and label are drawn beside the gauge (not color-only) so the
+    reading stays accessible without relying on hue alone.
+    """
+
+    def __init__(self, size=210, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(size, size)
+        self._score = None
+        self._label = "Momentum"
+        self._sub = ""
+
+    def set_score(self, score, label="Momentum", sub=""):
+        try:
+            self._score = None if score is None else float(score)
+        except (TypeError, ValueError):
+            self._score = None
+        self._label = str(label or "Momentum")
+        self._sub = str(sub or "")
+        self.update()
+
+    def _zone_color(self, score):
+        if score < 40:
+            return RED
+        if score < 60:
+            return AMBER
+        return GREEN
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = self.rect()
+        cx, cy = r.center().x(), r.center().y()
+        radius = min(r.width(), r.height()) // 2 - 14
+
+        if self._score is None:
+            painter.setPen(QPen(QColor(MUTED), 1))
+            painter.setFont(font(10, bold=True))
+            painter.drawText(r, Qt.AlignmentFlag.AlignCenter, "N/A")
+            painter.setPen(QPen(QColor(MUTED2), 1))
+            painter.setFont(font(8))
+            painter.drawText(
+                r.adjusted(0, 24, 0, 0),
+                Qt.AlignmentFlag.AlignCenter, self._label)
+            painter.end()
+            return
+
+        score = max(0.0, min(100.0, self._score))
+        zone_color = self._zone_color(score)
+
+        # Threshold zone arcs (background track split into red/amber/green).
+        zones = [(0.0, 40.0, RED), (40.0, 60.0, AMBER), (60.0, 100.0, GREEN)]
+        track_pen_width = 10
+        start_angle = 135  # degrees, 0 at 3 o'clock, CCW
+        span_per_zone = 270 // 3
+        for z_lo, z_hi, z_color in zones:
+            frac_lo = (z_lo / 100.0)
+            frac_hi = (z_hi / 100.0)
+            # Map 0-100 onto the 270-degree arc starting at 135 deg.
+            sweep_total = 270
+            ang_start = start_angle - frac_lo * sweep_total
+            ang_span = (frac_hi - frac_lo) * sweep_total
+            pen = QPen(QColor(z_color), track_pen_width)
+            pen.setCapStyle(Qt.PenStyle.FlatCap)
+            painter.setPen(pen)
+            # Qt drawArc uses 1/16th degree, clockwise positive from 3 o'clock.
+            painter.drawArc(
+                cx - radius, cy - radius, 2 * radius, 2 * radius,
+                int(-ang_start * 16), int(-ang_span * 16))
+
+        # Score arc: how far the needle fills the zone track.
+        pen = QPen(QColor(zone_color), track_pen_width + 2)
+        pen.setCapStyle(Qt.PenStyle.RoundCap)
+        painter.setPen(pen)
+        ang_start = start_angle
+        ang_span = -(score / 100.0) * 270
+        painter.drawArc(
+            cx - radius, cy - radius, 2 * radius, 2 * radius,
+            int(ang_start * 16), int(ang_span * 16))
+
+        # Center needle (small dot + short line pointing to score position).
+        import math as _math
+        rad = _math.radians(start_angle - (score / 100.0) * 270)
+        nx = cx + _math.cos(rad) * (radius - 6)
+        ny = cy - _math.sin(rad) * (radius - 6)
+        painter.setPen(QPen(QColor(TEXT), 2))
+        painter.drawLine(cx, cy, int(nx), int(ny))
+        painter.setBrush(QColor(TEXT))
+        painter.drawEllipse(cx - 3, cy - 3, 6, 6)
+
+        # Score value + label beneath the dial.
+        painter.setPen(QPen(QColor(TEXT), 1))
+        painter.setFont(font(22, bold=True, mono=True))
+        painter.drawText(
+            r.adjusted(0, int(radius * 0.55), 0, 0),
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+            f"{score:.0f}")
+        painter.setPen(QPen(QColor(SECONDARY), 1))
+        painter.setFont(font(8.5, bold=True))
+        painter.drawText(
+            r.adjusted(0, int(radius * 0.55) + 22, 0, 0),
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+            self._label.upper())
+        if self._sub:
+            painter.setPen(QPen(QColor(MUTED), 1))
+            painter.setFont(font(7.5))
+            painter.drawText(
+                r.adjusted(0, int(radius * 0.55) + 34, 0, 0),
+                Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+                self._sub)
+
+        painter.end()
+
+
+# ---------------------------------------------------------------------------
+# Status pill / badge (rounded, colored; text carries the meaning)
+# ---------------------------------------------------------------------------
+
+class StatusPill(QWidget):
+    """A rounded status pill whose colored fill + text always carries meaning
+    (never color-only)."""
+
+    def __init__(self, text, color=CYAN, parent=None):
+        super().__init__(parent)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(8, 3, 8, 3)
+        lay.setSpacing(0)
+        self._label = QLabel(str(text))
+        self._label.setFont(font(8.5, bold=True))
+        self._label.setStyleSheet(f"color:#041018; background:transparent; border:none;")
+        lay.addWidget(self._label)
+        self.setStyleSheet(f"""
+            StatusPill {{
+                background:{color};
+                border-radius:999px;
+            }}
+        """)
+        self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+
+
+# ---------------------------------------------------------------------------
 # Stacked bar (segments) for breadth internals
 # ---------------------------------------------------------------------------
 
