@@ -1,29 +1,25 @@
 """
-Market Overview page — Bloomberg-style market dashboard.
+Market Overview page — professional trading dashboard.
 
-Shows NIFTY 50, BANK NIFTY, India VIX cards with candlestick charts,
-market breadth, sector intelligence, derivatives, institutional flows,
-risk context, and event risk. All data from the real Market Lab pipeline.
+Layout: 7-KPI strip → candlestick chart (70%) + sidebar panels (30%) → derivatives strip → status bar.
+All custom widgets use QPainter for professional rendering.
 """
 
 from __future__ import annotations
 
+import math
 import time
 import traceback
 from datetime import datetime, timezone, timedelta
 
-from PySide6.QtCore import Qt, QThread, QTimer, Signal
-from PySide6.QtGui import QFont, QColor, QPainter, QPen, QBrush
+from PySide6.QtCore import Qt, QThread, QTimer, Signal, QRectF, QPointF
+from PySide6.QtGui import (
+    QFont, QColor, QPainter, QPen, QBrush, QLinearGradient,
+    QPainterPath, QFontMetrics,
+)
 from PySide6.QtWidgets import (
-    QFrame,
-    QGridLayout,
-    QHBoxLayout,
-    QLabel,
-    QPushButton,
-    QScrollArea,
-    QSizePolicy,
-    QVBoxLayout,
-    QWidget,
+    QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton,
+    QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
 )
 
 from market_lab.market_lab_data import get_market_lab_data, save_json_report, CACHE_DIR
@@ -31,24 +27,23 @@ from market_lab import view_model as vm
 from market_lab import widgets as W
 
 from styles.design_tokens import (
-    BG, SURFACE, SURFACE_ALT, SIDEBAR, HEADER,
+    BG, SURFACE, SURFACE_ALT, SURFACE_RAISED, SIDEBAR, HEADER,
     BORDER, BORDER_BRIGHT, BORDER_DIM,
     TEXT, SECONDARY, MUTED, MUTED2,
     GREEN, RED, AMBER, BLUE, CYAN, PURPLE,
     BG_SUCCESS, BG_WARNING, BG_ERROR, BG_INFO,
     FONT_UI, FONT_MONO,
-    FONT_SIZE_CAPTION, FONT_SIZE_SMALL, FONT_SIZE_REGULAR,
-    FONT_SIZE_MEDIUM, FONT_SIZE_LARGE, FONT_SIZE_XLARGE,
-    SPACE_XS, SPACE_SM, SPACE_MD, SPACE_LG,
-    BORDER_RADIUS_SM, BORDER_RADIUS_MD,
     GUARDRAIL_TEXT,
     freshness_level, freshness_color,
 )
 
 IST = timezone(timedelta(hours=5, minutes=30))
-
 N_A = vm.N_A
 
+
+# =====================================================================
+# Helpers
+# =====================================================================
 
 def _lbl(text="", size=10, color=TEXT, bold=False, mono=False):
     label = QLabel("" if text is None else str(text))
@@ -88,12 +83,30 @@ def _fmt_num(v, places=2):
 def _fmt_crore(v):
     if not isinstance(v, (int, float)) or isinstance(v, bool):
         return N_A
-    return f"{v:+,.2f} Cr"
+    return f"{v:+,.0f} Cr"
 
 
-# ---------------------------------------------------------------------------
+def _kv_row(key, value, color=SECONDARY):
+    row = QHBoxLayout()
+    row.setSpacing(4)
+    row.addWidget(_lbl(key, 8, MUTED, mono=True))
+    row.addStretch(1)
+    row.addWidget(_lbl(value, 9, color, mono=True, bold=True))
+    return row
+
+
+def _clear_layout(layout):
+    while layout.count():
+        item = layout.takeAt(0)
+        if item.widget():
+            item.widget().deleteLater()
+        elif item.layout():
+            _clear_layout(item.layout())
+
+
+# =====================================================================
 # Worker
-# ---------------------------------------------------------------------------
+# =====================================================================
 
 class _DataWorker(QThread):
     succeeded = Signal(object, float)
@@ -117,13 +130,496 @@ class _DataWorker(QThread):
             self.failed.emit(traceback.format_exc(), time.perf_counter() - t0)
 
 
-# ---------------------------------------------------------------------------
-# Compact index card
-# ---------------------------------------------------------------------------
+# =====================================================================
+# Sparkline widget (QPainter)
+# =====================================================================
+
+class _Sparkline(QWidget):
+    """Tiny line chart for KPI cards."""
+
+    def __init__(self, parent=None, color=CYAN):
+        super().__init__(parent)
+        self._data: list[float] = []
+        self._color = color
+        self.setFixedHeight(24)
+        self.setMinimumWidth(60)
+
+    def set_data(self, values: list):
+        self._data = []
+        for v in (values or []):
+            try:
+                self._data.append(float(v))
+            except (TypeError, ValueError):
+                continue
+        self.update()
+
+    def paintEvent(self, event):
+        if len(self._data) < 2:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+        pad = 2
+        lo = min(self._data)
+        hi = max(self._data)
+        rng = hi - lo if hi != lo else 1.0
+        n = len(self._data)
+        step = (w - 2 * pad) / max(n - 1, 1)
+
+        path = QPainterPath()
+        for i, v in enumerate(self._data):
+            x = pad + i * step
+            y = h - pad - ((v - lo) / rng) * (h - 2 * pad)
+            if i == 0:
+                path.moveTo(x, y)
+            else:
+                path.lineTo(x, y)
+
+        pen = QPen(QColor(self._color), 1.5)
+        p.setPen(pen)
+        p.drawPath(path)
+
+        fill = QPainterPath(path)
+        fill.lineTo(pad + (n - 1) * step, h)
+        fill.lineTo(pad, h)
+        fill.closeSubpath()
+        grad = QLinearGradient(0, 0, 0, h)
+        c = QColor(self._color)
+        c.setAlpha(40)
+        grad.setColorAt(0, c)
+        c.setAlpha(0)
+        grad.setColorAt(1, c)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QBrush(grad))
+        p.drawPath(fill)
+
+        last_v = self._data[-1]
+        first_v = self._data[0]
+        dot_color = GREEN if last_v >= first_v else RED
+        lx = pad + (n - 1) * step
+        ly = h - pad - ((last_v - lo) / rng) * (h - 2 * pad)
+        p.setBrush(QBrush(QColor(dot_color)))
+        p.drawEllipse(QPointF(lx, ly), 2.5, 2.5)
+        p.end()
+
+
+# =====================================================================
+# KPI card with sparkline
+# =====================================================================
+
+class _KPICard(QFrame):
+    def __init__(self, title, spark_color=CYAN, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"""
+            QFrame {{
+                background: {SURFACE};
+                border: 1px solid {BORDER};
+                border-radius: 6px;
+            }}
+        """)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setFixedHeight(72)
+
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(10, 6, 10, 4)
+        lay.setSpacing(1)
+
+        top = QHBoxLayout()
+        top.setSpacing(4)
+        self._title_lbl = _lbl(title, 7, MUTED, bold=True)
+        top.addWidget(self._title_lbl)
+        top.addStretch(1)
+        self._change_lbl = _lbl("", 8, MUTED, mono=True)
+        top.addWidget(self._change_lbl)
+        lay.addLayout(top)
+
+        mid = QHBoxLayout()
+        mid.setSpacing(6)
+        self._value_lbl = _lbl("—", 15, TEXT, bold=True, mono=True)
+        mid.addWidget(self._value_lbl)
+        mid.addStretch(1)
+        self._spark = _Sparkline(color=spark_color)
+        mid.addWidget(self._spark)
+        lay.addLayout(mid)
+
+    def set_data(self, value, change_pct=None, suffix="", sparkline=None):
+        try:
+            self._value_lbl.setText(f"{float(value):,.2f}{suffix}")
+        except (TypeError, ValueError):
+            self._value_lbl.setText("—")
+            self._value_lbl.setStyleSheet(f"color:{MUTED}; background:transparent; border:none;")
+            return
+
+        if change_pct is not None:
+            try:
+                pct = float(change_pct)
+                color = GREEN if pct >= 0 else RED
+                self._change_lbl.setText(f"{pct:+.2f}%")
+                self._change_lbl.setStyleSheet(f"color:{color}; background:transparent; border:none;")
+                self._value_lbl.setStyleSheet(f"color:{color}; background:transparent; border:none;")
+            except (TypeError, ValueError):
+                pass
+        if sparkline:
+            self._spark.set_data(sparkline)
+
+    def set_raw(self, text, color=TEXT, sparkline=None):
+        self._value_lbl.setText(text)
+        self._value_lbl.setStyleSheet(f"color:{color}; background:transparent; border:none;")
+        self._change_lbl.setText("")
+        if sparkline:
+            self._spark.set_data(sparkline)
+
+
+# =====================================================================
+# Candlestick chart (QPainter)
+# =====================================================================
+
+class _CandlestickChart(QWidget):
+    """Professional candlestick + volume chart."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._candles: list[dict] = []
+        self._title = ""
+        self.setMinimumHeight(260)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setStyleSheet(f"background: {SURFACE};")
+
+    def set_data(self, candles: list[dict], title=""):
+        self._candles = candles or []
+        self._title = title
+        self.update()
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+
+        p.fillRect(0, 0, w, h, QColor(SURFACE))
+
+        if not self._candles:
+            p.setPen(QColor(MUTED))
+            p.setFont(QFont(FONT_MONO, 10))
+            p.drawText(QRectF(0, 0, w, h), Qt.AlignmentFlag.AlignCenter, "No candle data")
+            p.end()
+            return
+
+        pad_l, pad_r, pad_t, pad_b = 50, 10, 20, 50
+        vol_h = 40
+        chart_h = h - pad_t - pad_b - vol_h - 4
+        chart_w = w - pad_l - pad_r
+
+        candles = self._candles
+        n = len(candles)
+        if n == 0:
+            p.end()
+            return
+
+        highs = [c.get("high", 0) for c in candles]
+        lows = [c.get("low", 0) for c in candles]
+        vols = [c.get("volume", 0) or 0 for c in candles]
+        price_hi = max(highs) if highs else 1
+        price_lo = min(lows) if lows else 0
+        price_rng = price_hi - price_lo if price_hi != price_lo else 1
+        vol_max = max(vols) if vols else 1
+
+        bar_w = max(chart_w / n, 1)
+        body_w = max(bar_w * 0.6, 2)
+
+        self._draw_grid(p, pad_l, pad_t, chart_w, chart_h, price_lo, price_hi, price_rng)
+
+        for i, c in enumerate(candles):
+            o = c.get("open", 0)
+            cl = c.get("close", 0)
+            hi = c.get("high", 0)
+            lo = c.get("low", 0)
+            vol = c.get("volume", 0) or 0
+
+            bullish = cl >= o
+            color = QColor(GREEN) if bullish else QColor(RED)
+            cx = pad_l + i * bar_w + bar_w / 2
+
+            def py(price):
+                return pad_t + (1 - (price - price_lo) / price_rng) * chart_h
+
+            wick_x = int(cx)
+            p.setPen(QPen(color, 1))
+            p.drawLine(wick_x, int(py(hi)), wick_x, int(py(lo)))
+
+            body_top = py(max(o, cl))
+            body_bot = py(min(o, cl))
+            body_height = max(body_bot - body_top, 1)
+            body_rect = QRectF(cx - body_w / 2, body_top, body_w, body_height)
+            if bullish:
+                p.setBrush(QBrush(color))
+            else:
+                p.setBrush(QBrush(color))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawRect(body_rect)
+
+            vol_y_base = h - pad_b
+            vol_bar_h = (vol / vol_max) * vol_h if vol_max else 0
+            vol_color = QColor(GREEN if bullish else RED)
+            vol_color.setAlpha(80)
+            p.setBrush(QBrush(vol_color))
+            p.drawRect(QRectF(cx - body_w / 2, vol_y_base - vol_bar_h, body_w, vol_bar_h))
+
+        self._draw_labels(p, candles, pad_l, pad_t, chart_w, chart_h, h, pad_b, bar_w, n)
+
+        if self._title:
+            p.setPen(QColor(SECONDARY))
+            p.setFont(QFont(FONT_UI, 9, QFont.Weight.Bold))
+            p.drawText(pad_l + 4, pad_t - 4, self._title)
+
+        p.end()
+
+    def _draw_grid(self, p, pl, pt, cw, ch, lo, hi, rng):
+        p.setPen(QPen(QColor(BORDER_DIM), 1, Qt.PenStyle.DotLine))
+        font = QFont(FONT_MONO, 7)
+        p.setFont(font)
+        for i in range(5):
+            frac = i / 4
+            y = int(pt + frac * ch)
+            price = hi - frac * rng
+            p.setPen(QPen(QColor(BORDER_DIM), 1, Qt.PenStyle.DotLine))
+            p.drawLine(pl, y, pl + cw, y)
+            p.setPen(QColor(MUTED2))
+            p.drawText(2, y + 4, f"{price:,.0f}")
+
+    def _draw_labels(self, p, candles, pl, pt, cw, ch, h, pb, bar_w, n):
+        p.setFont(QFont(FONT_MONO, 7))
+        p.setPen(QColor(MUTED2))
+        step = max(n // 6, 1)
+        for i in range(0, n, step):
+            c = candles[i]
+            date_str = c.get("date", "")
+            if isinstance(date_str, str) and len(date_str) >= 5:
+                x = pl + i * bar_w + bar_w / 2
+                p.drawText(int(x) - 15, int(h - pb + 14), date_str[-5:])
+
+
+# =====================================================================
+# Panel frame
+# =====================================================================
+
+class _Panel(QFrame):
+    def __init__(self, title, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"""
+            QFrame {{
+                background: {SURFACE};
+                border: 1px solid {BORDER};
+                border-radius: 6px;
+            }}
+        """)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        self._outer = QVBoxLayout(self)
+        self._outer.setContentsMargins(10, 8, 10, 8)
+        self._outer.setSpacing(4)
+
+        self._title_lbl = _lbl(title, 8, CYAN, bold=True)
+        self._outer.addWidget(self._title_lbl)
+
+        sep = QFrame()
+        sep.setFixedHeight(1)
+        sep.setStyleSheet(f"background: {BORDER_DIM};")
+        self._outer.addWidget(sep)
+
+        self._content_layout = QVBoxLayout()
+        self._content_layout.setContentsMargins(0, 0, 0, 0)
+        self._content_layout.setSpacing(2)
+        self._outer.addLayout(self._content_layout, 1)
+
+    @property
+    def content(self):
+        return self._content_layout
+
+    def clear_content(self):
+        _clear_layout(self._content_layout)
+
+
+# =====================================================================
+# Breadth bar (painted)
+# =====================================================================
+
+class BreadthBar(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._adv = 0
+        self._dec = 0
+        self._unch = 0
+        self.setFixedHeight(12)
+
+    def set_data(self, adv, dec, unch):
+        self._adv = adv or 0
+        self._dec = dec or 0
+        self._unch = unch or 0
+        self.update()
+
+    def paintEvent(self, event):
+        total = self._adv + self._dec + self._unch
+        if total <= 0:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w = self.width()
+        h = self.height()
+        adv_w = int(w * self._adv / total)
+        dec_w = int(w * self._dec / total)
+        unch_w = w - adv_w - dec_w
+
+        x = 0
+        for width, color in [(adv_w, GREEN), (unch_w, AMBER), (dec_w, RED)]:
+            if width > 0:
+                p.setBrush(QBrush(QColor(color)))
+                p.setPen(Qt.PenStyle.NoPen)
+                p.drawRoundedRect(x, 0, width, h, 3, 3)
+                x += width
+        p.end()
+
+
+# =====================================================================
+# Flow gauge bar (horizontal painted bar for FII/DII)
+# =====================================================================
+
+class _FlowGauge(QWidget):
+    """Horizontal gauge: negative left (red), positive right (green)."""
+
+    def __init__(self, label="", parent=None):
+        super().__init__(parent)
+        self._label = label
+        self._value = 0.0
+        self._max_abs = 1.0
+        self._text = ""
+        self.setFixedHeight(28)
+        self.setMinimumWidth(100)
+
+    def set_data(self, value, max_abs, text=""):
+        self._value = value or 0.0
+        self._max_abs = max(abs(max_abs), 1) if max_abs else 1.0
+        self._text = text
+        self.update()
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+        bar_y = 14
+        bar_h = h - bar_y - 2
+
+        p.setPen(QColor(MUTED))
+        p.setFont(QFont(FONT_MONO, 7, QFont.Weight.Bold))
+        p.drawText(0, 10, self._label)
+
+        text_w = QFontMetrics(QFont(FONT_MONO, 7)).horizontalAdvance(self._label) + 4
+        bar_x = max(text_w, 40)
+        bar_w = w - bar_x - 4
+
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QBrush(QColor(BORDER_DIM)))
+        p.drawRoundedRect(bar_x, bar_y, bar_w, bar_h, 3, 3)
+
+        mid = bar_x + bar_w / 2
+        frac = min(abs(self._value) / self._max_abs, 1.0)
+        fill_w = frac * (bar_w / 2)
+
+        color = QColor(GREEN if self._value >= 0 else RED)
+        color.setAlpha(180)
+        p.setBrush(QBrush(color))
+        if self._value >= 0:
+            p.drawRoundedRect(int(mid), bar_y, int(fill_w), bar_h, 2, 2)
+        else:
+            p.drawRoundedRect(int(mid - fill_w), bar_y, int(fill_w), bar_h, 2, 2)
+
+        p.setPen(QPen(QColor(BORDER), 1))
+        p.drawLine(int(mid), bar_y, int(mid), bar_y + bar_h)
+
+        if self._text:
+            p.setPen(QColor(TEXT))
+            p.setFont(QFont(FONT_MONO, 7))
+            p.drawText(int(w - 2), 10, "")
+            val_text = self._text
+            tw = QFontMetrics(QFont(FONT_MONO, 7)).horizontalAdvance(val_text)
+            p.drawText(int(w - tw - 2), 10, val_text)
+
+        p.end()
+
+
+# =====================================================================
+# Sector heatmap cell
+# =====================================================================
+
+class _SectorCell(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(36)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(6, 3, 6, 3)
+        lay.setSpacing(0)
+        self._name_lbl = _lbl("", 7, TEXT, bold=True)
+        self._name_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._ret_lbl = _lbl("", 8, TEXT, mono=True, bold=True)
+        self._ret_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(self._name_lbl)
+        lay.addWidget(self._ret_lbl)
+
+    def set_data(self, name, ret_pct):
+        short = name[:8] if name else "—"
+        self._name_lbl.setText(short)
+        if isinstance(ret_pct, (int, float)):
+            color = GREEN if ret_pct >= 0 else RED
+            self._ret_lbl.setText(f"{ret_pct:+.1f}%")
+            self._ret_lbl.setStyleSheet(f"color:{color}; background:transparent; border:none;")
+            intensity = min(abs(ret_pct) / 5.0, 1.0)
+            bg = QColor(GREEN if ret_pct >= 0 else RED)
+            bg.setAlpha(int(30 + intensity * 50))
+            self.setStyleSheet(
+                f"QFrame {{ background: rgba({bg.red()},{bg.green()},{bg.blue()},{bg.alpha()});"
+                f" border: 1px solid {BORDER_DIM}; border-radius: 4px; }}"
+            )
+        else:
+            self._ret_lbl.setText("—")
+            self.setStyleSheet(
+                f"QFrame {{ background: {SURFACE}; border: 1px solid {BORDER_DIM}; border-radius: 4px; }}"
+            )
+
+
+# =====================================================================
+# Derivatives strip cell
+# =====================================================================
+
+class _DerivCell(QFrame):
+    def __init__(self, title, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"""
+            QFrame {{
+                background: {SURFACE};
+                border: 1px solid {BORDER_DIM};
+                border-radius: 4px;
+            }}
+        """)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setFixedHeight(44)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(8, 4, 8, 4)
+        lay.setSpacing(1)
+        self._title_lbl = _lbl(title, 7, MUTED, bold=True)
+        self._value_lbl = _lbl("—", 11, TEXT, mono=True, bold=True)
+        lay.addWidget(self._title_lbl)
+        lay.addWidget(self._value_lbl)
+
+    def set_value(self, text, color=TEXT):
+        self._value_lbl.setText(str(text))
+        self._value_lbl.setStyleSheet(f"color:{color}; background:transparent; border:none;")
+
+
+# =====================================================================
+# IndexCard (retained for API compat with main_window)
+# =====================================================================
 
 class IndexCard(QFrame):
-    """Compact card for an index (NIFTY / BANK NIFTY / VIX)."""
-
     def __init__(self, title, parent=None):
         super().__init__(parent)
         self._title = title
@@ -139,372 +635,357 @@ class IndexCard(QFrame):
                 border-radius: 6px;
             }}
         """)
-
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 10, 14, 10)
         layout.setSpacing(4)
 
-        # Title row
         top = QHBoxLayout()
         top.setSpacing(8)
-        self._title_label = _lbl(title, 9, MUTED, bold=True)
-        top.addWidget(self._title_label)
+        self._title_lbl = _lbl(title, 10, CYAN, bold=True)
+        top.addWidget(self._title_lbl)
         top.addStretch(1)
-        self._source_label = _lbl("", 7, MUTED2, mono=True)
-        top.addWidget(self._source_label)
+        self._source_lbl = _lbl("", 7, MUTED)
+        top.addWidget(self._source_lbl)
         layout.addLayout(top)
 
-        # Price row
         price_row = QHBoxLayout()
         price_row.setSpacing(8)
-        self._price = _lbl("—", 20, TEXT, bold=True, mono=True)
-        price_row.addWidget(self._price)
-        self._change = _lbl("", 11, MUTED, mono=True)
-        price_row.addWidget(self._change)
-        self._pct = _lbl("", 11, MUTED, mono=True)
-        price_row.addWidget(self._pct)
+        self._price_lbl = _lbl("—", 18, TEXT, bold=True, mono=True)
+        price_row.addWidget(self._price_lbl)
+        self._change_lbl = _lbl("", 10, MUTED, mono=True)
+        price_row.addWidget(self._change_lbl)
         price_row.addStretch(1)
         layout.addLayout(price_row)
 
-        # Metrics row
-        self._metrics_row = QHBoxLayout()
-        self._metrics_row.setSpacing(16)
-        layout.addLayout(self._metrics_row)
-
-        # Chart placeholder
-        self._chart_frame = QFrame()
-        self._chart_frame.setFixedHeight(90)
-        self._chart_frame.setStyleSheet(
-            f"background: {BG}; border: none; border-top: 1px solid {BORDER_DIM}; border-radius: 0px;"
-        )
-        layout.addWidget(self._chart_frame)
-
-        self._chart_layout = QVBoxLayout(self._chart_frame)
-        self._chart_layout.setContentsMargins(0, 0, 0, 0)
-
-    def set_data(self, price, change, pct_change, source=None, metrics=None):
-        self._price.setText(_fmt_price(price))
-        color = _sign_color(change)
-
-        if isinstance(change, (int, float)) and not isinstance(change, bool):
-            self._change.setText(f"{change:+,.2f}")
-            self._change.setStyleSheet(
-                f"color:{color}; background:transparent; border:none;"
-            )
-        else:
-            self._change.setText("")
-
-        if isinstance(pct_change, (int, float)) and not isinstance(pct_change, bool):
-            self._pct.setText(f"({pct_change:+.2f}%)")
-            self._pct.setStyleSheet(
-                f"color:{color}; background:transparent; border:none;"
-            )
-        else:
-            self._pct.setText("")
-
+    def set_data(self, price, change_pct=None, source=""):
+        try:
+            self._price_lbl.setText(f"{float(price):,.2f}")
+        except (TypeError, ValueError):
+            self._price_lbl.setText("—")
+        if change_pct is not None:
+            try:
+                pct = float(change_pct)
+                color = GREEN if pct >= 0 else RED
+                self._change_lbl.setText(f"{pct:+.2f}%")
+                self._change_lbl.setStyleSheet(f"color:{color}; background:transparent; border:none;")
+                self._price_lbl.setStyleSheet(f"color:{color}; background:transparent; border:none;")
+            except (TypeError, ValueError):
+                pass
         if source:
-            self._source_label.setText(source)
-
-        if metrics:
-            while self._metrics_row.count():
-                item = self._metrics_row.takeAt(0)
-                if item.widget():
-                    item.widget().deleteLater()
-            for key, val, clr in metrics:
-                chip = _lbl(f"{key}: {val}", 8, clr or SECONDARY, mono=True)
-                self._metrics_row.addWidget(chip)
-            self._metrics_row.addStretch(1)
-
-    def set_chart(self, widget):
-        while self._chart_layout.count():
-            item = self._chart_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        self._chart_layout.addWidget(widget)
+            self._source_lbl.setText(source)
 
 
-# ---------------------------------------------------------------------------
-# Breadth bar
-# ---------------------------------------------------------------------------
-
-class BreadthBar(QWidget):
-    """Visual advances/declines bar."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setFixedHeight(32)
-        self._adv = 0
-        self._dec = 0
-        self._unch = 0
-
-    def set_data(self, adv, dec, unch):
-        self._adv = adv or 0
-        self._dec = dec or 0
-        self._unch = unch or 0
-        self.update()
-
-    def paintEvent(self, event):
-        total = self._adv + self._dec + self._unch
-        if total == 0:
-            return
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        w = self.width()
-        h = self.height()
-        r = 4
-
-        adv_w = max(1, int(w * self._adv / total))
-        dec_w = max(1, int(w * self._dec / total))
-        unch_w = w - adv_w - dec_w
-
-        p.setBrush(QColor(GREEN))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.drawRoundedRect(0, 0, adv_w, h, r, r)
-
-        p.setBrush(QColor(AMBER))
-        p.drawRect(adv_w, 0, unch_w, h)
-
-        p.setBrush(QColor(RED))
-        p.drawRoundedRect(adv_w + unch_w, 0, dec_w, h, r, r)
-
-        # Labels
-        p.setPen(QColor("#000000"))
-        font = QFont(FONT_MONO, 8, QFont.Weight.Bold)
-        p.setFont(font)
-        if adv_w > 30:
-            p.drawText(4, 0, adv_w - 8, h, Qt.AlignmentFlag.AlignVCenter, str(self._adv))
-        if dec_w > 30:
-            p.drawText(
-                adv_w + unch_w + 4, 0, dec_w - 8, h,
-                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
-                str(self._dec),
-            )
-        p.end()
-
-
-# ---------------------------------------------------------------------------
-# Section panel
-# ---------------------------------------------------------------------------
-
-def _section(title, subtitle=None):
-    frame = QFrame()
-    frame.setObjectName("sectionPanel")
-    frame.setStyleSheet(f"""
-        QFrame#sectionPanel {{
-            background: {SURFACE};
-            border: 1px solid {BORDER};
-            border-left: 2px solid {CYAN};
-            border-radius: 4px;
-        }}
-    """)
-    layout = QVBoxLayout(frame)
-    layout.setContentsMargins(12, 8, 12, 10)
-    layout.setSpacing(6)
-    hdr = QHBoxLayout()
-    hdr.addWidget(_lbl(title.upper(), 8, CYAN, bold=True))
-    hdr.addStretch()
-    if subtitle:
-        hdr.addWidget(_lbl(subtitle, 8, MUTED))
-    layout.addLayout(hdr)
-    sep = QFrame()
-    sep.setFixedHeight(1)
-    sep.setStyleSheet(f"background:{BORDER_DIM}; border:none;")
-    layout.addWidget(sep)
-    return frame, layout
-
-
-def _kv_row(key, value, color=SECONDARY):
-    row = QHBoxLayout()
-    row.setSpacing(8)
-    row.addWidget(_lbl(key, 9, MUTED))
-    row.addStretch(1)
-    row.addWidget(_lbl(str(value), 9, color, mono=True))
-    return row
-
-
-# ---------------------------------------------------------------------------
-# Market Overview page
-# ---------------------------------------------------------------------------
+# =====================================================================
+# Main page
+# =====================================================================
 
 class MarketOverviewPage(QWidget):
     regime_changed = Signal(str, str)
     scanner_age_changed = Signal(str, str)
-    report_loaded = Signal(object)  # emits the report dict
+    report_loaded = Signal(object)
 
-    def __init__(self, terminal, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.terminal = terminal
-        self.report = None
-        self._worker = None
-
+        self.report: dict | None = None
+        self._worker: _DataWorker | None = None
+        self._chart_range = "3M"
+        self._chart_index = "NIFTY 50"
         self._build_ui()
         QTimer.singleShot(100, self._load_cached_report)
+
+    def set_report(self, report: dict):
+        if isinstance(report, dict) and report:
+            self.report = report
+            self._populate(report)
+
+    # ------------------------------------------------------------------
+    # UI build
+    # ------------------------------------------------------------------
 
     def _build_ui(self):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setStyleSheet(f"background: {BG}; border: none;")
+        scroll.setStyleSheet(
+            f"QScrollArea {{ background:{BG}; border:none; }}"
+            f" QScrollBar:vertical {{ background:{BG}; width:6px; }}"
+            f" QScrollBar::handle:vertical {{ background:{BORDER}; border-radius:3px; }}"
+            f" QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height:0; }}"
+        )
 
-        self._content = QWidget()
-        self._content.setStyleSheet(f"background: {BG};")
-        self._layout = QVBoxLayout(self._content)
-        self._layout.setContentsMargins(16, 12, 16, 16)
-        self._layout.setSpacing(12)
+        container = QWidget()
+        container.setStyleSheet(f"background: {BG};")
+        main_lay = QVBoxLayout(container)
+        main_lay.setContentsMargins(12, 8, 12, 8)
+        main_lay.setSpacing(8)
 
-        # Top bar: regime + refresh + freshness
-        top = QHBoxLayout()
-        top.setSpacing(12)
-        self._regime_label = _lbl("MARKET REGIME: —", 11, AMBER, bold=True)
-        top.addWidget(self._regime_label)
-        top.addStretch(1)
+        main_lay.addLayout(self._build_header())
+        main_lay.addLayout(self._build_kpi_strip())
+        main_lay.addLayout(self._build_main_area(), 1)
+        main_lay.addLayout(self._build_deriv_strip())
+        main_lay.addWidget(self._build_status_bar())
 
-        self._freshness_badge = W.FreshnessBadge()
-        top.addWidget(self._freshness_badge)
+        scroll.setWidget(container)
+        outer.addWidget(scroll)
+
+    # ------------------------------------------------------------------
+    # Header
+    # ------------------------------------------------------------------
+
+    def _build_header(self):
+        row = QHBoxLayout()
+        row.setSpacing(8)
+
+        self._regime_label = _lbl("MARKET REGIME: —", 9, AMBER, bold=True, mono=True)
+        row.addWidget(self._regime_label)
+        row.addStretch(1)
+
+        self._freshness_lbl = _lbl("", 8, MUTED, mono=True)
+        row.addWidget(self._freshness_lbl)
 
         self._refresh_btn = QPushButton("REFRESH")
-        self._refresh_btn.setFixedHeight(30)
+        self._refresh_btn.setFixedSize(80, 26)
         self._refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._refresh_btn.setFont(QFont(FONT_UI, 9, QFont.Weight.Bold))
         self._refresh_btn.setStyleSheet(f"""
             QPushButton {{
+                background: {CYAN}; color: #000; border: none;
+                border-radius: 3px; font-size: 9px; font-weight: 700;
+                letter-spacing: 0.8px;
+            }}
+            QPushButton:hover {{ background: #33E8FF; }}
+            QPushButton:disabled {{ background: {BORDER}; color: {MUTED}; }}
+        """)
+        self._refresh_btn.clicked.connect(lambda: self._do_refresh(force=True))
+        row.addWidget(self._refresh_btn)
+
+        return row
+
+    # ------------------------------------------------------------------
+    # 7-KPI strip
+    # ------------------------------------------------------------------
+
+    def _build_kpi_strip(self):
+        row = QHBoxLayout()
+        row.setSpacing(6)
+
+        self._kpi_nifty = _KPICard("NIFTY 50", CYAN)
+        self._kpi_banknifty = _KPICard("BANK NIFTY", BLUE)
+        self._kpi_vix = _KPICard("INDIA VIX", AMBER)
+        self._kpi_ad = _KPICard("ADV / DEC", GREEN)
+        self._kpi_fii = _KPICard("FII NET", PURPLE)
+        self._kpi_dii = _KPICard("DII NET", CYAN)
+        self._kpi_pcr = _KPICard("PCR (OI)", AMBER)
+
+        for card in [
+            self._kpi_nifty, self._kpi_banknifty, self._kpi_vix,
+            self._kpi_ad, self._kpi_fii, self._kpi_dii, self._kpi_pcr,
+        ]:
+            row.addWidget(card)
+
+        return row
+
+    # ------------------------------------------------------------------
+    # Main area: chart (70%) + sidebar (30%)
+    # ------------------------------------------------------------------
+
+    def _build_main_area(self):
+        row = QHBoxLayout()
+        row.setSpacing(8)
+
+        chart_frame = QFrame()
+        chart_frame.setStyleSheet(f"""
+            QFrame {{
                 background: {SURFACE};
-                color: {CYAN};
                 border: 1px solid {BORDER};
                 border-radius: 6px;
-                padding: 0 16px;
-            }}
-            QPushButton:hover {{
-                border-color: {CYAN};
-                background: {SURFACE_ALT};
-            }}
-            QPushButton:disabled {{
-                color: {MUTED2};
-                border-color: {BORDER_DIM};
             }}
         """)
-        self._refresh_btn.clicked.connect(self._do_refresh)
-        top.addWidget(self._refresh_btn)
+        chart_lay = QVBoxLayout(chart_frame)
+        chart_lay.setContentsMargins(8, 6, 8, 6)
+        chart_lay.setSpacing(4)
 
-        self._layout.addLayout(top)
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(4)
 
-        # Index cards row
-        cards_row = QHBoxLayout()
-        cards_row.setSpacing(12)
+        self._chart_tabs = {}
+        for name in ["NIFTY 50", "BANK NIFTY", "VIX"]:
+            btn = QPushButton(name)
+            btn.setCheckable(True)
+            btn.setChecked(name == "NIFTY 50")
+            btn.setFixedHeight(22)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: transparent; color: {MUTED};
+                    border: 1px solid {BORDER_DIM}; border-radius: 3px;
+                    font-size: 8px; font-weight: 600; padding: 0 8px;
+                }}
+                QPushButton:checked {{
+                    background: {CYAN}; color: #000; border-color: {CYAN};
+                }}
+                QPushButton:hover {{ border-color: {CYAN}; }}
+            """)
+            btn.clicked.connect(lambda checked, n=name: self._switch_chart_tab(n))
+            toolbar.addWidget(btn)
+            self._chart_tabs[name] = btn
 
-        self._nifty_card = IndexCard("NIFTY 50")
-        self._banknifty_card = IndexCard("BANK NIFTY")
-        self._vix_card = IndexCard("INDIA VIX")
-        cards_row.addWidget(self._nifty_card, 1)
-        cards_row.addWidget(self._banknifty_card, 1)
-        cards_row.addWidget(self._vix_card, 1)
-        self._layout.addLayout(cards_row)
+        toolbar.addStretch(1)
 
-        # Range selector
-        range_row = QHBoxLayout()
-        range_row.setSpacing(4)
-        range_row.addStretch(1)
+        self._ohlc_labels = {}
+        for field in ["O", "H", "L", "C"]:
+            lbl = _lbl(f"{field}: —", 8, SECONDARY, mono=True)
+            toolbar.addWidget(lbl)
+            self._ohlc_labels[field] = lbl
+
+        toolbar.addWidget(_lbl("│", 8, BORDER_DIM))
+
         self._range_buttons = {}
         for rng in ["1W", "1M", "3M", "6M"]:
             btn = QPushButton(rng)
             btn.setCheckable(True)
             btn.setChecked(rng == "3M")
-            btn.setFixedSize(48, 24)
+            btn.setFixedSize(32, 20)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setFont(QFont(FONT_MONO, 8))
             btn.setStyleSheet(f"""
                 QPushButton {{
-                    background: {SURFACE};
-                    color: {SECONDARY};
-                    border: 1px solid {BORDER};
-                    border-radius: 4px;
+                    background: transparent; color: {MUTED};
+                    border: none; font-size: 7px; font-weight: 600;
+                    border-radius: 2px;
                 }}
-                QPushButton:checked {{
-                    background: {SURFACE_ALT};
-                    color: {CYAN};
-                    border-color: {CYAN};
-                }}
-                QPushButton:hover {{
-                    border-color: {BORDER_BRIGHT};
-                }}
+                QPushButton:checked {{ background: {BORDER}; color: {TEXT}; }}
+                QPushButton:hover {{ color: {TEXT}; }}
             """)
-            btn.clicked.connect(lambda _, r=rng: self._set_range(r))
-            range_row.addWidget(btn)
+            btn.clicked.connect(lambda checked, r=rng: self._set_range(r))
+            toolbar.addWidget(btn)
             self._range_buttons[rng] = btn
-        self._chart_range = "3M"
-        self._layout.addLayout(range_row)
 
-        # Breadth section
-        breadth_frame, breadth_lay = _section("MARKET BREADTH")
+        chart_lay.addLayout(toolbar)
+
+        self._candle_chart = _CandlestickChart()
+        chart_lay.addWidget(self._candle_chart, 1)
+
+        row.addWidget(chart_frame, 7)
+
+        sidebar = QVBoxLayout()
+        sidebar.setSpacing(6)
+
+        self._breadth_panel = _Panel("MARKET BREADTH")
+        bp = self._breadth_panel.content
         self._breadth_bar = BreadthBar()
-        breadth_lay.addWidget(self._breadth_bar)
+        bp.addWidget(self._breadth_bar)
+        stats = QHBoxLayout()
+        stats.setSpacing(4)
+        self._breadth_adv = _lbl("ADV: —", 8, GREEN, mono=True)
+        self._breadth_dec = _lbl("DEC: —", 8, RED, mono=True)
+        self._breadth_unch = _lbl("UNCH: —", 8, AMBER, mono=True)
+        stats.addWidget(self._breadth_adv)
+        stats.addStretch(1)
+        stats.addWidget(self._breadth_unch)
+        stats.addStretch(1)
+        stats.addWidget(self._breadth_dec)
+        bp.addLayout(stats)
+        self._breadth_ema_row = QHBoxLayout()
+        self._breadth_ema_row.setSpacing(4)
+        self._ema20_lbl = _lbl(">EMA20: —", 8, CYAN, mono=True)
+        self._ema50_lbl = _lbl(">EMA50: —", 8, PURPLE, mono=True)
+        self._breadth_ema_row.addWidget(self._ema20_lbl)
+        self._breadth_ema_row.addStretch(1)
+        self._breadth_ema_row.addWidget(self._ema50_lbl)
+        bp.addLayout(self._breadth_ema_row)
+        sidebar.addWidget(self._breadth_panel)
 
-        breadth_stats = QHBoxLayout()
-        breadth_stats.setSpacing(16)
-        self._breadth_adv = _lbl("ADV: —", 9, GREEN, mono=True)
-        self._breadth_dec = _lbl("DEC: —", 9, RED, mono=True)
-        self._breadth_unch = _lbl("UNCH: —", 9, AMBER, mono=True)
-        self._breadth_ema20 = _lbl("EMA20: —", 9, CYAN, mono=True)
-        self._breadth_ema50 = _lbl("EMA50: —", 9, PURPLE, mono=True)
-        breadth_stats.addWidget(self._breadth_adv)
-        breadth_stats.addWidget(self._breadth_dec)
-        breadth_stats.addWidget(self._breadth_unch)
-        breadth_stats.addWidget(self._breadth_ema20)
-        breadth_stats.addWidget(self._breadth_ema50)
-        breadth_stats.addStretch(1)
-        breadth_lay.addLayout(breadth_stats)
-        self._layout.addWidget(breadth_frame)
+        self._flow_panel = _Panel("INSTITUTIONAL FLOWS")
+        fl = self._flow_panel.content
+        self._fii_gauge = _FlowGauge("FII 5D")
+        self._dii_gauge = _FlowGauge("DII 5D")
+        self._fii10_gauge = _FlowGauge("FII 10D")
+        self._dii10_gauge = _FlowGauge("DII 10D")
+        fl.addWidget(self._fii_gauge)
+        fl.addWidget(self._dii_gauge)
+        fl.addWidget(self._fii10_gauge)
+        fl.addWidget(self._dii10_gauge)
+        self._flow_regime_lbl = _lbl("", 8, AMBER, mono=True, bold=True)
+        fl.addWidget(self._flow_regime_lbl)
+        sidebar.addWidget(self._flow_panel)
 
-        # Two-column: Sectors + Volatility
-        mid_row = QHBoxLayout()
-        mid_row.setSpacing(12)
+        self._sector_panel = _Panel("SECTOR HEATMAP")
+        self._sector_grid = QGridLayout()
+        self._sector_grid.setSpacing(3)
+        self._sector_cells = []
+        for i in range(8):
+            cell = _SectorCell()
+            r, c = divmod(i, 2)
+            self._sector_grid.addWidget(cell, r, c)
+            self._sector_cells.append(cell)
+        self._sector_panel.content.addLayout(self._sector_grid)
+        sidebar.addWidget(self._sector_panel)
 
-        # Sectors
-        self._sector_frame, self._sector_lay = _section("SECTOR INTELLIGENCE")
-        mid_row.addWidget(self._sector_frame, 1)
+        sidebar.addStretch(1)
+        row.addLayout(sidebar, 3)
 
-        # Volatility
-        self._vol_frame, self._vol_lay = _section("VOLATILITY")
-        mid_row.addWidget(self._vol_frame, 1)
-        self._layout.addLayout(mid_row)
+        return row
 
-        # Two-column: Derivatives + Institutional Flow
-        bottom_row = QHBoxLayout()
-        bottom_row.setSpacing(12)
+    # ------------------------------------------------------------------
+    # Derivatives strip
+    # ------------------------------------------------------------------
 
-        self._deriv_frame, self._deriv_lay = _section("DERIVATIVES")
-        bottom_row.addWidget(self._deriv_frame, 1)
+    def _build_deriv_strip(self):
+        row = QHBoxLayout()
+        row.setSpacing(6)
 
-        self._flow_frame, self._flow_lay = _section("INSTITUTIONAL FLOWS")
-        bottom_row.addWidget(self._flow_frame, 1)
-        self._layout.addLayout(bottom_row)
+        self._deriv_atm = _DerivCell("ATM STRIKE")
+        self._deriv_pcr = _DerivCell("PCR (OI)")
+        self._deriv_maxpain = _DerivCell("MAX PAIN")
+        self._deriv_iv = _DerivCell("ATM IV")
+        self._deriv_oi_ce = _DerivCell("OI WALL CE")
+        self._deriv_oi_pe = _DerivCell("OI WALL PE")
 
-        # Risk + Event risk row
-        risk_row = QHBoxLayout()
-        risk_row.setSpacing(12)
+        for cell in [
+            self._deriv_atm, self._deriv_pcr, self._deriv_maxpain,
+            self._deriv_iv, self._deriv_oi_ce, self._deriv_oi_pe,
+        ]:
+            row.addWidget(cell)
 
-        self._risk_frame, self._risk_lay = _section("RISK CONTEXT")
-        risk_row.addWidget(self._risk_frame, 1)
+        return row
 
-        self._event_frame, self._event_lay = _section("EVENT RISK")
-        risk_row.addWidget(self._event_frame, 1)
-        self._layout.addLayout(risk_row)
+    # ------------------------------------------------------------------
+    # Status bar
+    # ------------------------------------------------------------------
 
-        # Factor rankings
-        self._factor_frame, self._factor_lay = _section("FACTOR RANKINGS", "Cross-sectional composite")
-        self._layout.addWidget(self._factor_frame)
+    def _build_status_bar(self):
+        bar = QFrame()
+        bar.setFixedHeight(24)
+        bar.setStyleSheet(f"""
+            QFrame {{
+                background: {SURFACE};
+                border-top: 1px solid {BORDER_DIM};
+                border-radius: 0;
+            }}
+        """)
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(10, 0, 10, 0)
+        lay.setSpacing(12)
 
-        # Data availability
-        self._avail_frame, self._avail_lay = _section("DATA AVAILABILITY")
-        self._layout.addWidget(self._avail_frame)
+        self._status_regime = _lbl("Regime: —", 8, AMBER, mono=True, bold=True)
+        self._status_vix = _lbl("VIX: —", 8, SECONDARY, mono=True)
+        self._status_breadth = _lbl("A/D: —", 8, SECONDARY, mono=True)
+        self._status_flow = _lbl("FII 5D: —", 8, SECONDARY, mono=True)
+        lay.addWidget(self._status_regime)
+        lay.addWidget(self._status_vix)
+        lay.addWidget(self._status_breadth)
+        lay.addWidget(self._status_flow)
+        lay.addStretch(1)
 
-        self._layout.addStretch(1)
+        self._guardrail_lbl = _lbl(GUARDRAIL_TEXT, 7, MUTED2)
+        lay.addWidget(self._guardrail_lbl)
 
-        scroll.setWidget(self._content)
-        outer.addWidget(scroll)
+        self._status_time = _lbl("", 7, MUTED, mono=True)
+        lay.addWidget(self._status_time)
+
+        return bar
 
     # ------------------------------------------------------------------
     # Data loading
@@ -568,46 +1049,33 @@ class MarketOverviewPage(QWidget):
         print(f"Market data error ({elapsed:.1f}s):\n{tb}")
 
     # ------------------------------------------------------------------
-    # Populate dashboard
+    # Populate
     # ------------------------------------------------------------------
 
     def _populate(self, report):
-        # Regime
         macro = vm.macro(report)
         regime_text = str(macro.get("market_regime", "UNKNOWN")).upper()
         regime_color = self._regime_color(regime_text)
         self._regime_label.setText(f"MARKET REGIME: {regime_text}")
-        self._regime_label.setStyleSheet(
-            f"color: {regime_color}; background: transparent; border: none;"
-        )
+        self._regime_label.setStyleSheet(f"color:{regime_color}; background:transparent; border:none;")
         self.regime_changed.emit(regime_text, regime_color)
 
-        # Freshness
         age_info = vm.data_age(report)
         age_sec = age_info.get("age_seconds")
         if age_sec is not None:
             level = freshness_level(int(age_sec))
             color = freshness_color(level)
-            self._freshness_badge.set_age(level, age_info.get("label", "—"))
+            self._freshness_lbl.setText(f"Data: {age_info.get('label', '—')}")
+            self._freshness_lbl.setStyleSheet(f"color:{color}; background:transparent; border:none;")
             self.scanner_age_changed.emit(age_info.get("label", "—"), color)
 
-        # Index cards
-        self._populate_nifty(report)
-        self._populate_banknifty(report)
-        self._populate_vix(report)
-
-        # Breadth
+        self._populate_kpis(report)
+        self._populate_chart(report)
         self._populate_breadth(report)
-
-        # Sections
-        self._populate_sectors(report)
-        self._populate_volatility(report)
-        self._populate_derivatives(report)
         self._populate_flows(report)
-        self._populate_risk(report)
-        self._populate_event_risk(report)
-        self._populate_factors(report)
-        self._populate_availability(report)
+        self._populate_sectors(report)
+        self._populate_derivatives(report)
+        self._populate_status(report, macro)
 
     def _regime_color(self, label):
         label = label.upper()
@@ -621,74 +1089,87 @@ class MarketOverviewPage(QWidget):
             return AMBER
         return AMBER
 
-    def _populate_nifty(self, report):
-        card = vm.index_card(report, "nifty")
-        price = card.get("price")
-        change = card.get("change_abs")
-        pct = card.get("change_percent")
-        source = card.get("source_label", "")
+    # ------------------------------------------------------------------
+    # KPI population
+    # ------------------------------------------------------------------
 
-        metrics = []
-        for period, key in [("5D", "return_5d"), ("20D", "return_20d"), ("60D", "return_60d")]:
-            val = card.get(key)
-            if isinstance(val, (int, float)):
-                metrics.append((period, _fmt_pct(val), _sign_color(val)))
+    def _populate_kpis(self, report):
+        nifty = vm.index_card(report, "nifty")
+        candles_n = nifty.get("candles", [])
+        closes_n = [c.get("close") for c in candles_n[-20:] if c.get("close") is not None]
+        self._kpi_nifty.set_data(nifty.get("price"), nifty.get("change_percent"), sparkline=closes_n)
 
-        self._nifty_card.set_data(price, change, pct, source=source, metrics=metrics)
+        bnifty = vm.index_card(report, "bank_nifty")
+        candles_bn = bnifty.get("candles", [])
+        closes_bn = [c.get("close") for c in candles_bn[-20:] if c.get("close") is not None]
+        self._kpi_banknifty.set_data(bnifty.get("price"), bnifty.get("change_percent"), sparkline=closes_bn)
 
-        candles = self._slice_candles(card.get("candles", []))
-        if candles:
-            try:
-                chart = W.PgCandleChart(candles, title="")
-                chart.setFixedHeight(96)
-                self._nifty_card.set_chart(chart)
-            except Exception:
-                pass
-
-    def _populate_banknifty(self, report):
-        card = vm.index_card(report, "bank_nifty")
-        price = card.get("price")
-        change = card.get("change_abs")
-        pct = card.get("change_percent")
-
-        metrics = []
-        for period, key in [("5D", "return_5d"), ("20D", "return_20d"), ("60D", "return_60d")]:
-            val = card.get(key)
-            if isinstance(val, (int, float)):
-                metrics.append((period, _fmt_pct(val), _sign_color(val)))
-
-        self._banknifty_card.set_data(price, change, pct, metrics=metrics)
-
-        candles = self._slice_candles(card.get("candles", []))
-        if candles:
-            try:
-                chart = W.PgCandleChart(candles, title="")
-                chart.setFixedHeight(96)
-                self._banknifty_card.set_chart(chart)
-            except Exception:
-                pass
-
-    def _populate_vix(self, report):
         vix = vm.vix_card(report)
-        value = vix.get("value")
-        change_pct = vix.get("change_percent")
-        regime = vix.get("regime", "")
+        vix_candles = vix.get("candles", [])
+        vix_closes = [c.get("close") for c in vix_candles[-20:] if c.get("close") is not None]
+        self._kpi_vix.set_data(vix.get("value"), vix.get("change_percent"), sparkline=vix_closes)
 
-        metrics = []
-        if regime and regime != N_A:
-            color_map = {"LOW": GREEN, "MODERATE": AMBER, "HIGH": RED, "EXTREME": RED}
-            metrics.append(("REGIME", str(regime), color_map.get(str(regime).upper(), AMBER)))
+        breadth = vm.breadth_block(report)
+        adv = breadth.get("advancing", 0)
+        dec = breadth.get("declining", 0)
+        total = adv + dec
+        if total > 0:
+            ratio = adv / total
+            color = GREEN if ratio > 0.55 else RED if ratio < 0.45 else AMBER
+            self._kpi_ad.set_raw(f"{adv} / {dec}", color)
+        else:
+            self._kpi_ad.set_raw(N_A, MUTED)
 
-        self._vix_card.set_data(value, vix.get("change_abs"), change_pct, metrics=metrics)
+        flow = vm.flow_block(report)
+        fii_5d = flow.get("fii_5d")
+        dii_5d = flow.get("dii_5d")
+        if isinstance(fii_5d, (int, float)):
+            self._kpi_fii.set_raw(_fmt_crore(fii_5d), _sign_color(fii_5d))
+        else:
+            self._kpi_fii.set_raw(N_A, MUTED)
 
-        candles = self._slice_candles(vix.get("candles", []))
+        if isinstance(dii_5d, (int, float)):
+            self._kpi_dii.set_raw(_fmt_crore(dii_5d), _sign_color(dii_5d))
+        else:
+            self._kpi_dii.set_raw(N_A, MUTED)
+
+        d = vm.derivatives_block(report, "nifty")
+        pcr = d.get("oi_pcr")
+        if pcr is not None:
+            pcr_color = GREEN if pcr > 1.0 else RED if pcr < 0.7 else AMBER
+            self._kpi_pcr.set_raw(f"{pcr:.2f}", pcr_color)
+        else:
+            self._kpi_pcr.set_raw(N_A, MUTED)
+
+    # ------------------------------------------------------------------
+    # Chart
+    # ------------------------------------------------------------------
+
+    def _populate_chart(self, report):
+        active = self._chart_index
+        if active == "VIX":
+            card = vm.vix_card(report)
+        elif active == "BANK NIFTY":
+            card = vm.index_card(report, "bank_nifty")
+        else:
+            card = vm.index_card(report, "nifty")
+
+        candles = card.get("candles", [])
+        self._set_ohlc(candles)
+        candles = self._slice_candles(candles)
+        self._candle_chart.set_data(candles, title=active)
+
+    def _set_ohlc(self, candles):
         if candles:
-            try:
-                chart = W.PgCandleChart(candles, title="")
-                chart.setFixedHeight(96)
-                self._vix_card.set_chart(chart)
-            except Exception:
-                pass
+            last = candles[-1]
+            for field, key in [("O", "open"), ("H", "high"), ("L", "low"), ("C", "close")]:
+                val = last.get(key)
+                self._ohlc_labels[field].setText(
+                    f"{field}: {_fmt_price(val)}" if isinstance(val, (int, float)) else f"{field}: —"
+                )
+        else:
+            for field in ["O", "H", "L", "C"]:
+                self._ohlc_labels[field].setText(f"{field}: —")
 
     def _slice_candles(self, candles):
         if not candles:
@@ -697,235 +1178,145 @@ class MarketOverviewPage(QWidget):
         n = range_map.get(self._chart_range, 66)
         return candles[-n:]
 
+    # ------------------------------------------------------------------
+    # Breadth
+    # ------------------------------------------------------------------
+
     def _populate_breadth(self, report):
         breadth = vm.breadth_block(report)
         adv = breadth.get("advancing", 0)
         dec = breadth.get("declining", 0)
         unch = breadth.get("unchanged", 0)
-        ema20 = breadth.get("above_ema20_percent")
-        ema50 = breadth.get("above_ema50_percent")
 
         self._breadth_bar.set_data(adv, dec, unch)
         self._breadth_adv.setText(f"ADV: {adv}")
         self._breadth_dec.setText(f"DEC: {dec}")
         self._breadth_unch.setText(f"UNCH: {unch}")
 
-        if isinstance(ema20, (int, float)):
-            self._breadth_ema20.setText(f"EMA20: {ema20:.1f}%")
-        if isinstance(ema50, (int, float)):
-            self._breadth_ema50.setText(f"EMA50: {ema50:.1f}%")
+        ema20 = breadth.get("above_ema20_percent")
+        ema50 = breadth.get("above_ema50_percent")
+        self._ema20_lbl.setText(f">EMA20: {ema20:.1f}%" if isinstance(ema20, (int, float)) else ">EMA20: —")
+        self._ema50_lbl.setText(f">EMA50: {ema50:.1f}%" if isinstance(ema50, (int, float)) else ">EMA50: —")
 
-    def _populate_sectors(self, report):
-        self._clear_layout(self._sector_lay, keep=1)
-        sectors = vm.sector_rows(report, limit=10)
-        if not sectors:
-            self._sector_lay.addWidget(_lbl("No sector data available", 9, MUTED))
-            return
-
-        for s in sectors:
-            name = s.get("name", "?")
-            ret = s.get("return_20d")
-            regime = s.get("regime", "")
-            color = _sign_color(ret)
-            row = QHBoxLayout()
-            row.addWidget(_lbl(name, 9, TEXT))
-            row.addStretch(1)
-            if regime:
-                row.addWidget(_lbl(regime, 8, MUTED))
-            row.addWidget(_lbl(_fmt_pct(ret), 9, color, mono=True))
-            self._sector_lay.addLayout(row)
-
-    def _populate_volatility(self, report):
-        self._clear_layout(self._vol_lay, keep=1)
-        nifty_ind = vm.indicator_cards(report, "nifty")
-        bnifty_ind = vm.indicator_cards(report, "bank_nifty")
-
-        atr = nifty_ind.get("ATR", {})
-        vol = nifty_ind.get("VOL", {})
-
-        for label, val in [
-            ("NIFTY ATR", atr.get("value")),
-            ("NIFTY ATR %", atr.get("percent")),
-            ("NIFTY RV 20D", vol.get("value")),
-        ]:
-            self._vol_lay.addLayout(_kv_row(label, _fmt_num(val), SECONDARY))
-
-        bn_atr = bnifty_ind.get("ATR", {})
-        self._vol_lay.addLayout(_kv_row("BNIFTY ATR", _fmt_num(bn_atr.get("value")), SECONDARY))
-
-        macro = vm.macro(report)
-        regime = macro.get("vix_regime", "")
-        direction = macro.get("vix_direction", "")
-        if regime and regime != N_A:
-            color_map = {"LOW": GREEN, "MODERATE": AMBER, "HIGH": RED, "EXTREME": RED}
-            self._vol_lay.addLayout(
-                _kv_row("VIX REGIME", str(regime), color_map.get(str(regime).upper(), AMBER))
-            )
-        if direction and direction != N_A:
-            self._vol_lay.addLayout(_kv_row("DIRECTION", str(direction), SECONDARY))
-
-    def _populate_derivatives(self, report):
-        self._clear_layout(self._deriv_lay, keep=1)
-
-        for index_name in ["nifty", "banknifty"]:
-            d = vm.derivatives_block(report, index_name)
-            if not d.get("available"):
-                continue
-            self._deriv_lay.addWidget(_lbl(d.get("instrument", index_name.upper()), 9, CYAN, bold=True))
-            for key, label in [
-                ("oi_pcr", "PCR (OI)"),
-                ("volume_pcr", "PCR (Vol)"),
-                ("max_pain", "Max Pain"),
-                ("atm_iv", "ATM IV"),
-            ]:
-                val = d.get(key)
-                if val is not None:
-                    self._deriv_lay.addLayout(_kv_row(f"  {label}", _fmt_num(val), SECONDARY))
-
-            interp = d.get("interpretation", N_A)
-            if interp and interp != N_A:
-                self._deriv_lay.addWidget(_lbl(f"  {interp}", 8, MUTED))
-
-        if self._deriv_lay.count() <= 1:
-            self._deriv_lay.addWidget(_lbl("No derivatives data", 9, MUTED))
+    # ------------------------------------------------------------------
+    # Flows
+    # ------------------------------------------------------------------
 
     def _populate_flows(self, report):
-        self._clear_layout(self._flow_lay, keep=1)
         flow = vm.flow_block(report)
         if not flow.get("available"):
-            self._flow_lay.addWidget(_lbl("No flow data available", 9, MUTED))
             return
 
-        for key, label in [
-            ("fii_5d", "FII Net 5D"),
-            ("fii_10d", "FII Net 10D"),
-            ("dii_5d", "DII Net 5D"),
-            ("dii_10d", "DII Net 10D"),
-        ]:
-            val = flow.get(key)
-            color = _sign_color(val)
-            self._flow_lay.addLayout(_kv_row(label, _fmt_crore(val), color))
+        vals = {}
+        for key in ["fii_5d", "dii_5d", "fii_10d", "dii_10d"]:
+            v = flow.get(key)
+            vals[key] = float(v) if isinstance(v, (int, float)) else 0.0
+
+        max_abs = max(abs(v) for v in vals.values()) if vals else 1
+
+        self._fii_gauge.set_data(vals.get("fii_5d", 0), max_abs, _fmt_crore(vals.get("fii_5d", 0)))
+        self._dii_gauge.set_data(vals.get("dii_5d", 0), max_abs, _fmt_crore(vals.get("dii_5d", 0)))
+        self._fii10_gauge.set_data(vals.get("fii_10d", 0), max_abs, _fmt_crore(vals.get("fii_10d", 0)))
+        self._dii10_gauge.set_data(vals.get("dii_10d", 0), max_abs, _fmt_crore(vals.get("dii_10d", 0)))
 
         regime = flow.get("flow_regime")
         if regime and regime != N_A:
-            self._flow_lay.addLayout(_kv_row("FLOW REGIME", str(regime), AMBER))
-
-    def _populate_risk(self, report):
-        self._clear_layout(self._risk_lay, keep=1)
-        risk = vm.risk_cards(report)
-
-        color_map = {
-            "HIGH": RED, "CRITICAL": RED, "SEVERE": RED,
-            "MODERATE": AMBER, "ELEVATED": AMBER,
-            "LOW": GREEN, "MINIMAL": GREEN,
-        }
-
-        vol_regime = risk.get("vol_regime", N_A)
-        c = color_map.get(str(vol_regime).upper(), AMBER) if vol_regime != N_A else MUTED
-        self._risk_lay.addLayout(_kv_row("Vol Regime", str(vol_regime), c))
-
-        for key, label in [
-            ("realized_vol_20d", "RV 20D"),
-            ("atr_pct", "ATR %"),
-            ("vol_percentile", "Vol Percentile"),
-            ("expected_daily_move", "Exp Daily Move %"),
-        ]:
-            val = risk.get(key)
-            self._risk_lay.addLayout(_kv_row(label, _fmt_num(val), SECONDARY))
-
-        note = risk.get("note", "")
-        if note:
-            self._risk_lay.addWidget(_lbl(note, 7, MUTED2))
-
-    def _populate_event_risk(self, report):
-        self._clear_layout(self._event_lay, keep=1)
-        ctx = report.get("event_risk_context")
-        if not isinstance(ctx, dict) or not ctx:
-            self._event_lay.addWidget(_lbl("No event-risk context", 9, MUTED))
-            return
-
-        overall = ctx.get("overall_risk", "UNKNOWN")
-        color_map = {"HIGH": RED, "MODERATE": AMBER, "LOW": GREEN}
-        c = color_map.get(overall.upper(), AMBER)
-        self._event_lay.addLayout(_kv_row("Overall Event Risk", overall, c))
-
-        events = ctx.get("upcoming_events", [])
-        if isinstance(events, list):
-            for ev in events[:5]:
-                if not isinstance(ev, dict):
-                    continue
-                name = ev.get("name", "?")
-                severity = str(ev.get("severity", "")).upper()
-                sc = color_map.get(severity, AMBER)
-                self._event_lay.addLayout(_kv_row(f"  {name}", severity, sc))
-
-    def _populate_factors(self, report):
-        self._clear_layout(self._factor_lay, keep=2)
-        fb = vm.factor_block(report)
-        if fb.get("status") != "AVAILABLE":
-            self._factor_lay.addWidget(_lbl("No factor data", 9, MUTED))
-            return
-
-        top = fb.get("top", [])
-        bottom = fb.get("bottom", [])
-
-        if top:
-            self._factor_lay.addWidget(_lbl("TOP RANKED", 8, GREEN, bold=True))
-            for stock in top[:5]:
-                sym = stock.get("symbol", "?")
-                z = stock.get("composite_z")
-                self._factor_lay.addLayout(
-                    _kv_row(f"  {sym}", _fmt_num(z), GREEN)
-                )
-
-        if bottom:
-            self._factor_lay.addWidget(_lbl("BOTTOM RANKED", 8, RED, bold=True))
-            for stock in bottom[:5]:
-                sym = stock.get("symbol", "?")
-                z = stock.get("composite_z")
-                self._factor_lay.addLayout(
-                    _kv_row(f"  {sym}", _fmt_num(z), RED)
-                )
-
-    def _populate_availability(self, report):
-        self._clear_layout(self._avail_lay, keep=1)
-        avail = report.get("data_availability")
-        if not isinstance(avail, dict):
-            return
-
-        for key, val in avail.items():
-            is_ok = str(val).upper() == "AVAILABLE"
-            color = GREEN if is_ok else RED
-            self._avail_lay.addLayout(_kv_row(key.replace("_", " ").title(), str(val), color))
+            self._flow_regime_lbl.setText(f"Flow regime: {regime}")
+        else:
+            self._flow_regime_lbl.setText("")
 
     # ------------------------------------------------------------------
-    # Helpers
+    # Sectors
     # ------------------------------------------------------------------
 
-    def _clear_layout(self, layout, keep=0):
-        while layout.count() > keep:
-            item = layout.takeAt(keep)
-            if item.widget():
-                item.widget().deleteLater()
-            elif item.layout():
-                self._clear_sub_layout(item.layout())
+    def _populate_sectors(self, report):
+        sectors = vm.sector_rows(report, limit=8)
+        for i, cell in enumerate(self._sector_cells):
+            if i < len(sectors):
+                s = sectors[i]
+                cell.set_data(s.get("name", "?"), s.get("return_20d"))
+            else:
+                cell.set_data("—", None)
 
-    def _clear_sub_layout(self, layout):
-        while layout.count():
-            item = layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-            elif item.layout():
-                self._clear_sub_layout(item.layout())
+    # ------------------------------------------------------------------
+    # Derivatives strip
+    # ------------------------------------------------------------------
+
+    def _populate_derivatives(self, report):
+        d = vm.derivatives_block(report, "nifty")
+        if not d.get("available"):
+            return
+
+        atm = d.get("atm_strike")
+        self._deriv_atm.set_value(_fmt_num(atm, 0) if isinstance(atm, (int, float)) else "—", CYAN)
+
+        pcr = d.get("oi_pcr")
+        if pcr is not None:
+            pcr_color = GREEN if pcr > 1.0 else RED if pcr < 0.7 else AMBER
+            self._deriv_pcr.set_value(f"{pcr:.2f}", pcr_color)
+
+        mp = d.get("max_pain")
+        self._deriv_maxpain.set_value(_fmt_num(mp, 0) if isinstance(mp, (int, float)) else "—", AMBER)
+
+        iv = d.get("atm_iv")
+        self._deriv_iv.set_value(f"{iv:.1f}%" if isinstance(iv, (int, float)) else "—", SECONDARY)
+
+        oi_ce = d.get("highest_oi_ce_strike") or d.get("oi_wall_ce")
+        self._deriv_oi_ce.set_value(_fmt_num(oi_ce, 0) if isinstance(oi_ce, (int, float)) else "—", RED)
+
+        oi_pe = d.get("highest_oi_pe_strike") or d.get("oi_wall_pe")
+        self._deriv_oi_pe.set_value(_fmt_num(oi_pe, 0) if isinstance(oi_pe, (int, float)) else "—", GREEN)
+
+    # ------------------------------------------------------------------
+    # Status bar
+    # ------------------------------------------------------------------
+
+    def _populate_status(self, report, macro):
+        regime = str(macro.get("market_regime", "—")).upper()
+        self._status_regime.setText(f"Regime: {regime}")
+        self._status_regime.setStyleSheet(
+            f"color:{self._regime_color(regime)}; background:transparent; border:none;"
+        )
+
+        vix = vm.vix_card(report)
+        vix_val = vix.get("value")
+        self._status_vix.setText(f"VIX: {_fmt_num(vix_val)}" if isinstance(vix_val, (int, float)) else "VIX: —")
+
+        breadth = vm.breadth_block(report)
+        adv = breadth.get("advancing", 0)
+        dec = breadth.get("declining", 0)
+        total = adv + dec
+        self._status_breadth.setText(f"A/D: {adv / total:.2f}" if total > 0 else "A/D: —")
+
+        flow = vm.flow_block(report)
+        fii = flow.get("fii_5d")
+        self._status_flow.setText(
+            f"FII 5D: {_fmt_crore(fii)}" if isinstance(fii, (int, float)) else "FII 5D: —"
+        )
+
+        self._status_time.setText(f"Updated: {datetime.now(IST).strftime('%H:%M:%S IST')}")
+
+    # ------------------------------------------------------------------
+    # Chart controls
+    # ------------------------------------------------------------------
+
+    def _switch_chart_tab(self, name):
+        self._chart_index = name
+        for n, btn in self._chart_tabs.items():
+            btn.setChecked(n == name)
+        if self.report:
+            self._populate_chart(self.report)
 
     def _set_range(self, rng):
         self._chart_range = rng
         for r, btn in self._range_buttons.items():
             btn.setChecked(r == rng)
         if self.report:
-            self._populate_nifty(self.report)
-            self._populate_banknifty(self.report)
-            self._populate_vix(self.report)
+            self._populate_chart(self.report)
+
+    # ------------------------------------------------------------------
+    # Cleanup
+    # ------------------------------------------------------------------
 
     def shutdown(self):
         if self._worker and self._worker.isRunning():
