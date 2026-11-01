@@ -1,92 +1,185 @@
 # Nova
 
-Nova is a local Windows Python project for a personal AI command assistant and
-an Indian-market analysis workbench.
+**Local AI-powered Indian market analysis workbench for Windows.**
 
-It has two main entry points:
+Nova is a desktop application built with Python and PySide6 that provides real-time Indian stock market analysis using NSE data. It combines technical analysis engines, institutional flow tracking, derivatives intelligence, and local AI interpretation — all running on your machine with no cloud dependency.
 
-- `main.py` - launches the main Nova assistant desktop UI.
-- `market_lab_ui.py` - launches Nova Market Lab.
+> **Analysis only.** Nova does not connect to any broker, place trades, or generate buy/sell signals.
 
-The project is designed around local tools:
+---
 
-- PySide6 desktop interfaces.
-- Ollama for local LLM calls.
-- Piper TTS and Faster-Whisper for voice.
-- Indian market data engines backed by NSE sources, Yahoo Finance fallbacks,
-  cached scans, derivatives analysis, sector analysis, and institutional-flow
-  checks.
+## Screenshots
 
-Nova is analysis-only. It does not connect to a broker, place trades, execute
-orders, or authorize automatic BUY/SELL actions.
+Nova features a professional dark trading terminal interface with three main sections:
+
+- **Market** — Real-time market pulse with Nifty chart, KPI strip, breadth, institutional flows, sector heatmap, derivatives
+- **Stock Analysis** — Per-stock deep dive with technicals, momentum gauge (0–100), trend structure, returns, AI assessment
+- **Market Analysis** — Nifty 50 deep analysis with derivatives intelligence, OI walls, regime assessment, positioning
+
+---
+
+## Features
+
+### Market Dashboard
+- Live Nifty & Bank Nifty tracking with candlestick charts
+- 7-KPI strip with sparklines (Nifty, Bank Nifty, VIX, A/D, FII, DII, PCR)
+- Market breadth visualization (advance/decline/unchanged)
+- Institutional flow gauges (FII & DII net activity)
+- Sector heatmap with performance grid
+- Derivatives strip (ATM, PCR, Max Pain, IV, OI walls)
+
+### Stock Analysis
+- Technical indicators: RSI, MACD, ADX, ATR, EMA/SMA signals
+- Momentum score gauge (0–100) — the central verdict
+- 52-week range positioning
+- Multi-period returns (1D, 5D, 20D, 60D)
+- AI-generated key points and observations
+- Trend and structure assessment
+
+### Market Analysis (Nifty Deep Dive)
+- Nifty candlestick chart with technical overlays
+- Derivatives desk: PCR, max pain, ATM IV, put/call walls
+- OI wall visualization
+- Market regime assessment (VIX, breadth, A/D ratio)
+- Unusual options activity alerts
+- Positioning intelligence and flow summary
+- AI narrative generation
+
+### Nova Assistant
+- Local AI assistant powered by Ollama (qwen3.5:4b)
+- Voice input (Faster-Whisper) and output (Piper TTS)
+- Web research via local SearXNG instance
+- Tool-augmented conversations
+
+---
 
 ## Quick Start
 
-From `C:\Users\Anirudh\nova`:
+**Requirements:** Windows 10/11, Python 3.14, Git
 
 ```powershell
-.\venv\Scripts\python.exe main.py
+# Clone
+git clone https://github.com/benalanirudh-pixel/nova.git
+cd nova
+
+# Set up virtual environment
+python -m venv venv
+.\venv\Scripts\pip.exe install -r requirements.txt
+
+# Launch Nova Terminal (recommended)
+.\venv\Scripts\python.exe terminal_main.py
+
+# Or launch individual surfaces
+.\venv\Scripts\python.exe main.py            # Nova Assistant
+.\venv\Scripts\python.exe market_lab_ui.py   # Market Lab standalone
 ```
 
-To open Market Lab:
+### Market Data Commands
 
 ```powershell
-.\venv\Scripts\python.exe market_lab_ui.py
-```
-
-To run the cache-first Market Lab report in the terminal:
-
-```powershell
+# Cache-first market report (fast, uses cached data)
 .\venv\Scripts\python.exe market_lab\market_lab_data.py
-```
 
-To save a JSON Market Lab report:
-
-```powershell
+# JSON export
 .\venv\Scripts\python.exe market_lab\market_lab_data.py --json
+
+# Full NSE scan (slow, ~2-3 min, 2333 stocks — use sparingly)
+.\venv\Scripts\python.exe market_lab\market_lab_data.py --refresh
+
+# Service health check
+.\venv\Scripts\python.exe start_nova.py --check
 ```
 
-To force a full NSE equity scan:
+---
+
+## Architecture
+
+```
+nova/
+├── terminal_main.py          # Nova Terminal entry point
+├── terminal/
+│   ├── main_window.py        # Terminal shell: header, sidebar, ticker strip
+│   └── pages/
+│       ├── market_overview.py   # Market dashboard
+│       ├── stock_analysis.py    # Stock analysis
+│       └── market_analysis.py   # Nifty deep dive
+├── main.py                   # Nova Assistant entry point
+├── ui.py                     # Assistant UI
+├── brain.py                  # Assistant LLM brain (Ollama)
+├── tools.py                  # Assistant tool dispatch
+├── market_lab_ui.py          # Market Lab standalone UI
+├── market_lab/
+│   ├── market_lab_data.py    # Central analysis gateway
+│   ├── market_lab_brain.py   # AI interpretation (Ollama)
+│   ├── stock_adapter.py      # Per-stock analysis adapter
+│   ├── report_parser.py      # AI report parsing
+│   └── widgets.py            # Shared chart widgets (CandleChart, etc.)
+├── analysis/
+│   ├── data/                 # Analysis engines
+│   │   ├── technical_engine.py    # RSI, MACD, EMA, ATR, ADX
+│   │   ├── volatility_engine.py   # VIX, realized vol, IV
+│   │   ├── derivatives_engine.py  # Options OI, PCR, max pain
+│   │   ├── institutional_engine.py # FII/DII flow tracking
+│   │   ├── sector_engine.py       # Sector performance
+│   │   ├── nse_feed.py            # NSE data via MCP
+│   │   └── scanner.py             # Full equity scanner
+│   └── regime/               # Market regime detection
+├── styles/
+│   └── design_tokens.py      # Unified design system (colors, typography, spacing)
+└── tests/                    # 394+ offline tests (stdlib unittest)
+```
+
+---
+
+## External Services
+
+| Service | URL | Purpose |
+|---------|-----|---------|
+| Ollama | `http://localhost:11434` | Local LLM (qwen3.5:4b) |
+| SearXNG | `http://localhost:8080` | Web research |
+| Indian Market MCP | stdio | NSE market data |
+
+All services run locally. No data leaves your machine.
+
+---
+
+## Data Sources
+
+- **NSE** — National Stock Exchange of India (via indian-market-mcp)
+- **Yahoo Finance** — Fallback for historical candles
+- **Cache-first design** — Expensive scans are cached; use `--refresh` only when needed
+
+---
+
+## Tech Stack
+
+- **Python 3.14** — Runtime
+- **PySide6** — Desktop UI framework
+- **QPainter** — Custom widgets (candlestick charts, gauges, heatmaps, flow bars)
+- **Ollama** — Local LLM inference
+- **Faster-Whisper** — Speech-to-text
+- **Piper TTS** — Text-to-speech
+
+---
+
+## Tests
 
 ```powershell
-.\venv\Scripts\python.exe market_lab\market_lab_data.py --refresh
+# Run all 394+ tests (offline, no external services needed)
+.\venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-Use `--refresh` carefully. The source code says normal mode is cache-first and
-does not run the expensive 2,333-stock scan unless refresh is forced or no
-cached scan is available.
+---
 
-## Local Runtime Expectations
+## Safety
 
-- Windows is assumed. `tts.py` uses `winsound`.
-- Use `.\venv\Scripts\python.exe` unless the user intentionally switches
-  environments.
-- Ollama should be running locally for assistant responses and Market Lab AI
-  interpretation.
-- The current configured model is `qwen3.5:4b` in both `brain.py` and
-  `market_lab/market_lab_brain.py`.
-- Local web research expects SearXNG at `http://localhost:8080`.
-- Voice assets live under `voices/`.
-- Faster-Whisper assets live under `stt_models/`.
+- **Analysis only** — No broker integration, no order placement, no automatic buy/sell
+- **No invented data** — Missing or stale data is flagged, never fabricated
+- **Cache-first** — Full NSE scans only when explicitly requested
+- **Guardrails** — Every output surface shows the analysis-only disclaimer
 
-## Important Files
+---
 
-- `AGENTS.md` - instructions for coding agents.
-- `PROJECT_CONTEXT.md` - current repository map and project status.
-- `USER_CONTEXT.md` - user preferences and handoff expectations.
-- `docs/ARCHITECTURE.md` - architecture and data-flow map.
-- `docs/DEPENDENCIES.md` - dependency evidence from imports and the venv.
-- `docs/VALIDATION.md` - checks performed and known gaps.
-- `docs/WORKFLOW.md` - safe change workflow.
-- `docs/MODEL_HANDOFF.md` - how to resume work in another coding model.
-- `CHANGES.md` - context and workflow change log.
+## License
 
-## Current Caveats
-
-- This folder is a Git repository (branch `main`) with a private GitHub remote
-  (`benalanirudh-pixel/nova`). Generated state is excluded via `.gitignore`.
-- There is no `requirements.txt` or `pyproject.toml` yet.
-- There are two virtual environments: `venv/` and `.venv/`. The populated one
-  used during inspection was `venv/`.
-- Generated assets and caches are large. Agents should ignore them unless the
-  task specifically concerns voice models, audio, or cached market data.
+Private repository. All rights reserved.
