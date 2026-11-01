@@ -53,3 +53,30 @@ class TestMarketOverviewEndpoint(unittest.TestCase):
         body = r.json()
         self.assertIsNone(body["kpis"])
         self.assertFalse(body["guardrails"]["buy_sell_authorization"])
+
+
+class TestStockEndpoint(unittest.TestCase):
+    def setUp(self):
+        from starlette.testclient import TestClient
+        self.client = TestClient(create_app())
+
+    def test_invalid_symbol_returns_404(self):
+        from unittest import mock
+        with mock.patch("web.api.routes.stock.analyze_stock", side_effect=ValueError("Stock not found")):
+            r = self.client.get("/api/stock/XYZNOTREAL123")
+        self.assertEqual(r.status_code, 404)
+        self.assertIn("error", r.json())
+
+    def test_symbols_endpoint_returns_list(self):
+        r = self.client.get("/api/symbols")
+        self.assertEqual(r.status_code, 200)
+        self.assertIsInstance(r.json(), list)
+
+    def test_symbols_no_cache_returns_empty_without_download(self):
+        from unittest import mock
+        with mock.patch("web.api.routes.stock.symbol_master.MASTER_FILE") as mf, \
+             mock.patch("web.api.routes.stock.symbol_master.load_master") as lm:
+            mf.exists.return_value = False
+            r = self.client.get("/api/symbols")
+        self.assertEqual(r.json(), [])
+        lm.assert_not_called()
