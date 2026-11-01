@@ -40,7 +40,7 @@ export default function MarketOverview() {
         <KPICard title="Max Pain" value={fmt(derivatives?.max_pain, 0)} />
         <KPICard title="Regime" value={typeof regime === "string" && regime ? regime.replaceAll("_", " ") : "N/A"} />
       </div>
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[50%_26%_24%]">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[50fr_26fr_24fr]">
         <div className="rounded border border-line/50 bg-panel p-2">
           <div className="mb-1 text-xs text-secondary">NIFTY 50 daily, EMA 20</div>
           <CandlestickChart candles={candles} />
