@@ -4,6 +4,8 @@ import GuardrailsBar from "./components/GuardrailsBar";
 import { fetchJSON } from "./lib/api";
 import { GUARDRAIL_TEXT } from "./lib/theme";
 import { useSSE } from "./hooks/useSSE";
+import { SSEContext } from "./hooks/SSEContext";
+import { nextRefreshLabel } from "./lib/schedule";
 import MarketOverview from "./pages/MarketOverview";
 import StockAnalysis from "./pages/StockAnalysis";
 import MarketAnalysis from "./pages/MarketAnalysis";
@@ -14,28 +16,14 @@ const NAV = [
   { to: "/analysis", label: "Market Analysis" },
 ];
 
-// Fixed IST schedule (minutes since midnight): 09:15, 13:30, 15:15, 18:00
-const SCHEDULE = [555, 810, 915, 1080];
-
-function nextRefreshLabel(now = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false,
-  }).formatToParts(now);
-  const h = Number(parts.find((p) => p.type === "hour")!.value) % 24;
-  const m = Number(parts.find((p) => p.type === "minute")!.value);
-  const cur = h * 60 + m;
-  const next = SCHEDULE.find((s) => s > cur);
-  const diff = next === undefined ? SCHEDULE[0] + 1440 - cur : next - cur;
-  return `${Math.floor(diff / 60)}h ${String(diff % 60).padStart(2, "0")}m`;
-}
-
 export default function App() {
   const [open, setOpen] = useState(true);
   const [guardrail, setGuardrail] = useState(GUARDRAIL_TEXT);
   const [freshness, setFreshness] = useState<string>("No cache");
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(nextRefreshLabel());
-  const { last, reconnects } = useSSE();
+  const sse = useSSE();
+  const { last, reconnects } = sse;
 
   const loadFreshness = useCallback(() => {
     fetchJSON<{ freshness?: { label?: string } | null }>("/market-overview")
@@ -66,6 +54,7 @@ export default function App() {
       .catch(() => setRefreshMsg("Refresh failed"));
 
   return (
+    <SSEContext.Provider value={sse}>
     <div className="flex h-screen flex-col pb-8">
       <header className="flex items-center gap-4 border-b border-line bg-panel px-4 py-2">
         <button onClick={() => setOpen(!open)} className="text-secondary" aria-label="Toggle sidebar">☰</button>
@@ -99,5 +88,6 @@ export default function App() {
       </div>
       <GuardrailsBar text={guardrail} />
     </div>
+    </SSEContext.Provider>
   );
 }
