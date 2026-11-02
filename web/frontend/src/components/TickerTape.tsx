@@ -44,7 +44,7 @@ export default function TickerTape({ data }: { data: MarketOverviewData | null }
   const freshness = data?.freshness;
   const lv = level(freshness?.age_seconds);
   return (
-    <div className="flex items-center gap-3 overflow-x-auto whitespace-nowrap border-b border-line/50 bg-deep px-3 py-1 text-xs">
+    <div className="flex items-center gap-3 overflow-x-auto [scrollbar-width:none] whitespace-nowrap border-b border-line/50 bg-deep px-3 py-1 text-xs">
       <Item name="NIFTY" q={k?.nifty} v={k?.nifty?.price} />
       <Sep />
       <Item name="BANK NIFTY" q={k?.banknifty} v={k?.banknifty?.price} />
