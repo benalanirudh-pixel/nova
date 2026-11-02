@@ -67,6 +67,20 @@ class TestStockEndpoint(unittest.TestCase):
         self.assertEqual(r.status_code, 404)
         self.assertIn("error", r.json())
 
+    def test_numpy_and_nan_values_serialize(self):
+        import numpy as np
+        from unittest import mock
+        fake = {"symbol": "X", "price": np.float64(10.5), "above_ema": np.bool_(True),
+                "atr_14": float("nan"), "momentum_score": np.int64(70)}
+        with mock.patch("web.api.routes.stock.analyze_stock", return_value=fake), \
+             mock.patch("web.api.routes.stock._chart", return_value={}):
+            r = self.client.get("/api/stock/X")
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertIs(body["analysis"]["above_ema"], True)
+        self.assertIsNone(body["volatility"]["atr"])
+        self.assertEqual(body["score"]["overall"], 70)
+
     def test_symbols_endpoint_returns_list(self):
         r = self.client.get("/api/symbols")
         self.assertEqual(r.status_code, 200)

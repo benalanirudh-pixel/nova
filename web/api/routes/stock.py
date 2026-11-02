@@ -1,4 +1,5 @@
 import asyncio
+import math
 
 import pandas as pd
 from fastapi import APIRouter
@@ -13,6 +14,19 @@ router = APIRouter()
 
 def _num(v):
     return None if v is None or pd.isna(v) else float(v)
+
+
+def _jsonable(v):
+    """numpy scalars -> python; NaN/inf -> None (Starlette JSON rejects NaN)."""
+    if isinstance(v, dict):
+        return {k: _jsonable(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_jsonable(x) for x in v]
+    if hasattr(v, "item") and not isinstance(v, (str, bytes)):
+        v = v.item()
+    if isinstance(v, float) and not math.isfinite(v):
+        return None
+    return v
 
 
 def _chart(symbol: str) -> dict:
@@ -59,7 +73,7 @@ def _build(symbol: str) -> dict:
 @router.get("/stock/{symbol}")
 async def stock(symbol: str):
     try:
-        return await asyncio.to_thread(_build, symbol)
+        return _jsonable(await asyncio.to_thread(_build, symbol))
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=404)
     except Exception as e:
