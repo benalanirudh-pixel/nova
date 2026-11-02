@@ -17,8 +17,9 @@ export interface StockData {
   analysis: Record<string, unknown>;
 }
 
-export function useStockAnalysis() {
-  const [data, setData] = useState<StockData | null>(null);
+/** Latest-request-wins fetch of /stock/{symbol}{suffix}. */
+export function useStockFetch<T>(suffix = "") {
+  const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const seq = useRef(0); // only the latest request may set state
@@ -27,12 +28,14 @@ export function useStockAnalysis() {
     const id = ++seq.current;
     setLoading(true);
     setError(null);
-    fetchJSON<StockData>(`/stock/${encodeURIComponent(symbol)}`)
+    fetchJSON<T>(`/stock/${encodeURIComponent(symbol)}${suffix}`)
       .then((d) => { if (id === seq.current) setData(d); })
       .catch((e: Error) => { if (id === seq.current) { setData(null); setError(e.message); } })
       .finally(() => { if (id === seq.current) setLoading(false); });
-  }, []);
+  }, [suffix]);
 
   useEffect(() => () => { seq.current++; }, []);
   return { data, loading, error, analyze };
 }
+
+export const useStockAnalysis = () => useStockFetch<StockData>();

@@ -1,16 +1,16 @@
 import type { ReactNode } from "react";
 import { fmt, isNum, label, signCls } from "../lib/format";
 
-/** Dense panel: compact uppercase header bar + body. */
+/** Dense panel: compact header bar + body. */
 /** `fill`: flex column whose body takes the remaining height (for fixed-height layouts). */
 export function Panel({ title, right, children, className = "", bodyClass = "p-2", fill }: {
   title: ReactNode; right?: ReactNode; children: ReactNode; className?: string; bodyClass?: string; fill?: boolean;
 }) {
   return (
-    <section className={`min-w-0 rounded-sm border border-line/50 bg-panel ${fill ? "flex min-h-0 flex-col" : ""} ${className}`}>
-      <header className="flex shrink-0 items-center gap-2 border-b border-line/40 bg-deep/50 px-2 py-1">
-        <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-secondary">{title}</h2>
-        {right && <div className="ml-auto flex items-center gap-2 text-[10px] text-muted">{right}</div>}
+    <section className={`min-w-0 rounded-md border border-line/40 bg-panel ${fill ? "flex min-h-0 flex-col" : ""} ${className}`}>
+      <header className="flex h-8 shrink-0 items-center gap-2 border-b border-line/30 px-2.5">
+        <h2 className="truncate text-[12px] font-semibold text-fg">{title}</h2>
+        {right && <div className="ml-auto flex min-w-0 items-center gap-2 text-[11px] text-muted">{right}</div>}
       </header>
       <div className={fill ? `relative min-h-0 flex-1 ${bodyClass}` : bodyClass}>{children}</div>
     </section>
@@ -40,17 +40,20 @@ export function Change({ abs, pct, className = "" }: { abs?: unknown; pct: unkno
 
 export function toneOf(s: unknown) {
   const u = typeof s === "string" ? s.toUpperCase() : "";
-  if (/BEAR|WEAK|SELL|BELOW|NEGATIVE|LOWER|HIGH_RISK/.test(u)) return "border-negative/60 text-negative";
-  if (/BULL|STRONG|BUY|ABOVE|POSITIVE|HIGHER/.test(u)) return "border-positive/60 text-positive";
-  if (!u || u === "N/A" || u === "UNKNOWN") return "border-line text-muted";
-  return "border-warning/60 text-warning";
+  if (/BEAR|WEAK|SELL|BELOW|NEGATIVE|LOWER|HIGH_RISK/.test(u)) return "border-negative/40 bg-negative/10 text-negative";
+  if (/BULL|STRONG|BUY|ABOVE|POSITIVE|HIGHER/.test(u)) return "border-positive/40 bg-positive/10 text-positive";
+  if (!u || u === "N/A" || u === "UNKNOWN") return "border-line/60 text-muted";
+  return "border-warning/40 bg-warning/10 text-warning";
 }
 
-/** Small uppercase status chip, tone derived from the API string. */
+/** API enum in sentence case ("STRONG BULLISH" -> "Strong bullish"); N/A untouched. */
+const sentence = (t: string) => (t === "N/A" ? t : t.charAt(0) + t.slice(1).toLowerCase());
+
+/** Small status chip, tone derived from the API string. */
 export function Chip({ text, tone, title }: { text: unknown; tone?: string; title?: string }) {
   return (
-    <span title={title} className={`inline-block whitespace-nowrap rounded-sm border px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide ${tone ?? toneOf(text)}`}>
-      {label(text)}
+    <span title={title} className={`inline-block whitespace-nowrap rounded-full border px-2 py-px text-[10.5px] font-medium ${tone ?? toneOf(text)}`}>
+      {sentence(label(text))}
     </span>
   );
 }
@@ -58,8 +61,8 @@ export function Chip({ text, tone, title }: { text: unknown; tone?: string; titl
 /** Label/value cell for stat grids. */
 export function Stat({ k, children, title }: { k: string; children: ReactNode; title?: string }) {
   return (
-    <div className="min-w-0 border border-line/30 bg-deep/40 px-2 py-1" title={title}>
-      <div className="truncate text-[10px] uppercase tracking-wide text-muted">{k}</div>
+    <div className="min-w-0 rounded border border-line/25 bg-raised/60 px-2 py-1.5" title={title}>
+      <div className="truncate text-[11px] text-muted">{k}</div>
       <div className="truncate text-sm">{children}</div>
     </div>
   );
@@ -117,4 +120,11 @@ export function PctBar({ k, v, bar = "bg-info" }: { k: string; v: unknown; bar?:
 export const NoData = ({ text = "No cache: run a refresh to load this section." }: { text?: string }) =>
   <div className="p-1 text-xs text-muted">{text}</div>;
 
-export const btn = "rounded-sm border px-1.5 py-px text-[10px] font-semibold focus:outline-none focus-visible:ring-1 focus-visible:ring-accent";
+export const btn = "rounded border px-1.5 py-px text-[10.5px] font-semibold focus:outline-none focus-visible:ring-1 focus-visible:ring-accent";
+
+/** Placeholder lines while a section loads; error text when its source failed. */
+export function Body({ loading, error, children, lines = 4 }: { loading: boolean; error?: string | null; children: ReactNode; lines?: number }) {
+  if (loading) return <div className="animate-pulse space-y-2 p-1">{Array.from({ length: lines }, (_, i) => <div key={i} className="h-3 rounded bg-raised" style={{ width: `${90 - i * 12}%` }} />)}</div>;
+  if (error) return <div className="p-1 text-[12px] text-muted">Not available. {error}</div>;
+  return <>{children}</>;
+}

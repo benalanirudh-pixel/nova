@@ -1559,3 +1559,15 @@ Checks run:
 Browser-verified in dev and prod mode: all 3 pages with real cached data, deep
 links, `/api/nope` JSON 404. Still not verified: live end-to-end refresh,
 scheduler firing, no-cache UI.
+
+## 2026-11-02 - Web live quote feed (backend)
+
+Checks run:
+
+- `.env\Scripts\python.exe -m unittest tests.test_live_feed tests.test_web_api` - 37 tests OK
+  (session gating, change-only emission, missing price skipped, stale flag,
+  Dhan index ticks, backoff, watch cap/validation/expiry, route origin check).
+- `.env\Scripts\python.exe -m unittest discover -s tests` - 473 tests OK.
+
+Not verified: real ticks during market hours against the Indian Market MCP or
+Dhan; adapter latency under 25 watched symbols.

@@ -5,7 +5,9 @@ import pandas as pd
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from analysis.data import symbol_master
+import time
+
+from analysis.data import stock_profile, symbol_master
 from market_lab import view_model as vm
 from analysis.data.nse_feed import get_stock_history_dataframe
 from analysis.data.technical_engine import analyze_stock, calculate_indicators
@@ -80,6 +82,28 @@ async def stock(symbol: str):
         return JSONResponse({"error": str(e)}, status_code=404)
     except Exception as e:
         return JSONResponse({"error": f"Analysis failed: {e}"}, status_code=502)
+
+
+# profile pulls news/fundamentals over the network; keep each symbol for 15 min
+_PROFILE_TTL = 900
+_profile_cache: dict[str, tuple[float, dict]] = {}
+
+
+@router.get("/stock/{symbol}/profile")
+async def stock_profile_route(symbol: str):
+    key = symbol.strip().upper()
+    if not key.replace("-", "").replace("&", "").isalnum() or len(key) > 20:
+        return JSONResponse({"error": f"Invalid symbol: {symbol}"}, status_code=400)
+    hit = _profile_cache.get(key)
+    if hit and time.monotonic() - hit[0] < _PROFILE_TTL:
+        return hit[1]
+    try:
+        data = _jsonable(await asyncio.to_thread(stock_profile.build_stock_profile, key))
+    except Exception as e:
+        return JSONResponse({"error": f"Profile failed: {e}"}, status_code=502)
+    data["guardrails"] = vm.guardrails({})
+    _profile_cache[key] = (time.monotonic(), data)
+    return data
 
 
 @router.get("/symbols")

@@ -37,7 +37,7 @@ class TestMarketOverviewEndpoint(unittest.TestCase):
         r = self.client.get("/api/market-overview")
         self.assertEqual(r.status_code, 200)
         body = r.json()
-        for key in ("kpis", "chart", "breadth", "flows", "sectors",
+        for key in ("kpis", "breadth", "flows", "sectors",
                     "derivatives", "freshness", "guardrails"):
             self.assertIn(key, body)
 

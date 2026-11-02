@@ -1,36 +1,33 @@
 @import "tailwindcss";
 
+/* Graphite + saffron. Saffron is the single accent; green/red carry price direction only. */
 @theme {
-  --color-deep: #030B12;
-  --color-panel: #071923;
-  --color-line: #0B6478;
-  --color-fg: #F2F6FA;
-  --color-secondary: #91A9BE;
-  --color-muted: #617A91;
-  --color-accent: #00E5FF;
-  --color-positive: #00E6A8;
-  --color-negative: #FF405A;
-  --color-warning: #FFC928;
-  --color-info: #3198FF;
-  --color-purple: #B49AFF;
+  --color-deep: #0D1015;
+  --color-panel: #141920;
+  --color-raised: #1B222B;
+  --color-line: #3A4757;
+  --color-fg: #E8ECF1;
+  --color-secondary: #A3AEBD;
+  --color-muted: #7A8594;
+  --color-accent: #FF9933;
+  --color-positive: #2EBD85;
+  --color-negative: #F0544F;
+  --color-warning: #E6C84F;
+  --color-info: #5B9CF5;
+  --color-purple: #A78BFA;
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
 }
 
-:root {
-  --bg-deep: #030B12;
-  --bg-panel: #071923;
-  --border: #0B6478;
-  --text: #F2F6FA;
-  --text-secondary: #91A9BE;
-  --text-muted: #617A91;
-  --accent: #00E5FF;
-  --positive: #00E6A8;
-  --negative: #FF405A;
-  --warning: #FFC928;
-  --info: #3198FF;
-  --purple: #B49AFF;
-}
+:root { color-scheme: dark; }
 body {
-  background: var(--bg-deep);
-  color: var(--text);
-  font-family: "Segoe UI", system-ui, sans-serif;
+  background: var(--color-deep);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: color-mix(in srgb, var(--color-accent) 35%, transparent); }
+* { scrollbar-width: thin; scrollbar-color: var(--color-line) transparent; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }

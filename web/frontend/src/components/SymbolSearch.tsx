@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 
 export interface SymbolItem { symbol: string; name: string }
 
+export const SEARCH_ID = "symbol-search";
+
 export default function SymbolSearch({ onSelect, symbols }: { onSelect: (s: string) => void; symbols: SymbolItem[] }) {
   const [text, setText] = useState("");
   const [q, setQ] = useState("");
@@ -28,7 +30,7 @@ export default function SymbolSearch({ onSelect, symbols }: { onSelect: (s: stri
   const pick = (s: string) => { setText(""); setQ(""); setOpen(false); onSelect(s); };
 
   return (
-    <div className="relative w-full max-w-md">
+    <div className="relative w-full">
       <input
         value={text}
         onChange={(e) => { setText(e.target.value); setOpen(true); }}
@@ -45,12 +47,17 @@ export default function SymbolSearch({ onSelect, symbols }: { onSelect: (s: stri
             if (m) pick(m.symbol); else if (live) pick(live);
           }
         }}
-        placeholder="Search symbol or company (e.g. RELIANCE)"
+        id={SEARCH_ID}
+        placeholder="Search NSE symbol or company"
         aria-label="Search symbol"
-        className="w-full rounded border border-line/50 bg-panel px-3 py-2 text-sm text-fg outline-none focus:border-accent"
+        className="peer w-full rounded border border-line/40 bg-deep py-1.5 pl-8 pr-14 text-[13px] text-fg outline-none placeholder:text-muted focus:border-accent/70"
       />
+      <svg viewBox="0 0 16 16" className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+        <circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5L14 14" />
+      </svg>
+      <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-line/50 px-1 font-mono text-[10px] text-muted peer-focus:hidden">Ctrl K</kbd>
       {open && matches.length > 0 && (
-        <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded border border-line/50 bg-panel shadow-lg" role="listbox">
+        <ul className="absolute z-30 mt-1 max-h-80 w-full min-w-[20rem] overflow-auto rounded-md border border-line/50 bg-raised py-1 shadow-xl shadow-black/40" role="listbox">
           {matches.map((m, i) => (
             <li
               key={m.symbol}
@@ -58,9 +65,9 @@ export default function SymbolSearch({ onSelect, symbols }: { onSelect: (s: stri
               aria-selected={i === idx}
               onMouseDown={(e) => { e.preventDefault(); pick(m.symbol); }}
               onMouseEnter={() => setIdx(i)}
-              className={`flex cursor-pointer justify-between gap-3 px-3 py-1.5 text-sm ${i === idx ? "bg-line/30" : ""}`}
+              className={`flex cursor-pointer items-baseline justify-between gap-3 px-3 py-1.5 text-[13px] ${i === idx ? "bg-accent/10" : ""}`}
             >
-              <span className="font-semibold text-accent">{m.symbol}</span>
+              <span className="font-mono font-medium text-accent">{m.symbol}</span>
               <span className="truncate text-secondary">{m.name}</span>
             </li>
           ))}

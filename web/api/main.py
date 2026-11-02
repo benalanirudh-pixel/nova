@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from web.api.routes.analysis import router as analysis_router
-from web.api import scheduler
+from web.api import live_feed, scheduler
 from web.api.routes.events import router as events_router
 from web.api.routes.market import router as market_router
 from web.api.routes.stock import router as stock_router
@@ -17,7 +17,9 @@ from styles.design_tokens import BUY_SELL_AUTHORIZED, GUARDRAIL_TEXT
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     scheduler.start_scheduler(app)
+    live_feed.start(app)
     yield
+    live_feed.stop(app)
     scheduler.stop_scheduler(app)
 
 

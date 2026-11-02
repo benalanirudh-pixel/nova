@@ -32,13 +32,13 @@ export default function DerivativesPanel({ title, d }: { title: string; d?: Deri
             <WallCell k="Call wall" w={d.call_wall} />
           </div>
           <div>
-            <div className="mb-0.5 text-[10px] uppercase tracking-wide text-muted">
+            <div className="mb-0.5 text-[10px] text-muted">
               Unusual activity {isNum(d.unusual_count) && `(top ${top.length} of ${d.unusual_count})`}
             </div>
             {top.length === 0 ? <div className="text-xs text-muted">None reported</div> : (
               <div className="overflow-x-auto">
                 <table className="w-full text-[11px]">
-                  <thead className="text-[10px] uppercase text-muted">
+                  <thead className="text-[10px] text-muted">
                     <tr><th className="px-1 text-left font-normal">Type</th><th className="px-1 text-right font-normal">Strike</th><th className="px-1 text-right font-normal">OI</th><th className="px-1 text-right font-normal">ΔOI</th><th className="px-1 text-right font-normal">Vol/OI</th><th className="px-1 text-left font-normal">Activity</th></tr>
                   </thead>
                   <tbody className="font-mono tabular-nums">

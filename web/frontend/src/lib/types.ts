@@ -55,7 +55,6 @@ export interface Freshness {
 /** Every top-level key is null when there is no cache. */
 export interface MarketOverviewData {
   kpis: null | { macro?: Regime; nifty?: Quote; banknifty?: Quote; vix?: Quote; indicators?: Indicators };
-  chart: null | { candles?: Candle[] };
   breadth: Breadth | null;
   flows: Flows | null;
   sectors: Sector[] | null;
@@ -76,4 +75,97 @@ export interface MarketAnalysisData {
   derivatives: { nifty?: Derivatives; bank_nifty?: Derivatives } | null;
   indicators?: Indicators | null;
   events: Events | null; freshness: Freshness | null; guardrails?: { text?: string } | null;
+}
+
+type C = number | null;
+export interface Quarter {
+  period: string; revenue_cr: C; ebitda_cr: C; operating_income_cr: C; net_income_cr: C; eps: C;
+  operating_margin: C; revenue_qoq: C; net_income_qoq: C; revenue_yoy: C;
+}
+export interface Peer {
+  symbol: string; company_name?: string; price?: C; return_20d?: C; return_60d?: C; relative_strength_20d?: C;
+  rsi_14?: C; trend?: string; momentum_score?: C; traded_value_cr?: C; is_self?: boolean;
+}
+export interface NewsItem { title: string; link: string; source?: string | null; published?: string | null }
+export interface Highlight { tone: "positive" | "negative" | "neutral"; text: string }
+
+/** /api/stock/{symbol}/profile — every section is null when its source failed; reason in `errors`. */
+export interface StockProfile {
+  symbol: string;
+  profile: null | { company?: string; sector?: string; industry?: string; website?: string | null; description?: string; employees?: C };
+  ratios: null | Record<string, C>;
+  quarters: Quarter[] | null;
+  results: null | {
+    next_date: string | null; eps_estimate: C; revenue_estimate_cr: C; ex_dividend_date: string | null;
+    board_meetings: { date: string; purpose: string | null }[]; source: string;
+  };
+  ownership: null | {
+    nse: null | { promoter_pct: C; fii_pct: C; dii_pct: C; public_pct: C };
+    yahoo: null | { insiders_pct: C; institutions_pct: C; institutions_float_pct: C; institutions_count: C };
+  };
+  peers: null | { basis: string; group: string; peer_count?: number; as_of: string | null; rows: Peer[] };
+  news: NewsItem[] | null;
+  corporate_actions: { ex_date?: string; subject?: string }[] | null;
+  highlights: Highlight[];
+  errors: Record<string, string>;
+  generated: string;
+}
+
+export interface PreopenRow { symbol: string; iep: C; change_pct: C; prev_close: C; turnover_cr: C }
+export interface FocusRow {
+  symbol: string; company_name?: string | null; sector?: string | null; price?: C; return_1d?: C; return_20d?: C;
+  rsi_14?: C; relative_volume?: C; distance_52w_high?: C; trend?: string; score?: C;
+}
+export interface CallLine { tone: "positive" | "negative" | "neutral"; topic: string; text: string }
+
+/** /api/morning-brief — live sections are null when their source failed; reason in `errors`. */
+export interface MorningBrief {
+  range: null | { base: number; points: number; pct: C; low: number; high: number };
+  session: null | { status?: string; message?: string; trade_date?: string; nifty_last: C; nifty_change: C; nifty_change_pct: C };
+  preopen: null | {
+    timestamp?: string; is_today: boolean; advances: C; declines: C; unchanged: C; min_turnover_cr: number;
+    gainers: PreopenRow[]; losers: PreopenRow[]; most_active: PreopenRow[];
+  };
+  fii_dii: null | { category: string; date?: string; buy_cr: C; sell_cr: C; net_cr: C }[];
+  movers: { gainers: { symbol: string; ltp: C; change_pct: C; turnover?: string }[]; losers: { symbol: string; ltp: C; change_pct: C; turnover?: string }[] };
+  news: NewsItem[] | null;
+  global: {
+    indices: null | { name: string; region: string; last: number; change_pct: number; date: string }[];
+    commodities: null | { name: string; price: C; change_pct: C; currency?: string }[];
+    fx: null | { pair: string; rate: C; change_pct: C }[];
+  };
+  focus: null | { as_of: string; universe: number; screens: { key: string; title: string; rule: string; rows: FocusRow[] }[] };
+  morning_call: CallLine[];
+  errors: Record<string, string>;
+  generated: string;
+  report_saved_at: string | null;
+}
+
+export interface ChainRow {
+  strike: number; call_oi: C; call_change_oi: C; call_volume: C; call_iv: C; call_ltp: C;
+  put_oi: C; put_change_oi: C; put_volume: C; put_iv: C; put_ltp: C;
+}
+export interface OiLevel { strike: number; oi: C; change_oi: C }
+
+/** /api/fno/{NIFTY|BANKNIFTY|SENSEX} — metrics/technicals null when their source failed; reason in `errors`. */
+export interface FnoDesk {
+  instrument: string; name: string; exchange: string; spot: C;
+  expiry: string | null; expiries: string[]; source: string | null;
+  metrics: null | {
+    atm: number; days_to_expiry: C; pcr_oi: C; pcr_volume: C; pcr_change_oi: C;
+    call_oi: number; put_oi: number; call_change_oi: number; put_change_oi: number;
+    max_pain: C; atm_iv: C; atm_call_iv: C; atm_put_iv: C; skew: C;
+    straddle: C; expected_move_pct: C; breakeven_low: C; breakeven_high: C;
+    resistance: OiLevel[]; support: OiLevel[]; fresh_call_writing: OiLevel[]; fresh_put_writing: OiLevel[];
+    profile: ChainRow[];
+  };
+  technicals: null | {
+    last: number; prev_close: number; change: number; change_pct: number; day_high: number; day_low: number;
+    as_of: string; ema: Record<string, number>; rsi: number; atr: number; atr_pct: number; rv20: number;
+    pivots: { r2: number; r1: number; pp: number; s1: number; s2: number; from: string };
+    high_52w: number; low_52w: number; returns: Record<string, C>;
+  };
+  read: CallLine[];
+  errors: Record<string, string>;
+  generated: string;
 }

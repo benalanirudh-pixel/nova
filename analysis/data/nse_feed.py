@@ -186,6 +186,55 @@ def _call_tool(
         ) from exc
 
 
+async def _call_tools_async(
+    calls: Dict[str, tuple],
+) -> Dict[str, Any]:
+    """
+    Run several tools in ONE server session (the server
+    process is slow to start). Each value is the tool result
+    or an NSEFeedError for that tool only.
+    """
+
+    server_params = StdioServerParameters(
+        command=str(get_server_path()),
+        args=[],
+        env=None,
+    )
+
+    out: Dict[str, Any] = {}
+
+    try:
+        async with stdio_client(server_params) as (read_stream, write_stream):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+
+                for key, (tool_name, arguments) in calls.items():
+                    try:
+                        out[key] = _extract_result(
+                            await session.call_tool(tool_name, arguments or {})
+                        )
+                    except Exception as exc:
+                        out[key] = NSEFeedError(
+                            f"MCP tool '{tool_name}' failed: "
+                            f"{type(exc).__name__}: {exc}"
+                        )
+
+    except Exception as exc:
+        err = NSEFeedError(f"MCP session failed: {type(exc).__name__}: {exc}")
+        for key in calls:
+            out.setdefault(key, err)
+
+    return out
+
+
+def call_tools(
+    calls: Dict[str, tuple],
+) -> Dict[str, Any]:
+    """Sync wrapper for _call_tools_async: {key: (tool, args)} -> {key: result|NSEFeedError}."""
+
+    return asyncio.run(_call_tools_async(calls))
+
+
 # ============================================================
 # MCP RESULT NORMALIZATION
 # ============================================================

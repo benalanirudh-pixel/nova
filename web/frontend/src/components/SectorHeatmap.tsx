@@ -3,12 +3,12 @@ import type { Sector } from "../lib/types";
 import { Panel } from "./ui";
 
 const SCALE = 10; // real 20D returns reach +-15, so +-10 keeps cells from all saturating
-const NEUTRAL = [7, 25, 35];
-const GREEN = [0, 140, 100];
+const NEUTRAL = [27, 34, 43];
+const GREEN = [22, 130, 90];
 const RED = [190, 30, 55];
 
 function cellColor(v: unknown): string {
-  if (!isNum(v)) return "#071923";
+  if (!isNum(v)) return "#141920";
   const t = Math.min(1, Math.abs(v) / SCALE);
   const end = v >= 0 ? GREEN : RED;
   return `rgb(${NEUTRAL.map((n, i) => Math.round(n + (end[i] - n) * t)).join(",")})`;
@@ -26,7 +26,7 @@ export default function SectorHeatmap({ sectors }: { sectors: Sector[] | null })
               <div className="font-mono text-sm font-semibold tabular-nums">{fmtPct(s.return_20d)}</div>
               <div className="flex justify-between gap-1 text-[10px] text-white/75">
                 <span className="font-mono tabular-nums">RS {fmt(s.relative_strength_20d, 1)}</span>
-                <span className="truncate uppercase">{label(s.regime)}</span>
+                <span className="truncate">{label(s.regime)}</span>
               </div>
             </div>
           ))}

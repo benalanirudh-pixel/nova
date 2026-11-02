@@ -20,7 +20,7 @@ export default function IndicatorStrip({ ind, title = "NIFTY indicators" }: { in
             {extras.length > 0 && (
               <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px]">
                 {extras.map(([k, v]) => (
-                  <span key={k}><span className="uppercase text-muted">{k} </span>
+                  <span key={k}><span className="text-muted">{k} </span>
                     <Num v={v} suffix={k === "percent" ? "%" : ""} signed={k === "histogram"} className="text-secondary" /></span>
                 ))}
               </div>

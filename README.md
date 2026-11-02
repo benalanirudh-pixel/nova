@@ -31,31 +31,34 @@ Nova is a web-based NSE analysis terminal built with FastAPI and React. It pulls
 
 ## Pages
 
-### Market Overview
-- **Ticker tape** — Nifty 50, Bank Nifty, India VIX, sector leaders with live prices and change
-- **Index cards** — Candlestick charts with OHLC, multi-period returns (5D/20D/60D), 52-week range bar
-- **KPI strip** — 7 indicators with sparklines: Nifty, Bank Nifty, VIX, Advance/Decline, FII, DII, PCR
-- **Market breadth** — Advances vs. declines vs. unchanged with percent bars
-- **Institutional flows** — FII and DII net activity gauges (daily and cumulative)
-- **Sector heatmap** — NSE sector performance grid
-- **Derivatives strip** — ATM IV, PCR, max pain, OI walls
+### Overview (morning brief)
+- **Morning call** — one plain line per factor (NIFTY, US/Asian markets, crude, rupee, pre-open breadth, flows, regime, VIX, typical day range, events in the next 48h), coloured supportive / neutral / cautious; never a buy/sell call
+- **NIFTY levels to watch** — price ladder of the ATR day range, option call/put walls and max pain around the latest NSE print
+- **Index cards** — NIFTY (live NSE print), Bank Nifty and India VIX with sparklines and 5D/20D/60D returns
+- **Global cues** — S&P 500, Nasdaq, Dow, FTSE, Nikkei, Hang Seng, crude, gold, silver, gas, copper, USD/INR, EUR/INR
+- **Pre-open session** — NSE pre-open breadth plus top gainers, losers and most traded at the indicative open
+- **Stocks in focus** — screens over the latest scan (near 52-week high on volume, strongest momentum, unusual volume, oversold), liquid names only; rows open the stock page
+- **Market news**, **last-session movers**, **FII/DII activity**, **breadth**, **sector heatmap**, **derivatives**
 
-### Stock Analysis
-- **Symbol search** — Search across 2,333 NSE equities with recent history
-- **Candlestick chart** — Price action with volume, synced indicator chart (RSI/MACD/ADX)
-- **Momentum gauge** — Composite 0–100 score with red/amber/green threshold zones
-- **Technical table** — RSI, MACD, ADX, ATR, EMA/SMA signals, trend structure
-- **52-week range** — Current price positioning with high/low
-- **Multi-period returns** — 1D, 5D, 20D, 60D
-- **AI research report** — LLM-generated executive summary, bullish/bearish factors, key levels
+### Stock Analysis (research page, no charts)
+- **Search-first landing** — recent and popular symbols; header search with Ctrl+K or `/`
+- **Quote strip** — price, change, OHLC, volume, 52-week range, 1D/5D/20D/60D returns
+- **Key takeaways** — rule-based statements from the numbers (growth, ROE, leverage, PEG, peer rank, results due)
+- **Company, valuation and ratios** — P/E, P/B, PEG, EV/EBITDA, ROE, margins, growth, dividend
+- **Quarterly results** — last 5 quarters with QoQ/YoY growth; **results calendar** with estimates
+- **Ownership** — promoters vs institutions (FII/DII split when NSE's filing is reachable)
+- **Competitors** — same-industry NSE stocks from the classification and scanner caches
+- **News**, **technical snapshot** (momentum, conditions, moving averages), **corporate actions**
 
-### Market Analysis (Nifty Deep Dive)
-- **Regime assessment** — VIX regime, VIX percentile (1Y), breadth regime, composite market state
-- **Derivatives desk** — PCR, max pain, ATM IV, put/call walls, unusual OI activity
-- **Institutional positioning** — FII/DII flow summary with directional bias
-- **Sector performance** — Returns across NSE sectors with regime context
-- **Breadth analysis** — Advance/decline ratios, breadth thrust indicators
-- **AI narrative** — LLM interpretation with evidence citations
+### F&O desk (NIFTY 50, BANK NIFTY, SENSEX)
+- **Index switcher** — spot, change, PCR, max pain, ATM IV and expected move for all three at a glance
+- **Metric strip** — expiry picker with days left, ATM strike, PCR (OI / volume / change in OI), max pain vs spot, ATM IV, IV minus 20-day realized vol, 3% OTM skew, ATM straddle
+- **Desk read** — plain lines on positioning: PCR, fresh OI, OI range, max pain, straddle-implied move, skew, IV vs RV, trend; never a trade call
+- **Levels** — call/put OI walls, max pain, straddle breakevens and floor pivots sorted around spot
+- **OI profile** — put vs call open interest (or change in OI) by strike with spot, ATM and max pain marked
+- **Option chain** — calls | strike | puts with OI heat, ITM shading and ATM outline
+- **Volatility smile**, **spot technicals** (EMAs, RSI, ATR, realized vol, 52-week range), **India VIX regime**, **FII/DII flows**, **event risk**
+- Live chains: NSE (NIFTY, BANKNIFTY) and BSE (SENSEX); refreshes every minute while the market is open
 
 ### Real-Time Updates
 - **SSE (Server-Sent Events)** — Dashboard auto-updates on data refresh
@@ -146,10 +149,10 @@ nova/
 │       │   │   ├── MarketOverview.tsx # Dashboard with all panels
 │       │   │   ├── StockAnalysis.tsx  # Per-stock deep dive
 │       │   │   └── MarketAnalysis.tsx # Nifty regime + derivatives analysis
-│       │   ├── components/           # CandlestickChart, FlowGauge, SectorHeatmap, ...
+│       │   ├── components/           # NewsList, FlowGauge, SectorHeatmap, ...
 │       │   ├── hooks/                # useSSE, useMarketData, useStockAnalysis
 │       │   └── lib/                  # API client, formatters, types, theme tokens
-│       ├── package.json              # React 19, TypeScript, Vite, Recharts
+│       ├── package.json              # React 19, TypeScript, Vite, Tailwind
 │       └── vite.config.ts
 ├── market_lab/
 │   └── market_lab_data.py            # Central report gateway (all engines)
@@ -205,7 +208,7 @@ Modes: **CACHE_FIRST** (default), **FORCED_REFRESH** (`--refresh`), **LIVE_ONLY*
 | Layer | Technology |
 |-------|-----------|
 | **Backend** | Python 3.14, FastAPI, Uvicorn, APScheduler, SSE-Starlette |
-| **Frontend** | React 19, TypeScript, Vite, Recharts, Lightweight Charts, Tailwind CSS |
+| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS |
 | **Analysis** | 11 Python engines: technicals, derivatives, volatility, institutional flow, sectors, risk, regime |
 | **AI** | Ollama (qwen3.5:4b) for market interpretation and stock research |
 | **Data** | Indian Market MCP, Yahoo Finance, NSE, Dhan (optional) |
@@ -218,10 +221,13 @@ Modes: **CACHE_FIRST** (default), **FORCED_REFRESH** (`--refresh`), **LIVE_ONLY*
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/health` | Service health + guardrail text |
-| GET | `/api/market-overview` | Full market dashboard data |
-| GET | `/api/stock/:symbol` | Per-stock analysis (technicals, AI report) |
+| GET | `/api/market-overview` | Cached market dashboard data (regime, breadth, flows, sectors, derivatives) |
+| GET | `/api/morning-brief` | Live pre-market brief: morning call, pre-open, global cues, news, stocks in focus (5 min cache) |
+| GET | `/api/stock/:symbol` | Per-stock technicals |
+| GET | `/api/stock/:symbol/profile` | Company, ratios, quarterly results, results date, ownership, peers, news (15 min cache) |
 | GET | `/api/symbols?q=` | Symbol search across NSE equities |
-| GET | `/api/market-analysis` | Nifty deep dive (regime, derivatives, flows) |
+| GET | `/api/market-analysis` | Cached context for the F&O desk (VIX regime, flows, events) |
+| GET | `/api/fno/:instrument?expiry=` | Live F&O desk for NIFTY, BANKNIFTY or SENSEX (60 s cache) |
 | GET | `/api/events` | SSE stream (refresh events) |
 | POST | `/api/refresh` | Trigger data refresh (origin-checked) |
 

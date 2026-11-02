@@ -3,6 +3,75 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-02 - Web dashboard: read-only live quote feed (backend)
+
+New `web/api/live_feed.py`, started in the API lifespan. During the NSE session
+(09:15-15:30 IST, Mon-Fri; no holiday calendar yet) it polls NIFTY, BANKNIFTY
+and INDIAVIX via Dhan (`get_index_quote`, only when `dhan_feed.is_configured()`,
+every `NOVA_LIVE_INDEX_S`=5 s) and watched stocks via
+`nse_feed.get_normalized_stock_quote` (every `NOVA_LIVE_STOCK_S`=15 s). It sends
+changed quotes over `/api/events` as `{"type":"tick",symbol,ltp,change,
+change_pct,volume,source,as_of}` and a `feed_status` heartbeat every 10 s
+(`live|delayed|closed|error` + reason). Missing prices are skipped, never
+invented. Failed sources back off exponentially (cap 300 s). New routes:
+`POST /api/live/watch` `{"symbols":[...]}` (same origin check as `/refresh`,
+max 25, each entry expires after 120 s unless re-posted) and
+`GET /api/live/snapshot` (last tick per symbol, `stale` when older than 2x its
+poll interval). The live loop never runs the full NSE scan. Frontend not wired
+yet (Phase 2).
+
+## 2026-11-02 - Web dashboard: Market analysis is now the F&O desk
+
+The third tab ("F&O desk", route `/analysis`) covers index options only:
+NIFTY, BANKNIFTY and SENSEX. New `GET /api/fno/{instrument}?expiry=`
+(`analysis/data/fno_desk.py`, 60 s cache per instrument and expiry). NSE chains
+come from `derivatives_engine` (option chain v3); SENSEX comes from BSE's public
+`BseIndiaAPI` (`ddlExpiry_IV`, `DerivOptionChain_IV`, C_* = call leg). It
+computes PCR (OI/volume/change in OI), max pain, ATM IV, 3% OTM skew, ATM
+straddle and expected move, OI walls, fresh writing, a per-strike profile, and
+spot technicals plus floor pivots from Yahoo daily history. Pivots skip today's
+partial bar before 15:30 IST. The desk read describes positioning only. The
+page refreshes every minute while the market is open. Sector and breadth panels
+moved off this tab (they remain on Overview).
+
+## 2026-11-02 - Web dashboard: Overview is a pre-market morning brief
+
+The NIFTY candlestick chart is gone from Overview (`CandlestickChart.tsx` and
+the `lightweight-charts` dependency removed; `/api/market-overview` no longer
+returns `chart`). New `GET /api/morning-brief` (`analysis/data/morning_brief.py`,
+5 min cache) feeds a morning call, NIFTY levels ladder (ATR range + option
+walls), global cues, NSE pre-open snapshot, stocks in focus (scanner screens,
+liquid names only), market news (last 7 days, newest first), last-session
+movers and FII/DII cash activity (falls back to the cached flow gauge when NSE
+blocks it). Note: the Indian Market MCP serves NSE's pre-open snapshot under
+`get_bulk_deals`. Screens and the morning call describe measured data only;
+they are not predictions or buy/sell signals.
+
+## 2026-11-02 - Web dashboard: stock page is research, not charts
+
+The Stock page no longer draws price/RSI/MACD charts (`IndicatorChart.tsx`
+removed). Before a symbol is chosen it shows a search-first landing page. With a
+symbol it combines `GET /api/stock/{symbol}` (technicals) and the new
+`GET /api/stock/{symbol}/profile` (`analysis/data/stock_profile.py`, cached 15
+min per symbol): company, valuation/ratios, last 5 quarterly results (QoQ/YoY),
+next results date + estimates, ownership, same-industry competitors, Google
+News headlines, corporate actions and rule-based takeaways (descriptive, never
+buy/sell). Sources: one Indian Market MCP session (`nse_feed.call_tools`),
+Yahoo Finance via yfinance (earnings calendar, holder %), and local caches (NSE
+classification + latest scanner CSV for peers). NSE shareholding and
+board-meeting endpoints are often blocked; then the FII/DII split shows as
+unavailable and Yahoo's combined institutional % is shown instead. A failed
+source returns `null` plus a reason in `errors`; nothing is filled in.
+
+## 2026-11-02 - Web dashboard: terminal redesign
+
+New look for `web/frontend`: graphite base with saffron (#FF9933) as the one
+accent, IBM Plex Sans/Mono, sentence-case labels. Sidebar removed; pages are
+top-bar tabs with a global symbol search (Ctrl+K or `/`) that routes to
+`/stock?s=SYMBOL` (the URL is now the stock page's source of truth). Keys: 1-3
+switch pages, R refreshes. Stock page adds a "conditions" tally of the engine's
+own labels (descriptive, not a buy/sell signal). Guardrails bar kept.
+
 ## 2026-11-02 - Web dashboard: refresh is POST + origin-checked
 
 `GET /api/refresh` is now `POST /api/refresh` (403 for foreign Origin or
