@@ -25,7 +25,7 @@ export default function IndicatorChart({ kind, data, title }: { kind: "rsi" | "m
       layout: { background: { type: ColorType.Solid, color: COLORS.bgPanel }, textColor: COLORS.textSecondary },
       grid: { vertLines: { color: "rgba(11,100,120,0.1)" }, horzLines: { color: "rgba(11,100,120,0.1)" } },
       rightPriceScale: { borderColor: COLORS.border },
-      timeScale: { borderColor: COLORS.border },
+      timeScale: { borderColor: COLORS.border, lockVisibleTimeRangeOnResize: true },
     });
     if (kind === "rsi") {
       const a = chart.addSeries(LineSeries, { color: COLORS.purple, lineWidth: 2, priceLineVisible: false });

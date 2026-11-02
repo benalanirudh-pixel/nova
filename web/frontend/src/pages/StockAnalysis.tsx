@@ -50,8 +50,14 @@ export default function StockAnalysis() {
   const run = (sym: string) => {
     setCurrent(sym);
     analyze(sym);
-    setRecent((r) => { const n = [sym, ...r.filter((x) => x !== sym)].slice(0, 5); saveRecent(n); return n; });
   };
+
+  // only symbols that analyzed successfully become recent chips
+  const okSym = data?.info.symbol;
+  useEffect(() => {
+    if (!okSym) return;
+    setRecent((r) => { const n = [okSym, ...r.filter((x) => x !== okSym)].slice(0, 5); saveRecent(n); return n; });
+  }, [okSym]);
 
   const candles: Candle[] = useMemo(
     () => (data?.chart.candles ?? []).map((c) => ({ t: c.time, o: c.open as number, h: c.high as number, l: c.low as number, c: c.close as number, v: c.volume as number })),

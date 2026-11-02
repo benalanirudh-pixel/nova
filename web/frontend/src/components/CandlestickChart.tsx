@@ -35,7 +35,7 @@ export default function CandlestickChart({ candles }: { candles: Candle[] }) {
       layout: { background: { type: ColorType.Solid, color: "#071923" }, textColor: "#91A9BE" },
       grid: { vertLines: { color: "rgba(11,100,120,0.1)" }, horzLines: { color: "rgba(11,100,120,0.1)" } },
       rightPriceScale: { borderColor: "#0B6478" },
-      timeScale: { borderColor: "#0B6478" },
+      timeScale: { borderColor: "#0B6478", lockVisibleTimeRangeOnResize: true },
     });
     const candle = chart.addSeries(CandlestickSeries, {
       upColor: "#00E6A8", downColor: "#FF405A", borderVisible: false,

@@ -15,7 +15,13 @@ export default function SymbolSearch({ onSelect, symbols }: { onSelect: (s: stri
 
   const matches = useMemo(() => {
     if (!q) return [];
-    return symbols.filter((s) => s.symbol.toUpperCase().startsWith(q) || s.name.toUpperCase().includes(q)).slice(0, 10);
+    // rank: exact symbol, then symbol prefix, then name substring — so Enter picks what was typed
+    const rank = (s: { symbol: string; name: string }) => {
+      const sym = s.symbol.toUpperCase();
+      return sym === q ? 0 : sym.startsWith(q) ? 1 : s.name.toUpperCase().includes(q) ? 2 : 3;
+    };
+    return symbols.map((s) => [rank(s), s] as const).filter(([r]) => r < 3)
+      .sort((a, b) => a[0] - b[0]).slice(0, 10).map(([, s]) => s);
   }, [q, symbols]);
 
   const pick = (s: string) => { setText(""); setQ(""); setOpen(false); onSelect(s); };
