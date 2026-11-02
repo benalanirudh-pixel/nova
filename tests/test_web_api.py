@@ -80,6 +80,7 @@ class TestStockEndpoint(unittest.TestCase):
         self.assertIs(body["analysis"]["above_ema"], True)
         self.assertIsNone(body["volatility"]["atr"])
         self.assertEqual(body["score"]["overall"], 70)
+        self.assertIn("guardrails", body)
 
     def test_symbols_endpoint_returns_list(self):
         r = self.client.get("/api/symbols")
@@ -124,22 +125,59 @@ class TestRefreshEndpoint(unittest.TestCase):
     def test_refresh_returns_status(self):
         from unittest import mock
         with mock.patch("web.api.scheduler.get_market_lab_data"):
-            r = self.client.get("/api/refresh")
+            r = self.client.post("/api/refresh")
         self.assertEqual(r.status_code, 200)
         self.assertIn(r.json()["status"], ("refreshing", "already_running"))
+
+    def test_refresh_get_not_allowed(self):
+        # 405 from the router; 404 when the SPA catch-all (built dist) answers GET /api/*
+        self.assertIn(self.client.get("/api/refresh").status_code, (404, 405))
+
+    def test_refresh_foreign_origin_rejected(self):
+        from unittest import mock
+        with mock.patch("web.api.scheduler.get_market_lab_data") as m:
+            r = self.client.post("/api/refresh", headers={"Origin": "https://evil.example"})
+            r2 = self.client.post("/api/refresh", headers={"Sec-Fetch-Site": "cross-site"})
+        self.assertEqual(r.status_code, 403)
+        self.assertIn("error", r.json())
+        self.assertEqual(r2.status_code, 403)
+        m.assert_not_called()
+
+    def test_refresh_allowed_origin_ok(self):
+        from unittest import mock
+        with mock.patch("web.api.scheduler.get_market_lab_data"):
+            r = self.client.post("/api/refresh", headers={
+                "Origin": "http://localhost:5173", "Sec-Fetch-Site": "same-origin"})
+        self.assertEqual(r.status_code, 200)
 
     def test_concurrent_refresh_blocked(self):
         from unittest import mock
         from web.api import scheduler
         with mock.patch.object(scheduler, "_running", True):
-            r = self.client.get("/api/refresh")
+            r = self.client.post("/api/refresh")
         self.assertEqual(r.json()["status"], "already_running")
+
+    def test_refresh_timeout_broadcasts_failure_and_resets(self):
+        import asyncio, time
+        from unittest import mock
+        from web.api import scheduler
+        q = scheduler.subscribe()
+        try:
+            with mock.patch.object(scheduler, "REFRESH_TIMEOUT_S", 0.05),                  mock.patch.object(scheduler, "get_market_lab_data", side_effect=lambda **k: time.sleep(0.3)),                  mock.patch.object(scheduler, "_running", True):
+                asyncio.run(scheduler._run_refresh())
+                self.assertFalse(scheduler._running)
+            self.assertIn("refresh_failed", q.get_nowait())
+        finally:
+            scheduler.unsubscribe(q)
 
     def test_lifespan_starts_and_stops_scheduler(self):
         from starlette.testclient import TestClient
         app = create_app()
         with TestClient(app):
-            self.assertEqual(len(app.state.scheduler.get_jobs()), 4)
+            jobs = app.state.scheduler.get_jobs()
+            self.assertEqual(len(jobs), 4)
+            for j in jobs:
+                self.assertIn("day_of_week='mon-fri'", str(j.trigger))
 
 
 class TestFullIntegration(unittest.TestCase):

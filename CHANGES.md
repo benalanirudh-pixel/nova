@@ -3,6 +3,12 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-02 - Web dashboard: refresh is POST + origin-checked
+
+`GET /api/refresh` is now `POST /api/refresh` (403 for foreign Origin or
+cross-site Sec-Fetch-Site); refresh has a 900s timeout; scheduled refreshes run
+Mon-Fri only.
+
 ## 2026-11-02 - Web dashboard: production build and static serving
 
 The FastAPI + React dashboard (`web/`) is complete: Market Overview, Stock

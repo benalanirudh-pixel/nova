@@ -13,7 +13,7 @@ export default function SymbolSearch({ onSelect, symbols }: { onSelect: (s: stri
     return () => clearTimeout(t);
   }, [text]);
 
-  const matches = useMemo(() => {
+  const rankMatches = (q: string) => {
     if (!q) return [];
     // rank: exact symbol, then symbol prefix, then name substring — so Enter picks what was typed
     const rank = (s: { symbol: string; name: string }) => {
@@ -22,7 +22,8 @@ export default function SymbolSearch({ onSelect, symbols }: { onSelect: (s: stri
     };
     return symbols.map((s) => [rank(s), s] as const).filter(([r]) => r < 3)
       .sort((a, b) => a[0] - b[0]).slice(0, 10).map(([, s]) => s);
-  }, [q, symbols]);
+  };
+  const matches = useMemo(() => rankMatches(q), [q, symbols]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pick = (s: string) => { setText(""); setQ(""); setOpen(false); onSelect(s); };
 
@@ -34,13 +35,14 @@ export default function SymbolSearch({ onSelect, symbols }: { onSelect: (s: stri
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={(e) => {
-          if (e.key === "ArrowDown") { e.preventDefault(); setIdx((i) => Math.min(i + 1, matches.length - 1)); }
+          if (e.key === "ArrowDown") { e.preventDefault(); setIdx((i) => Math.max(0, Math.min(i + 1, matches.length - 1))); }
           else if (e.key === "ArrowUp") { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)); }
           else if (e.key === "Escape") setOpen(false);
           else if (e.key === "Enter") {
-            // before the debounce fires, fall back to the typed text itself
-            const m = matches[idx];
-            if (m) pick(m.symbol); else if (text.trim()) pick(text.trim().toUpperCase());
+            // act on the live text, not the debounced q; keep arrow selection only once q has caught up
+            const live = text.trim().toUpperCase();
+            const m = (live === q ? matches[idx] : rankMatches(live)[0]);
+            if (m) pick(m.symbol); else if (live) pick(live);
           }
         }}
         placeholder="Search symbol or company (e.g. RELIANCE)"

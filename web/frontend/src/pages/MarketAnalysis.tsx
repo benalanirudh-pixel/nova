@@ -111,7 +111,8 @@ function SectorTable({ sectors }: { sectors: Sector[] | null }) {
 
 const streak = (s?: Streak) => (Array.isArray(s) && s.length === 2 ? `${s[0]} for ${s[1]} session${s[1] === 1 ? "" : "s"}` : "N/A");
 function FlowSection({ f }: { f: FlowsFull | null }) {
-  if (!f || !f.available) return <NoData />;
+  if (!f) return <NoData />;
+  if (!f.available) return <div className="text-sm text-muted">Flow data unavailable{f.signal_reason ? `: ${f.signal_reason}` : ""}</div>;
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3 text-sm">

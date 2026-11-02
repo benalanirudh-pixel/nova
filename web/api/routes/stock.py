@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from analysis.data import symbol_master
+from market_lab import view_model as vm
 from analysis.data.nse_feed import get_stock_history_dataframe
 from analysis.data.technical_engine import analyze_stock, calculate_indicators
 
@@ -67,6 +68,7 @@ def _build(symbol: str) -> dict:
         "research_factors": [],
         "risk": {"position_size": None, "stop_loss": None},
         "analysis": a,
+        "guardrails": vm.guardrails({}),
     }
 
 

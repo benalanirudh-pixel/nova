@@ -1556,5 +1556,6 @@ Checks run:
 - `web_main.py --port 8502` smoke: `/`, `/stock`, `/analysis` 200 HTML;
   `/api/health` 200 JSON; `/api/nope` 404 JSON.
 
-Not run: visual browser check of all three pages in prod mode.
-
+Browser-verified in dev and prod mode: all 3 pages with real cached data, deep
+links, `/api/nope` JSON 404. Still not verified: live end-to-end refresh,
+scheduler firing, no-cache UI.

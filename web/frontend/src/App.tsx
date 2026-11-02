@@ -40,7 +40,7 @@ export default function App() {
   // refetch on mount, SSE event, and SSE (re)connect
   useEffect(() => {
     loadFreshness();
-    if (last) setRefreshMsg(null);
+    setRefreshMsg(null);
   }, [loadFreshness, last, reconnects]);
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export default function App() {
   }, []);
 
   const refresh = () =>
-    fetchJSON<{ status: string }>("/refresh")
+    fetchJSON<{ status: string }>("/refresh", { method: "POST" })
       .then((d) => setRefreshMsg(d.status === "refreshing" ? "Refreshing…" : "already running"))
       .catch(() => setRefreshMsg("Refresh failed"));
 

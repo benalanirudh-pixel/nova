@@ -8,6 +8,7 @@ from apscheduler.triggers.cron import CronTrigger
 from market_lab.market_lab_data import get_market_lab_data
 
 IST = "Asia/Kolkata"
+REFRESH_TIMEOUT_S = 900
 _running = False  # set synchronously so two quick calls can't both start
 _subscribers: list[asyncio.Queue] = []
 _tasks: set[asyncio.Task] = set()
@@ -32,8 +33,13 @@ def _broadcast(event: dict) -> None:
 async def _run_refresh() -> None:
     global _running
     try:
-        await asyncio.to_thread(get_market_lab_data, force_refresh=True)
+        # The worker thread can't be killed, so a late-finishing scan may overlap the next one.
+        await asyncio.wait_for(asyncio.to_thread(get_market_lab_data, force_refresh=True),
+                               timeout=REFRESH_TIMEOUT_S)
         _broadcast({"type": "refresh_complete", "timestamp": datetime.now().isoformat()})
+    except asyncio.TimeoutError:
+        _broadcast({"type": "refresh_failed", "timestamp": datetime.now().isoformat(),
+                    "error": f"Refresh timed out after {REFRESH_TIMEOUT_S}s"})
     except Exception as exc:  # keep scheduler/app alive; surface via SSE
         _broadcast({"type": "refresh_failed", "timestamp": datetime.now().isoformat(), "error": str(exc)})
     finally:
@@ -59,7 +65,7 @@ async def _scheduled_refresh() -> None:
 def start_scheduler(app) -> None:
     sched = AsyncIOScheduler(timezone=IST)
     for hour, minute in ((9, 15), (13, 30), (15, 15), (18, 0)):
-        sched.add_job(_scheduled_refresh, CronTrigger(hour=hour, minute=minute, timezone=IST))
+        sched.add_job(_scheduled_refresh, CronTrigger(day_of_week="mon-fri", hour=hour, minute=minute, timezone=IST))
     sched.start()
     app.state.scheduler = sched
 
