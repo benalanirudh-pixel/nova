@@ -1564,10 +1564,10 @@ scheduler firing, no-cache UI.
 
 Checks run:
 
-- `.env\Scripts\python.exe -m unittest tests.test_live_feed tests.test_web_api` - 37 tests OK
+- `.\venv\Scripts\python.exe -m unittest tests.test_live_feed tests.test_web_api` - 37 tests OK
   (session gating, change-only emission, missing price skipped, stale flag,
   Dhan index ticks, backoff, watch cap/validation/expiry, route origin check).
-- `.env\Scripts\python.exe -m unittest discover -s tests` - 473 tests OK.
+- `.\venv\Scripts\python.exe -m unittest discover -s tests` - 473 tests OK.
 
 Not verified: real ticks during market hours against the Indian Market MCP or
 Dhan; adapter latency under 25 watched symbols.
