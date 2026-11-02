@@ -3,6 +3,24 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-02 - Web dashboard: production build and static serving
+
+The FastAPI + React dashboard (`web/`) is complete: Market Overview, Stock
+Analysis, Market Analysis, SSE refresh, localhost-only (127.0.0.1), analysis
+only, guardrails unchanged.
+
+- `python web_main.py --build` runs `npm run build` in `web/frontend` and exits.
+- `python web_main.py` serves API + built frontend on http://127.0.0.1:8501.
+- `python web_main.py --dev` serves the API only; run Vite separately.
+- `create_app()` serves `web/frontend/dist` when present: `/assets`, top-level
+  files (traversal-guarded) and an SPA fallback to `index.html`. Unknown
+  `/api/...` paths return JSON 404.
+- `requirements.txt` / `pyproject.toml`: added `APScheduler`, `fastapi`,
+  `tzlocal`; bumped `sse-starlette`, `starlette`, `tzdata` to installed versions.
+
+Files changed: `web/api/main.py`, `web_main.py`, `tests/test_web_api.py`,
+`requirements.txt`, `pyproject.toml`.
+
 ## 2026-11-01 - Stock Analysis page redesign (purple/teal trading terminal)
 
 Redesigned the Stock Analysis page (`market_lab_ui.py::build_stock_page`) into

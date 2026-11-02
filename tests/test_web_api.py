@@ -140,3 +140,66 @@ class TestRefreshEndpoint(unittest.TestCase):
         app = create_app()
         with TestClient(app):
             self.assertEqual(len(app.state.scheduler.get_jobs()), 4)
+
+
+class TestFullIntegration(unittest.TestCase):
+    def setUp(self):
+        from starlette.testclient import TestClient
+        self.client = TestClient(create_app())
+
+    def test_all_api_endpoints_return_200(self):
+        for path in ["/api/health", "/api/market-overview", "/api/market-analysis", "/api/symbols"]:
+            with self.subTest(path=path):
+                r = self.client.get(path)
+                self.assertEqual(r.status_code, 200, f"{path} returned {r.status_code}")
+
+    def test_guardrails_in_all_market_responses(self):
+        for path in ["/api/market-overview", "/api/market-analysis"]:
+            with self.subTest(path=path):
+                self.assertIn("guardrails", self.client.get(path).json())
+
+
+class TestStaticServing(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        from starlette.testclient import TestClient
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        dist = Path(self._tmp.name) / "dist"
+        (dist / "assets").mkdir(parents=True)
+        (dist / "index.html").write_text("<html>SPA</html>", encoding="utf-8")
+        (dist / "assets" / "a.js").write_text("console.log(1)", encoding="utf-8")
+        (dist / "favicon.svg").write_text("<svg/>", encoding="utf-8")
+        (Path(self._tmp.name) / "secret.txt").write_text("SECRET", encoding="utf-8")
+        self.client = TestClient(create_app(dist))
+
+    def test_deep_link_serves_index(self):
+        r = self.client.get("/stock")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("SPA", r.text)
+        self.assertIn("text/html", r.headers["content-type"])
+
+    def test_assets_and_top_level_files(self):
+        self.assertEqual(self.client.get("/assets/a.js").text, "console.log(1)")
+        self.assertEqual(self.client.get("/favicon.svg").text, "<svg/>")
+
+    def test_unknown_api_path_is_json_404(self):
+        r = self.client.get("/api/nope")
+        self.assertEqual(r.status_code, 404)
+        self.assertEqual(r.json(), {"detail": "Not Found"})
+
+    def test_real_api_still_wins(self):
+        self.assertEqual(self.client.get("/api/health").json()["status"], "ok")
+
+    def test_traversal_does_not_leak(self):
+        for path in ["/..%2fsecret.txt", "/..%2f..%2fweb_main.py", "/%2e%2e/secret.txt", "/../secret.txt"]:
+            with self.subTest(path=path):
+                r = self.client.get(path)
+                self.assertNotIn("SECRET", r.text)
+                self.assertNotIn("uvicorn", r.text)
+
+    def test_no_dist_means_no_static(self):
+        from starlette.testclient import TestClient
+        c = TestClient(create_app(Path(self._tmp.name) / "missing"))
+        self.assertEqual(c.get("/stock").status_code, 404)
+        self.assertEqual(c.get("/api/health").status_code, 200)

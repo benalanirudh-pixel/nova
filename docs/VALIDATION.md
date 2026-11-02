@@ -1544,3 +1544,17 @@ Checks run:
 Not run: on-desktop visual inspection (headless offscreen render only); live
 Dhan data not configured; `MAX_SYMBOLS` cap path not triggered in tests (watch
 list starts empty per test).
+
+## 2026-11-02 - Web dashboard production build
+
+Checks run:
+
+- `.\venv\Scripts\python.exe -m unittest tests.test_web_api -v` - 22 tests OK
+  (API, integration, static serving, SPA fallback, traversal, no-dist).
+- `.\venv\Scripts\python.exe -m unittest discover -s tests` - 419 tests OK.
+- `.\venv\Scripts\python.exe web_main.py --build` - Vite build OK.
+- `web_main.py --port 8502` smoke: `/`, `/stock`, `/analysis` 200 HTML;
+  `/api/health` 200 JSON; `/api/nope` 404 JSON.
+
+Not run: visual browser check of all three pages in prod mode.
+

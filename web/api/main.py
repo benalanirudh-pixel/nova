@@ -1,7 +1,10 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from web.api.routes.analysis import router as analysis_router
 from web.api import scheduler
@@ -18,7 +21,11 @@ async def lifespan(app: FastAPI):
     scheduler.stop_scheduler(app)
 
 
-def create_app() -> FastAPI:
+DIST_DIR = Path(__file__).resolve().parents[1] / "frontend" / "dist"
+
+
+def create_app(dist: Path | None = None) -> FastAPI:
+    dist = (DIST_DIR if dist is None else Path(dist)).resolve()
     app = FastAPI(title="Nova Web API", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
@@ -39,4 +46,18 @@ def create_app() -> FastAPI:
     app.include_router(analysis_router, prefix="/api")
     app.include_router(stock_router, prefix="/api")
     app.include_router(events_router, prefix="/api")
+
+    if (dist / "index.html").is_file():
+        if (dist / "assets").is_dir():
+            app.mount("/assets", StaticFiles(directory=dist / "assets"), name="assets")
+
+        @app.get("/{path:path}", include_in_schema=False)
+        def spa(path: str):
+            if path == "api" or path.startswith("api/"):
+                return JSONResponse({"detail": "Not Found"}, status_code=404)
+            f = (dist / path).resolve()
+            if f.is_file() and f.is_relative_to(dist):
+                return FileResponse(f)
+            return FileResponse(dist / "index.html")  # SPA deep-link fallback
+
     return app
