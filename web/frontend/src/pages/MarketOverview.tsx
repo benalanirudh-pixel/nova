@@ -7,11 +7,12 @@ import SectorHeatmap from "../components/SectorHeatmap";
 import StatusBar from "../components/StatusBar";
 import { useMarketData } from "../hooks/useMarketData";
 import { fmt, isNum } from "../lib/format";
+import type { MarketOverviewData } from "../lib/types";
 
 const pct = (v: unknown) => (isNum(v) ? v : null);
 
 export default function MarketOverview() {
-  const { data, loading, error } = useMarketData();
+  const { data, loading, error } = useMarketData<MarketOverviewData>("/market-overview");
 
   if (loading && !data) {
     return (
