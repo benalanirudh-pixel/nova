@@ -1,5 +1,6 @@
-import { fmt, isNum } from "../lib/format";
+import { fmt, fmtPct, isNum, label } from "../lib/format";
 import type { Sector } from "../lib/types";
+import { Panel } from "./ui";
 
 const SCALE = 10; // real 20D returns reach +-15, so +-10 keeps cells from all saturating
 const NEUTRAL = [7, 25, 35];
@@ -15,19 +16,22 @@ function cellColor(v: unknown): string {
 
 export default function SectorHeatmap({ sectors }: { sectors: Sector[] | null }) {
   return (
-    <div className="rounded border border-line/50 bg-panel p-3">
-      <div className="mb-2 text-xs text-secondary">Sectors, 20D return</div>
-      {!sectors || sectors.length === 0 ? <div className="text-sm text-muted">N/A</div> : (
-        <div className="grid grid-cols-2 gap-1">
+    <Panel title="Sectors · 20D return" right="RS = relative strength 20D">
+      {!sectors || sectors.length === 0 ? <div className="text-xs text-muted">N/A</div> : (
+        <div className="grid grid-cols-2 gap-px sm:grid-cols-3">
           {sectors.map((s) => (
-            <div key={s.name} className="rounded p-2 text-xs text-white" style={{ background: cellColor(s.return_20d) }}
-              title={s.regime ? `Regime: ${s.regime}` : undefined}>
-              <div className="truncate">{s.name}</div>
-              <div className="font-semibold">{isNum(s.return_20d) ? `${s.return_20d >= 0 ? "+" : ""}${fmt(s.return_20d)}%` : "N/A"}</div>
+            <div key={s.name} className="min-w-0 p-1.5 text-white" style={{ background: cellColor(s.return_20d) }}
+              title={`${s.name} · 20D ${fmtPct(s.return_20d)} · RS ${fmt(s.relative_strength_20d)} · ${label(s.regime)}`}>
+              <div className="truncate text-[11px] font-semibold">{s.name}</div>
+              <div className="font-mono text-sm font-semibold tabular-nums">{fmtPct(s.return_20d)}</div>
+              <div className="flex justify-between gap-1 text-[10px] text-white/75">
+                <span className="font-mono tabular-nums">RS {fmt(s.relative_strength_20d, 1)}</span>
+                <span className="truncate uppercase">{label(s.regime)}</span>
+              </div>
             </div>
           ))}
         </div>
       )}
-    </div>
+    </Panel>
   );
 }

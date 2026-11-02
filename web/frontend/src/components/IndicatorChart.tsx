@@ -4,6 +4,7 @@ import {
 } from "lightweight-charts";
 import { isNum } from "../lib/format";
 import { COLORS } from "../lib/theme";
+import { Panel } from "./ui";
 
 export interface IndPoint { time: string; value?: number | null; macd?: number | null; signal?: number | null; histogram?: number | null }
 
@@ -22,7 +23,7 @@ export default function IndicatorChart({ kind, data, title }: { kind: "rsi" | "m
     if (!ref.current) return;
     const chart = createChart(ref.current, {
       autoSize: true,
-      layout: { background: { type: ColorType.Solid, color: COLORS.bgPanel }, textColor: COLORS.textSecondary },
+      layout: { background: { type: ColorType.Solid, color: COLORS.bgPanel }, textColor: COLORS.textSecondary, fontSize: 11 },
       grid: { vertLines: { color: "rgba(11,100,120,0.1)" }, horzLines: { color: "rgba(11,100,120,0.1)" } },
       rightPriceScale: { borderColor: COLORS.border },
       timeScale: { borderColor: COLORS.border, lockVisibleTimeRangeOnResize: true },
@@ -57,9 +58,8 @@ export default function IndicatorChart({ kind, data, title }: { kind: "rsi" | "m
   }, [data, kind]);
 
   return (
-    <div className="rounded border border-line/50 bg-panel p-2">
-      <div className="mb-1 text-xs text-secondary">{title}</div>
-      <div ref={ref} className="h-40 w-full" />
-    </div>
+    <Panel title={title} bodyClass="p-0">
+      <div ref={ref} className="h-36 w-full" />
+    </Panel>
   );
 }

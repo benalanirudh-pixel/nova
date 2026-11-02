@@ -1,77 +1,34 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
+import BreadthBars from "../components/BreadthBars";
+import DerivativesPanel from "../components/DerivativesPanel";
 import FlowGauge from "../components/FlowGauge";
-import StatusBar from "../components/StatusBar";
+import IndicatorStrip from "../components/IndicatorStrip";
+import { Chip, NoData, Num, Panel, Stat, btn } from "../components/ui";
 import { useMarketData } from "../hooks/useMarketData";
-import { fmt, isNum } from "../lib/format";
-import type { DerivativesFull, FlowsFull, MarketAnalysisData, Sector, Streak } from "../lib/types";
-
-const sign = (v: unknown) => (!isNum(v) ? "text-muted" : v >= 0 ? "text-positive" : "text-negative");
-const label = (s: unknown) => (typeof s === "string" && s ? s.replaceAll("_", " ") : "N/A");
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="rounded border border-line/50 bg-panel p-4">
-      <h2 className="mb-3 text-sm text-accent">{title}</h2>
-      {children}
-    </section>
-  );
-}
-const NoData = () => <div className="text-sm text-muted">No cache: run a refresh to load this section.</div>;
-
-function Badge({ text, tone }: { text?: string; tone: string }) {
-  return <span className={`rounded border px-2 py-0.5 text-xs ${tone}`}>{label(text)}</span>;
-}
-function regimeTone(r?: string) {
-  const u = (r ?? "").toUpperCase();
-  return u.includes("BULL") ? "border-positive text-positive" : u.includes("BEAR") ? "border-negative text-negative" : "border-warning text-warning";
-}
-function Stat({ k, v }: { k: string; v: ReactNode }) {
-  return <div className="rounded border border-line/50 p-2"><div className="text-xs text-secondary">{k}</div><div className="text-sm">{v}</div></div>;
-}
+import { isNum, label, signCls } from "../lib/format";
+import type { MarketAnalysisData, Sector } from "../lib/types";
 
 function RegimeSection({ r }: { r: MarketAnalysisData["regime"] }) {
-  if (!r) return <NoData />;
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <Badge text={r.market_regime} tone={regimeTone(r.market_regime)} />
-      <Stat k="India VIX" v={fmt(r.india_vix)} />
-      <Stat k="VIX regime" v={label(r.vix_regime)} />
-      <Stat k="VIX 1Y percentile" v={fmt(r.vix_percentile_1y, 1)} />
-      <Stat k="VIX direction" v={label(r.vix_direction)} />
-    </div>
-  );
-}
-
-function Pct({ label: l, v }: { label: string; v: unknown }) {
-  return (
-    <div className="mb-1 flex items-center gap-2 text-xs">
-      <span className="w-28 text-secondary">{l}</span>
-      <div className="h-3 flex-1 bg-line/20">{isNum(v) && <div className="h-3 bg-info" style={{ width: `${Math.min(100, Math.max(0, v))}%` }} />}</div>
-      <span className="w-16 text-right">{isNum(v) ? `${fmt(v, 1)}%` : "N/A"}</span>
-    </div>
-  );
-}
-function BreadthSection({ b }: { b: MarketAnalysisData["breadth"] }) {
-  if (!b) return <NoData />;
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Stat k="Advancing" v={<span className="text-positive">{fmt(b.advancing, 0)}</span>} />
-        <Stat k="Declining" v={<span className="text-negative">{fmt(b.declining, 0)}</span>} />
-        <Stat k="Unchanged" v={fmt(b.unchanged, 0)} />
-        <Stat k="A/D ratio" v={fmt(b.ad_ratio)} />
-        <Stat k="52W highs" v={fmt(b.new_52w_highs, 0)} />
-        <Stat k="52W lows" v={fmt(b.new_52w_lows, 0)} />
-        <Stat k="McClellan summation" v={fmt(b.mcclellan_summation)} />
-      </div>
-      <div>
-        <Pct label="Above EMA 20" v={b.above_ema20_percent} />
-        <Pct label="Above EMA 50" v={b.above_ema50_percent} />
-        <Pct label="Above EMA 200" v={b.above_ema200_percent} />
-        <Pct label="Strong uptrend" v={b.strong_uptrend_percent} />
-        <Pct label="Strong downtrend" v={b.strong_downtrend_percent} />
-      </div>
-    </div>
+    <Panel title="Regime analysis" right={r && <Chip text={r.market_regime} />}>
+      {!r ? <NoData /> : (
+        <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-6">
+          <Stat k="NIFTY"><Num v={r.nifty_price} /></Stat>
+          <Stat k="India VIX"><Num v={r.india_vix} /></Stat>
+          <Stat k="VIX change"><Num v={r.vix_change_percent} signed suffix="%" /></Stat>
+          <Stat k="VIX regime"><Chip text={r.vix_regime} /></Stat>
+          <Stat k="VIX 1Y percentile">
+            <div className="flex items-center gap-1.5">
+              <Num v={r.vix_percentile_1y} d={1} />
+              <div className="h-1.5 flex-1 rounded-full bg-line/30">
+                {isNum(r.vix_percentile_1y) && <div className="h-1.5 rounded-full bg-warning/70" style={{ width: `${Math.min(100, Math.max(0, r.vix_percentile_1y))}%` }} />}
+              </div>
+            </div>
+          </Stat>
+          <Stat k="VIX direction"><span className="text-secondary">{label(r.vix_direction)}</span></Stat>
+        </div>
+      )}
+    </Panel>
   );
 }
 
@@ -79,7 +36,7 @@ type SortKey = "name" | "return_20d" | "relative_strength_20d" | "regime";
 function SectorTable({ sectors }: { sectors: Sector[] | null }) {
   const [key, setKey] = useState<SortKey>("return_20d");
   const [asc, setAsc] = useState(false);
-  if (!sectors || sectors.length === 0) return <NoData />;
+  if (!sectors || sectors.length === 0) return <Panel title="Sector performance"><NoData /></Panel>;
   const rows = [...sectors].sort((a, b) => {
     const x = a[key], y = b[key];
     if (typeof x === "string" && typeof y === "string") return asc ? x.localeCompare(y) : y.localeCompare(x);
@@ -87,116 +44,81 @@ function SectorTable({ sectors }: { sectors: Sector[] | null }) {
     if (!isNum(y)) return -1;
     return asc ? x - y : y - x;
   });
+  const max = Math.max(1, ...sectors.map((s) => s.return_20d).filter(isNum).map(Math.abs));
   const th = (k: SortKey, t: string, right = true) => (
-    <th className={`cursor-pointer select-none p-1 ${right ? "text-right" : "text-left"}`} onClick={() => { if (k === key) setAsc(!asc); else { setKey(k); setAsc(k === "name" || k === "regime"); } }}>
-      {t}{k === key ? (asc ? " ▲" : " ▼") : ""}
+    <th className={`px-1.5 py-0.5 font-normal ${right ? "text-right" : "text-left"}`}
+      aria-sort={k === key ? (asc ? "ascending" : "descending") : "none"}>
+      <button className={`${btn} border-transparent uppercase ${k === key ? "text-accent" : "text-muted hover:text-secondary"}`}
+        onClick={() => { if (k === key) setAsc(!asc); else { setKey(k); setAsc(k === "name" || k === "regime"); } }}>
+        {t}{k === key ? (asc ? " ▲" : " ▼") : ""}
+      </button>
     </th>
   );
   return (
-    <table className="w-full text-sm">
-      <thead className="text-xs text-secondary"><tr>{th("name", "Sector", false)}{th("return_20d", "20D return")}{th("relative_strength_20d", "RS 20D")}{th("regime", "Regime", false)}</tr></thead>
-      <tbody>
-        {rows.map((s) => (
-          <tr key={s.name} className="border-t border-line/30">
-            <td className="p-1">{s.name}</td>
-            <td className={`p-1 text-right ${sign(s.return_20d)}`}>{isNum(s.return_20d) ? `${fmt(s.return_20d)}%` : "N/A"}</td>
-            <td className={`p-1 text-right ${sign(s.relative_strength_20d)}`}>{fmt(s.relative_strength_20d)}</td>
-            <td className="p-1 pl-4">{label(s.regime)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <Panel title="Sector performance" bodyClass="p-0">
+      <table className="w-full text-xs">
+        <thead className="text-[10px] text-muted">
+          <tr>{th("name", "Sector", false)}{th("return_20d", "20D return")}<th className="w-1/3 px-1.5 font-normal" aria-label="20D return bar" />{th("relative_strength_20d", "RS 20D")}{th("regime", "Regime", false)}</tr>
+        </thead>
+        <tbody>
+          {rows.map((s) => (
+            <tr key={s.name} className="border-t border-line/20 hover:bg-line/15">
+              <td className="px-1.5 py-0.5">{s.name}</td>
+              <td className="px-1.5 text-right"><Num v={s.return_20d} signed suffix="%" /></td>
+              <td className="px-1.5">
+                <div className="flex h-2">
+                  <div className="flex w-1/2 justify-end border-r border-line/40">
+                    {isNum(s.return_20d) && s.return_20d < 0 && <div className="bg-negative/80" style={{ width: `${(-s.return_20d / max) * 100}%` }} />}
+                  </div>
+                  <div className="flex w-1/2">
+                    {isNum(s.return_20d) && s.return_20d > 0 && <div className="bg-positive/80" style={{ width: `${(s.return_20d / max) * 100}%` }} />}
+                  </div>
+                </div>
+              </td>
+              <td className={`px-1.5 text-right ${signCls(s.relative_strength_20d)}`}><Num v={s.relative_strength_20d} signed /></td>
+              <td className="px-1.5"><Chip text={s.regime} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Panel>
   );
 }
 
-const streak = (s?: Streak) => (Array.isArray(s) && s.length === 2 ? `${s[0]} for ${s[1]} session${s[1] === 1 ? "" : "s"}` : "N/A");
-function FlowSection({ f }: { f: FlowsFull | null }) {
-  if (!f) return <NoData />;
-  if (!f.available) return <div className="text-sm text-muted">Flow data unavailable{f.signal_reason ? `: ${f.signal_reason}` : ""}</div>;
+function EventSection({ e }: { e: MarketAnalysisData["events"] }) {
+  const evs = e?.upcoming_events ?? [];
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        <Badge text={f.flow_regime} tone="border-info text-info" />
-        <span className="text-secondary">FII: {streak(f.fii_streak)}</span>
-        <span className="text-secondary">DII: {streak(f.dii_streak)}</span>
-        {f.latest_date && <span className="text-xs text-muted">as of {f.latest_date}</span>}
-      </div>
-      <FlowGauge flows={f} />
-    </div>
-  );
-}
-
-function DerivCard({ title, d }: { title: string; d?: DerivativesFull }) {
-  const wall = (w?: { strike?: unknown; oi?: unknown }) => (w && isNum(w.strike) ? `${fmt(w.strike, 0)} (OI ${fmt(w.oi, 0)})` : "N/A");
-  return (
-    <div className="rounded border border-line/50 p-3">
-      <div className="mb-2 text-sm">{title}{d?.expiry ? <span className="ml-2 text-xs text-muted">exp {d.expiry}</span> : null}</div>
-      {!d || !d.available ? <div className="text-sm text-muted">Not available</div> : (
+    <Panel title="Event risk calendar"
+      right={e && <><Chip text={e.status} /><span>Overall risk</span><Chip text={e.overall_risk} /></>} bodyClass="p-0">
+      {!e ? <NoData /> : (
         <>
-          <div className="grid grid-cols-2 gap-2">
-            <Stat k="OI PCR" v={fmt(d.oi_pcr)} />
-            <Stat k="Volume PCR" v={fmt(d.volume_pcr)} />
-            <Stat k="Max pain" v={fmt(d.max_pain, 0)} />
-            <Stat k="ATM IV" v={isNum(d.atm_iv) ? `${fmt(d.atm_iv)}%` : "N/A"} />
-            <Stat k="Put wall" v={wall(d.put_wall)} />
-            <Stat k="Call wall" v={wall(d.call_wall)} />
-          </div>
-          <div className="mb-1 mt-3 text-xs text-secondary">Unusual activity</div>
-          {d.unusual_activity?.length ? (
+          {e.source_fresh === false && (
+            <div className="border-b border-warning/30 bg-warning/5 px-2 py-1 text-[11px] text-warning">
+              Calendar source stale{e.source_checked_at_utc ? ` (last checked ${e.source_checked_at_utc.slice(0, 10)})` : ""}; verify events independently.
+            </div>
+          )}
+          {evs.length === 0 ? <NoData text="No upcoming events in source" /> : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead className="text-secondary"><tr><th className="p-1 text-left">Type</th><th className="p-1 text-right">Strike</th><th className="p-1 text-right">OI</th><th className="p-1 text-right">Chg OI</th><th className="p-1 text-right">Vol/OI</th><th className="p-1 text-left">Activity</th></tr></thead>
+                <thead className="text-[10px] uppercase text-muted">
+                  <tr><th className="px-1.5 py-0.5 text-left font-normal">Date (UTC)</th><th className="px-1.5 text-left font-normal">Event</th><th className="px-1.5 text-left font-normal">Risk</th><th className="px-1.5 text-left font-normal">Note</th></tr>
+                </thead>
                 <tbody>
-                  {d.unusual_activity.map((u, i) => (
-                    <tr key={i} className="border-t border-line/30">
-                      <td className="p-1">{u.option_type ?? "N/A"}</td>
-                      <td className="p-1 text-right">{fmt(u.strike, 0)}</td>
-                      <td className="p-1 text-right">{fmt(u.oi, 0)}</td>
-                      <td className={`p-1 text-right ${sign(u.change_oi)}`}>{fmt(u.change_oi, 0)}</td>
-                      <td className="p-1 text-right">{fmt(u.volume_oi_ratio, 1)}</td>
-                      <td className="p-1">{u.oi_activity ?? "N/A"}</td>
+                  {evs.map((v, i) => (
+                    <tr key={i} className="border-t border-line/20 align-top hover:bg-line/15">
+                      <td className="whitespace-nowrap px-1.5 py-0.5 font-mono tabular-nums">{v.datetime_utc ? v.datetime_utc.slice(0, 16).replace("T", " ") : "N/A"}</td>
+                      <td className="px-1.5">{v.name ?? "N/A"}</td>
+                      <td className="px-1.5"><Chip text={v.risk_level ?? v.severity} /></td>
+                      <td className="px-1.5 text-[11px] text-secondary">{v.impact_note ?? ""}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          ) : <div className="text-xs text-muted">None reported</div>}
+          )}
         </>
       )}
-    </div>
-  );
-}
-
-function EventSection({ e }: { e: MarketAnalysisData["events"] }) {
-  if (!e) return <NoData />;
-  const evs = e.upcoming_events ?? [];
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        <Badge text={e.status} tone="border-line text-secondary" />
-        <span className="text-secondary">Overall risk: {label(e.overall_risk)}</span>
-      </div>
-      {e.source_fresh === false && (
-        <div className="text-sm text-warning">Calendar source stale{e.source_checked_at_utc ? ` (last checked ${e.source_checked_at_utc.slice(0, 10)})` : ""}; verify events independently.</div>
-      )}
-      {evs.length === 0 ? <div className="text-sm text-muted">No upcoming events in source</div> : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-xs text-secondary"><tr><th className="p-1 text-left">Date (UTC)</th><th className="p-1 text-left">Event</th><th className="p-1 text-left">Risk</th><th className="p-1 text-left">Note</th></tr></thead>
-            <tbody>
-              {evs.map((v, i) => (
-                <tr key={i} className="border-t border-line/30 align-top">
-                  <td className="whitespace-nowrap p-1">{v.datetime_utc ? v.datetime_utc.slice(0, 16).replace("T", " ") : "N/A"}</td>
-                  <td className="p-1">{v.name ?? "N/A"}</td>
-                  <td className="p-1">{label(v.risk_level ?? v.severity)}</td>
-                  <td className="p-1 text-xs text-secondary">{v.impact_note ?? ""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+    </Panel>
   );
 }
 
@@ -205,30 +127,30 @@ export default function MarketAnalysis() {
 
   if (loading && !data) {
     return (
-      <div className="animate-pulse space-y-4" aria-busy="true">
-        {Array.from({ length: 6 }, (_, i) => <div key={i} className="h-32 rounded bg-panel" />)}
+      <div className="animate-pulse space-y-2" aria-busy="true">
+        {Array.from({ length: 6 }, (_, i) => <div key={i} className="h-28 rounded-sm bg-panel" />)}
       </div>
     );
   }
   if (!data) return <div className="text-negative">Failed to load: {error ?? "No data"}</div>;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {error && <div className="text-xs text-warning">Refresh failed ({error}); showing last data.</div>}
-      <Section title="Regime Analysis"><RegimeSection r={data.regime} /></Section>
-      <Section title="Breadth Deep-Dive"><BreadthSection b={data.breadth} /></Section>
-      <Section title="Sector Performance"><SectorTable sectors={data.sectors} /></Section>
-      <Section title="Institutional Flow"><FlowSection f={data.flows} /></Section>
-      <Section title="Derivatives Intelligence">
-        {data.derivatives ? (
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <DerivCard title="NIFTY" d={data.derivatives.nifty} />
-            <DerivCard title="BANK NIFTY" d={data.derivatives.bank_nifty} />
-          </div>
-        ) : <NoData />}
-      </Section>
-      <Section title="Event Risk Calendar"><EventSection e={data.events} /></Section>
-      <StatusBar freshness={data.freshness} />
+      <RegimeSection r={data.regime} />
+      <IndicatorStrip ind={data.indicators} />
+      <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+        <BreadthBars breadth={data.breadth} detail />
+        <FlowGauge flows={data.flows} />
+      </div>
+      <SectorTable sectors={data.sectors} />
+      {data.derivatives ? (
+        <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+          <DerivativesPanel title="NIFTY" d={data.derivatives.nifty} />
+          <DerivativesPanel title="BANK NIFTY" d={data.derivatives.bank_nifty} />
+        </div>
+      ) : <Panel title="Derivatives"><NoData /></Panel>}
+      <EventSection e={data.events} />
     </div>
   );
 }
