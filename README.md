@@ -1,76 +1,72 @@
 # Nova
 
-**Local AI-powered Indian market analysis workbench.**
+**Real-time Indian market analysis dashboard — runs locally, no broker, no cloud.**
 
-Nova is a desktop and web analysis terminal built for Indian equity markets. It runs entirely on your machine — NSE data, technical analysis, derivatives intelligence, institutional flow tracking, and local AI interpretation — with no cloud dependency and no broker connection.
+Nova is a web-based NSE analysis terminal built with FastAPI and React. It pulls live data from the National Stock Exchange, runs technical, derivatives, institutional flow, and regime analysis through Python engines, and renders everything in a professional trading dashboard at `http://127.0.0.1:8501`. AI interpretation is powered by a local Ollama instance. All data stays on your machine.
 
-> **Analysis only.** Nova does not connect to any broker, place trades, or generate buy/sell signals. Every output surface carries this disclaimer.
+> **Analysis only.** Nova does not connect to any broker, place trades, or generate buy/sell signals.
 
 ---
 
-## Screenshots
+## Dashboard
 
 <p align="center">
-  <img src="screenshots/terminal_v2_final.png" alt="Nova Terminal — unified dashboard" width="100%">
+  <img src="screenshots/kilo_marketlab_full.png" alt="Nova Dashboard — Market Overview" width="100%">
 </p>
 
 <details>
-<summary>More screenshots</summary>
+<summary>More views</summary>
 
-| Market Dashboard | Stock Analysis |
+| Stock Analysis | Market Analysis (Nifty Deep Dive) |
 |:---:|:---:|
-| <img src="screenshots/dashboard.png" alt="Market Dashboard" width="480"> | <img src="screenshots/stock.png" alt="Stock Analysis" width="480"> |
+| <img src="screenshots/stock.png" alt="Stock Analysis" width="480"> | <img src="screenshots/report.png" alt="Market Analysis" width="480"> |
 
-| Market Lab (Full Report) | Web Dashboard |
+| Desktop Terminal (PySide6) | Market Dashboard |
 |:---:|:---:|
-| <img src="screenshots/report.png" alt="Market Lab Report" width="480"> | <img src="screenshots/kilo_marketlab_full.png" alt="Web Dashboard" width="480"> |
+| <img src="screenshots/terminal_v2_final.png" alt="Nova Terminal" width="480"> | <img src="screenshots/dashboard.png" alt="Market Dashboard" width="480"> |
 
 </details>
 
 ---
 
-## What It Does
+## Pages
 
-### Market Dashboard
-- **Index tracking** — Nifty 50, Bank Nifty, India VIX with candlestick charts and range selectors
-- **KPI strip** — 7 live indicators with sparklines (Nifty, Bank Nifty, VIX, Advance/Decline, FII, DII, PCR)
-- **Market breadth** — Advances vs. declines vs. unchanged with visual bar and EMA-breadth cards
-- **Institutional flows** — FII and DII net activity gauges, daily and cumulative
-- **Sector heatmap** — Performance grid across NSE sectors
-- **Derivatives strip** — ATM IV, PCR, max pain, OI walls at a glance
+### Market Overview
+- **Ticker tape** — Nifty 50, Bank Nifty, India VIX, sector leaders with live prices and change
+- **Index cards** — Candlestick charts with OHLC, multi-period returns (5D/20D/60D), 52-week range bar
+- **KPI strip** — 7 indicators with sparklines: Nifty, Bank Nifty, VIX, Advance/Decline, FII, DII, PCR
+- **Market breadth** — Advances vs. declines vs. unchanged with percent bars
+- **Institutional flows** — FII and DII net activity gauges (daily and cumulative)
+- **Sector heatmap** — NSE sector performance grid
+- **Derivatives strip** — ATM IV, PCR, max pain, OI walls
 
 ### Stock Analysis
-- **Technical indicators** — RSI, MACD, ADX, ATR, EMA/SMA crossovers
-- **Momentum gauge** — Composite 0–100 score with threshold zones (red/amber/green)
-- **52-week positioning** — Current price relative to high/low range
-- **Multi-period returns** — 1D, 5D, 20D, 60D performance
-- **AI research report** — Local LLM generates executive summary, bullish/bearish factors, key price levels, and market context
-- **Trend structure** — Higher highs/lows analysis with support/resistance levels
+- **Symbol search** — Search across 2,333 NSE equities with recent history
+- **Candlestick chart** — Price action with volume, synced indicator chart (RSI/MACD/ADX)
+- **Momentum gauge** — Composite 0–100 score with red/amber/green threshold zones
+- **Technical table** — RSI, MACD, ADX, ATR, EMA/SMA signals, trend structure
+- **52-week range** — Current price positioning with high/low
+- **Multi-period returns** — 1D, 5D, 20D, 60D
+- **AI research report** — LLM-generated executive summary, bullish/bearish factors, key levels
 
 ### Market Analysis (Nifty Deep Dive)
+- **Regime assessment** — VIX regime, VIX percentile (1Y), breadth regime, composite market state
 - **Derivatives desk** — PCR, max pain, ATM IV, put/call walls, unusual OI activity
-- **OI wall visualization** — Strike-level open interest with directional bias
-- **Regime assessment** — VIX regime, breadth regime, composite market state
-- **Positioning intelligence** — Institutional positioning and flow summary
-- **AI narrative** — LLM-generated market interpretation with evidence citations
+- **Institutional positioning** — FII/DII flow summary with directional bias
+- **Sector performance** — Returns across NSE sectors with regime context
+- **Breadth analysis** — Advance/decline ratios, breadth thrust indicators
+- **AI narrative** — LLM interpretation with evidence citations
 
-### Nova Assistant
-- Local AI chat powered by Ollama (qwen3.5:4b)
-- Voice input (Faster-Whisper STT) and output (Piper TTS)
-- Web research via local SearXNG
-- Tool-augmented conversations with market data access
-
-### Web Dashboard
-- Browser-based interface at `http://127.0.0.1:8501`
-- Market Overview, Stock Analysis, and Market Analysis pages
-- Real-time SSE updates, TradingView-style charts
-- Localhost-only — does not bind to external interfaces
+### Real-Time Updates
+- **SSE (Server-Sent Events)** — Dashboard auto-updates on data refresh
+- **Scheduled refresh** — Automatic data refresh on weekdays during market hours
+- **Manual refresh** — One-click refresh button with POST endpoint (origin-checked)
 
 ---
 
 ## Quick Start
 
-**Requirements:** Windows 10/11, Python 3.14, Git
+**Requirements:** Windows 10/11, Python 3.14, Node.js (for frontend build), Git
 
 ```powershell
 git clone https://github.com/benalanirudh-pixel/nova.git
@@ -80,23 +76,24 @@ python -m venv venv
 .\venv\Scripts\pip.exe install -r requirements.txt
 ```
 
-### Launch
+### Launch the Dashboard
 
 ```powershell
-# Nova Terminal (recommended — unified Bloomberg-style interface)
-.\venv\Scripts\python.exe terminal_main.py
+# Build frontend (first time only)
+.\venv\Scripts\python.exe web_main.py --build
 
-# Nova Assistant (personal AI desktop)
-.\venv\Scripts\python.exe main.py
-
-# Market Lab (standalone analysis terminal)
-.\venv\Scripts\python.exe market_lab_ui.py
-
-# Web Dashboard (browser-based, localhost only)
+# Start the dashboard — opens at http://127.0.0.1:8501
 .\venv\Scripts\python.exe web_main.py
+```
 
-# Launcher with service preflight check
-.\venv\Scripts\python.exe start_nova.py
+### Development Mode
+
+```powershell
+# API only (run Vite dev server separately for hot reload)
+.\venv\Scripts\python.exe web_main.py --dev
+
+# In another terminal:
+cd web/frontend && npm run dev
 ```
 
 ### Market Data
@@ -115,78 +112,120 @@ python -m venv venv
 .\venv\Scripts\python.exe start_nova.py --check
 ```
 
+### Desktop Surfaces (Alternative)
+
+Nova also ships PySide6 desktop UIs for offline use without a browser:
+
+```powershell
+.\venv\Scripts\python.exe terminal_main.py      # Unified Bloomberg-style terminal
+.\venv\Scripts\python.exe market_lab_ui.py       # Market Lab standalone
+.\venv\Scripts\python.exe main.py                # Nova Assistant (AI chat + voice)
+```
+
 ---
 
 ## Architecture
 
 ```
 nova/
-├── terminal_main.py              # Nova Terminal (unified UI)
-├── terminal/
-│   ├── main_window.py            # Shell: header, sidebar, ticker strip
-│   └── pages/                    # Dashboard, stock, market analysis, AI, flows
-├── main.py                       # Nova Assistant
-├── ui.py                         # Assistant UI
-├── brain.py                      # Ollama chat + tool calling
-├── tools.py                      # Tool registry and dispatch
-├── market_lab_ui.py              # Market Lab standalone
-├── market_lab/
-│   ├── market_lab_data.py        # Central report gateway
-│   ├── market_lab_brain.py       # AI interpretation layer
-│   ├── stock_adapter.py          # Per-stock analysis
-│   ├── view_model.py             # Report → UI adapter
-│   └── widgets.py                # Charts, gauges, heatmaps
-├── web_main.py                   # Web dashboard launcher
+├── web_main.py                       # Dashboard launcher (build / serve / dev)
 ├── web/
-│   ├── api/                      # FastAPI backend + SSE
-│   └── frontend/                 # React + TypeScript SPA
+│   ├── api/
+│   │   ├── main.py                   # FastAPI app: health, SSE, static serving
+│   │   ├── report_loader.py          # Shared report cache loader
+│   │   ├── scheduler.py              # APScheduler auto-refresh (weekday)
+│   │   └── routes/
+│   │       ├── market.py             # GET /api/market-overview
+│   │       ├── stock.py              # GET /api/stock/:symbol, /api/symbols
+│   │       ├── analysis.py           # GET /api/market-analysis
+│   │       └── events.py             # GET /api/events (SSE stream)
+│   └── frontend/
+│       ├── src/
+│       │   ├── App.tsx               # Shell: header, ticker tape, sidebar, routes
+│       │   ├── pages/
+│       │   │   ├── MarketOverview.tsx # Dashboard with all panels
+│       │   │   ├── StockAnalysis.tsx  # Per-stock deep dive
+│       │   │   └── MarketAnalysis.tsx # Nifty regime + derivatives analysis
+│       │   ├── components/           # CandlestickChart, FlowGauge, SectorHeatmap, ...
+│       │   ├── hooks/                # useSSE, useMarketData, useStockAnalysis
+│       │   └── lib/                  # API client, formatters, types, theme tokens
+│       ├── package.json              # React 19, TypeScript, Vite, Recharts
+│       └── vite.config.ts
+├── market_lab/
+│   └── market_lab_data.py            # Central report gateway (all engines)
 ├── analysis/
-│   └── data/                     # Analysis engines (see below)
-├── styles/
-│   ├── design_tokens.py          # Unified design system
-│   └── nova_theme.qss            # QSS stylesheet
-└── tests/                        # 423 offline tests
+│   └── data/                         # Python analysis engines (see below)
+└── tests/                            # 423 offline tests
 ```
 
-### Analysis Engines (`analysis/data/`)
+### Analysis Engines
 
-| Engine | What it does |
-|--------|-------------|
+The backend runs 11 Python analysis engines under `analysis/data/`:
+
+| Engine | What it computes |
+|--------|-----------------|
 | `technical_engine.py` | RSI, MACD, ATR, EMA, ADX, trend, momentum scoring |
 | `volatility_engine.py` | VIX context, realized volatility, IV, ATR regime |
 | `derivatives_engine.py` | Nifty/Bank Nifty option chain: PCR, max pain, OI walls, unusual activity |
 | `institutional_flow_engine.py` | FII/DII flow history with primary-source validation |
 | `sector_engine.py` | Sector and macro-sector performance intelligence |
 | `risk_engine.py` | Risk-budget and position-risk calculations |
-| `event_risk_engine.py` | Event-risk context from `event_calendar.json` |
+| `event_risk_engine.py` | Event-risk context (earnings, expiry, policy dates) |
 | `research_factor_engine.py` | Multi-factor scoring |
 | `market_scanner.py` | Full NSE equity scanner (2,333 stocks) + factor ranking |
-| `nse_feed.py` | Indian Market MCP adapter |
+| `nse_feed.py` | Indian Market MCP adapter (primary data source) |
 | `dhan_feed.py` | Optional Dhan market-data adapter (read-only, off by default) |
-
-### Data Sources
-
-| Source | Adapter | Notes |
-|--------|---------|-------|
-| NSE (Indian Market MCP) | `nse_feed.py` | Primary — live quotes, history, option chains |
-| Yahoo Finance | `market_data.py`, `market_universe.py` | Fallback for historical candles |
-| NSE archives | `symbol_master.py`, `derivatives_engine.py` | Equity master, option chain data |
-| NSE FII/DII endpoints | `institutional_flow_engine.py` | Plus Groww secondary mirror |
-| Dhan (optional) | `dhan_feed.py` | Historical candles + live quotes; disabled until configured |
-| Local SearXNG | `tools.py` | Web research for AI assistant |
-| Local Ollama | `brain.py`, `market_lab_brain.py` | qwen3.5:4b for AI interpretation |
 
 ### Report Pipeline
 
-`market_lab_data.py::get_market_lab_data()` is the central gateway:
+`market_lab_data.py::get_market_lab_data()` aggregates all engines into a single JSON report:
 
-1. Load cached NSE equity scan (or run full scan with `--refresh`)
+1. Load cached NSE equity scan (or full scan with `--refresh`)
 2. Aggregate: scanner → regime → breadth → technical → volatility → sector → derivatives → institutional → event risk → research factors
-3. Optionally apply Dhan live overrides (Nifty, Bank Nifty, VIX)
-4. Save JSON to `analysis/data/cache/market_lab/`
-5. Return the report dict consumed by all UI surfaces
+3. Optionally overlay Dhan live quotes (Nifty, Bank Nifty, VIX)
+4. Cache to `analysis/data/cache/market_lab/`
+5. Serve to the dashboard via FastAPI endpoints
 
-Modes: `CACHE_FIRST` (default), `FORCED_REFRESH` (`--refresh`), `LIVE_ONLY` (`--live-only`).
+Modes: **CACHE_FIRST** (default), **FORCED_REFRESH** (`--refresh`), **LIVE_ONLY** (`--live-only`).
+
+### Data Sources
+
+| Source | Adapter | Coverage |
+|--------|---------|----------|
+| NSE via Indian Market MCP | `nse_feed.py` | Live quotes, history, option chains, equity master |
+| Yahoo Finance | `market_data.py` | Fallback for historical candles |
+| NSE FII/DII endpoints | `institutional_flow_engine.py` | Daily institutional flow + Groww mirror |
+| NSE archives | `derivatives_engine.py` | Option chain snapshots |
+| Dhan (optional) | `dhan_feed.py` | Historical candles + live quotes; off by default |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Backend** | Python 3.14, FastAPI, Uvicorn, APScheduler, SSE-Starlette |
+| **Frontend** | React 19, TypeScript, Vite, Recharts, Lightweight Charts, Tailwind CSS |
+| **Analysis** | 11 Python engines: technicals, derivatives, volatility, institutional flow, sectors, risk, regime |
+| **AI** | Ollama (qwen3.5:4b) for market interpretation and stock research |
+| **Data** | Indian Market MCP, Yahoo Finance, NSE, Dhan (optional) |
+| **Desktop** | PySide6, QPainter (alternative offline UI) |
+
+---
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/health` | Service health + guardrail text |
+| GET | `/api/market-overview` | Full market dashboard data |
+| GET | `/api/stock/:symbol` | Per-stock analysis (technicals, AI report) |
+| GET | `/api/symbols?q=` | Symbol search across NSE equities |
+| GET | `/api/market-analysis` | Nifty deep dive (regime, derivatives, flows) |
+| GET | `/api/events` | SSE stream (refresh events) |
+| POST | `/api/refresh` | Trigger data refresh (origin-checked) |
+
+All endpoints return JSON. The dashboard is localhost-only (`127.0.0.1`).
 
 ---
 
@@ -197,21 +236,8 @@ All services run locally. No data leaves your machine.
 | Service | Default URL | Purpose |
 |---------|-------------|---------|
 | Ollama | `http://localhost:11434` | Local LLM inference (qwen3.5:4b) |
-| SearXNG | `http://localhost:8080` | Web research |
 | Indian Market MCP | stdio | NSE market data |
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Runtime | Python 3.14 |
-| Desktop UI | PySide6, QPainter (custom charts, gauges, heatmaps) |
-| Web UI | FastAPI, React 19, TypeScript, Vite, Recharts |
-| AI | Ollama (qwen3.5:4b), Faster-Whisper STT, Piper TTS |
-| 3D | PyOpenGL (assistant visual core) |
-| Data | Indian Market MCP, Yahoo Finance, NSE archives, Dhan (optional) |
+| SearXNG | `http://localhost:8080` | Web research (assistant only) |
 
 ---
 
@@ -222,7 +248,7 @@ All services run locally. No data leaves your machine.
 .\venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-CI (`.github/workflows/ci.yml`) runs a dependency-free gate: AST-parse every `.py` file plus stdlib-only test suites. The full suite runs locally (heavy Windows-specific stack).
+CI (`.github/workflows/ci.yml`) runs a dependency-free gate: AST-parse every `.py` file plus stdlib-only tests. Full suite runs locally (heavy Windows stack).
 
 ---
 
@@ -231,8 +257,9 @@ CI (`.github/workflows/ci.yml`) runs a dependency-free gate: AST-parse every `.p
 - **Analysis only** — No broker integration, no order placement, no trade execution, no BUY/SELL
 - **No invented data** — Missing or stale data is flagged, never fabricated
 - **Cache-first** — Full NSE scans only on explicit `--refresh` or empty cache
-- **Guardrails** — Every UI surface shows the analysis-only disclaimer
-- **Localhost-only** — Web dashboard binds to `127.0.0.1`, refuses cross-origin refresh requests
+- **Guardrails** — Every surface (web and desktop) shows the analysis-only disclaimer
+- **Localhost-only** — Web dashboard binds to `127.0.0.1`, POST `/refresh` is origin-checked
+- **No credentials in code** — Optional Dhan token via git-ignored `.env` or `dhan_config.json`
 
 ---
 
