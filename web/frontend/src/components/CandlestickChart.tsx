@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { ChartProps } from "./IndicatorChart";
 import {
   CandlestickSeries, ColorType, HistogramSeries, LineSeries, createChart,
   type CandlestickData, type IChartApi, type ISeriesApi, type MouseEventParams, type Time,
@@ -43,7 +44,8 @@ function applyRange(chart: IChartApi | null, ok: Candle[], r: Range) {
 }
 
 /** Daily candles + client-side EMA 20 + volume, with range buttons, toggles and a crosshair OHLC legend. */
-export default function CandlestickChart({ candles, title, right }: { candles: Candle[]; title: string; right?: ReactNode }) {
+export default function CandlestickChart({ candles, title, right, empty = "No chart data", className = "", fill, onChart }:
+  { candles: Candle[]; title: string; right?: ReactNode; empty?: ReactNode } & ChartProps) {
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<Series | null>(null);
@@ -62,7 +64,7 @@ export default function CandlestickChart({ candles, title, right }: { candles: C
       autoSize: true,
       layout: { background: { type: ColorType.Solid, color: COLORS.bgPanel }, textColor: COLORS.textSecondary, fontSize: 11 },
       grid: { vertLines: { color: "rgba(11,100,120,0.12)" }, horzLines: { color: "rgba(11,100,120,0.12)" } },
-      rightPriceScale: { borderColor: COLORS.border },
+      rightPriceScale: { borderColor: COLORS.border, minimumWidth: 64 },
       timeScale: { borderColor: COLORS.border, lockVisibleTimeRangeOnResize: true },
     });
     const candle = chart.addSeries(CandlestickSeries, {
@@ -87,10 +89,11 @@ export default function CandlestickChart({ candles, title, right }: { candles: C
     };
     chart.subscribeCrosshairMove(onMove);
     chartRef.current = chart;
+    onChart?.(chart);
     seriesRef.current = { candle, ema: line, vol };
     fitted.current = false;
-    return () => { chart.unsubscribeCrosshairMove(onMove); chart.remove(); chartRef.current = null; seriesRef.current = null; };
-  }, []);
+    return () => { onChart?.(null); chart.unsubscribeCrosshairMove(onMove); chart.remove(); chartRef.current = null; seriesRef.current = null; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // update data in place; fit only on first non-empty load
   useEffect(() => {
@@ -116,7 +119,7 @@ export default function CandlestickChart({ candles, title, right }: { candles: C
   const toggle = (on: boolean) => `${btn} ${on ? "border-accent/70 text-accent" : "border-line/50 text-muted hover:text-secondary"}`;
 
   return (
-    <Panel title={title} bodyClass="p-0" right={<>
+    <Panel title={title} bodyClass="p-0" className={className} fill={fill} right={<>
       {right}
       <div className="flex gap-0.5" role="group" aria-label="Visible range">
         {(Object.keys(RANGES) as Range[]).map((r) => (
@@ -126,7 +129,7 @@ export default function CandlestickChart({ candles, title, right }: { candles: C
       <button onClick={() => setShowEma(!showEma)} aria-pressed={showEma} className={toggle(showEma)}>EMA20</button>
       <button onClick={() => setShowVol(!showVol)} aria-pressed={showVol} className={toggle(showVol)}>VOL</button>
     </>}>
-      <div className="relative h-[22rem] w-full">
+      <div className={fill ? "absolute inset-0" : "relative h-[22rem] w-full"}>
         <div ref={ref} className="absolute inset-0" />
         {L && (
           <div className="pointer-events-none absolute left-2 top-1 z-10 flex flex-wrap gap-x-2 font-mono text-[11px] tabular-nums">
@@ -138,7 +141,7 @@ export default function CandlestickChart({ candles, title, right }: { candles: C
             {showEma && <span><span className="text-muted">EMA20</span> <span className="text-accent">{fmt(L.e)}</span></span>}
           </div>
         )}
-        {candles.length === 0 && <div className="absolute inset-0 flex items-center justify-center text-xs text-muted">No chart data</div>}
+        {candles.length === 0 && <div className="absolute inset-0 flex items-center justify-center text-xs text-muted">{empty}</div>}
       </div>
     </Panel>
   );

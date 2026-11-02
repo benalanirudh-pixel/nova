@@ -10,11 +10,15 @@ export interface IndPoint { time: string; value?: number | null; macd?: number |
 
 interface S { a: ISeriesApi<"Line">; b?: ISeriesApi<"Line">; h?: ISeriesApi<"Histogram"> }
 
+// gaps stay as whitespace points so bar indices line up with a synced price chart
 const pts = (d: IndPoint[], k: "value" | "macd" | "signal") =>
-  d.flatMap((p) => (isNum(p[k]) ? [{ time: p.time as Time, value: p[k] as number }] : []));
+  d.map((p) => (isNum(p[k]) ? { time: p.time as Time, value: p[k] as number } : { time: p.time as Time }));
+
+export interface ChartProps { className?: string; fill?: boolean; onChart?: (c: IChartApi | null) => void }
 
 /** kind "rsi": line + 30/70 reference lines (data in `value`). kind "macd": histogram + macd + signal. */
-export default function IndicatorChart({ kind, data, title }: { kind: "rsi" | "macd"; data: IndPoint[]; title: string }) {
+export default function IndicatorChart({ kind, data, title, className = "", fill, onChart }:
+  { kind: "rsi" | "macd"; data: IndPoint[]; title: string } & ChartProps) {
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const sRef = useRef<S | null>(null);
@@ -25,7 +29,7 @@ export default function IndicatorChart({ kind, data, title }: { kind: "rsi" | "m
       autoSize: true,
       layout: { background: { type: ColorType.Solid, color: COLORS.bgPanel }, textColor: COLORS.textSecondary, fontSize: 11 },
       grid: { vertLines: { color: "rgba(11,100,120,0.1)" }, horzLines: { color: "rgba(11,100,120,0.1)" } },
-      rightPriceScale: { borderColor: COLORS.border },
+      rightPriceScale: { borderColor: COLORS.border, minimumWidth: 64 },
       timeScale: { borderColor: COLORS.border, lockVisibleTimeRangeOnResize: true },
     });
     if (kind === "rsi") {
@@ -41,8 +45,9 @@ export default function IndicatorChart({ kind, data, title }: { kind: "rsi" | "m
       sRef.current = { a, b, h };
     }
     chartRef.current = chart;
-    return () => { chart.remove(); chartRef.current = null; sRef.current = null; };
-  }, [kind]);
+    onChart?.(chart);
+    return () => { onChart?.(null); chart.remove(); chartRef.current = null; sRef.current = null; };
+  }, [kind]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const s = sRef.current;
@@ -51,15 +56,15 @@ export default function IndicatorChart({ kind, data, title }: { kind: "rsi" | "m
     else {
       s.a.setData(pts(data, "macd"));
       s.b?.setData(pts(data, "signal"));
-      s.h?.setData(data.flatMap((p) => isNum(p.histogram)
-        ? [{ time: p.time as Time, value: p.histogram, color: p.histogram >= 0 ? COLORS.positive : COLORS.negative }] : []));
+      s.h?.setData(data.map((p) => isNum(p.histogram)
+        ? { time: p.time as Time, value: p.histogram, color: p.histogram >= 0 ? COLORS.positive : COLORS.negative } : { time: p.time as Time }));
     }
     chartRef.current?.timeScale().fitContent();
   }, [data, kind]);
 
   return (
-    <Panel title={title} bodyClass="p-0">
-      <div ref={ref} className="h-36 w-full" />
+    <Panel title={title} bodyClass="p-0" className={className} fill={fill}>
+      <div ref={ref} className={fill ? "absolute inset-0" : "h-36 w-full"} />
     </Panel>
   );
 }

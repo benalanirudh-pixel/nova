@@ -2,16 +2,17 @@ import type { ReactNode } from "react";
 import { fmt, isNum, label, signCls } from "../lib/format";
 
 /** Dense panel: compact uppercase header bar + body. */
-export function Panel({ title, right, children, className = "", bodyClass = "p-2" }: {
-  title: ReactNode; right?: ReactNode; children: ReactNode; className?: string; bodyClass?: string;
+/** `fill`: flex column whose body takes the remaining height (for fixed-height layouts). */
+export function Panel({ title, right, children, className = "", bodyClass = "p-2", fill }: {
+  title: ReactNode; right?: ReactNode; children: ReactNode; className?: string; bodyClass?: string; fill?: boolean;
 }) {
   return (
-    <section className={`min-w-0 rounded-sm border border-line/50 bg-panel ${className}`}>
-      <header className="flex items-center gap-2 border-b border-line/40 bg-deep/50 px-2 py-1">
+    <section className={`min-w-0 rounded-sm border border-line/50 bg-panel ${fill ? "flex min-h-0 flex-col" : ""} ${className}`}>
+      <header className="flex shrink-0 items-center gap-2 border-b border-line/40 bg-deep/50 px-2 py-1">
         <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-secondary">{title}</h2>
         {right && <div className="ml-auto flex items-center gap-2 text-[10px] text-muted">{right}</div>}
       </header>
-      <div className={bodyClass}>{children}</div>
+      <div className={fill ? `relative min-h-0 flex-1 ${bodyClass}` : bodyClass}>{children}</div>
     </section>
   );
 }
