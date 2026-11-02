@@ -104,7 +104,7 @@ export function RangeBar({ low, high, value, lowLabel = "L", highLabel = "H", d 
 export function PctBar({ k, v, bar = "bg-info" }: { k: string; v: unknown; bar?: string }) {
   return (
     <div className="flex items-center gap-2 text-xs">
-      <span className="w-24 shrink-0 truncate text-secondary">{k}</span>
+      <span className="w-28 shrink-0 truncate text-secondary" title={k}>{k}</span>
       <div className="h-1.5 flex-1 bg-line/20">
         {isNum(v) && <div className={`h-1.5 ${bar}`} style={{ width: `${Math.min(100, Math.max(0, v))}%` }} />}
       </div>
