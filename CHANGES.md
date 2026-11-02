@@ -16,7 +16,9 @@ Analysis, Market Analysis, SSE refresh, localhost-only (127.0.0.1), analysis
 only, guardrails unchanged.
 
 - `python web_main.py --build` runs `npm run build` in `web/frontend` and exits.
-- `python web_main.py` serves API + built frontend on http://127.0.0.1:8501.
+- `python web_main.py` serves API + built frontend on http://127.0.0.1:8501,
+  builds the frontend first if `dist/` is missing, and opens the browser
+  (`--no-browser` to skip).
 - `python web_main.py --dev` serves the API only; run Vite separately.
 - `create_app()` serves `web/frontend/dist` when present: `/assets`, top-level
   files (traversal-guarded) and an SPA fallback to `index.html`. Unknown
