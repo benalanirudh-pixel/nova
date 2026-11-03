@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-11-01.
+Last updated: 2026-11-03.
 
 ## Surfaces
 
@@ -69,6 +69,30 @@ terminal_main.py -> terminal/main_window.py (NovaTerminal)
 
 Additional engines: `analysis/regime/regime_engine.py`,
 `analysis/sectors/sector_engine.py`, `analysis/backtest_harness.py`.
+
+## Web Dashboard Live Path
+
+`web_main.py` serves the FastAPI app (`web/api/main.py`) and the built React
+frontend. The lifespan starts the refresh scheduler and the live quote loop.
+
+```
+web/api/live_feed.py  (asyncio task, 09:15-15:30 IST Mon-Fri; no holiday calendar)
+  -> dhan_feed.get_index_quote          NIFTY, BANKNIFTY, INDIAVIX every 5 s (only if configured)
+  -> nse_feed.get_normalized_stock_quote watched stocks every 15 s (max 25, 120 s TTL)
+  -> scheduler._broadcast               changed ticks + feed_status heartbeat (10 s)
+     -> GET /api/events (SSE)
+        -> hooks/useSSE.ts              tick/feed_status -> lib/live.ts store (per-frame batch)
+                                        refresh_* -> page refetch
+           -> hooks/useLive.ts          useLiveQuote, useFeedStatus, useLiveWatch
+              -> TickerTape, StockAnalysis
+POST /api/live/watch    client registers symbols (origin-checked, re-posted every 60 s)
+GET  /api/live/snapshot last tick per symbol + status (loaded on every SSE reconnect)
+```
+
+Tick shape: `{type:"tick", symbol, ltp, change, change_pct, volume, source,
+as_of, max_age_s}`. Missing prices are skipped; failing sources back off up to
+300 s and surface in `feed_status`. The live loop never runs the full NSE scan.
+Env: `NOVA_LIVE_INDEX_S` (5), `NOVA_LIVE_STOCK_S` (15).
 
 ## Data Sources
 

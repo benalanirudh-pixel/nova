@@ -60,8 +60,14 @@ Nova is a web-based NSE analysis terminal built with FastAPI and React. It pulls
 - **Volatility smile**, **spot technicals** (EMAs, RSI, ATR, realized vol, 52-week range), **India VIX regime**, **FII/DII flows**, **event risk**
 - Live chains: NSE (NIFTY, BANKNIFTY) and BSE (SENSEX); refreshes every minute while the market is open
 
+### Flows (FII / DII)
+- **Daily / weekly / monthly** net flow bars and a sortable history table with buy, sell, net, combined and running totals
+- Rows come from the flow engine's own history store (`GET /api/flows/history`); each `market_scope` (combined NSE + BSE + MSEI vs NSE only) is shown separately and never summed together
+- Engine 5D / 10D / 20D sums, streaks, coverage and provisional flags from the saved report
+
 ### Real-Time Updates
 - **SSE (Server-Sent Events)** — Dashboard auto-updates on data refresh
+- **Live quotes (read-only)** — During the NSE session (09:15–15:30 IST, Mon–Fri) the API polls NIFTY / BANKNIFTY / INDIAVIX (Dhan, when configured) every 5 s and the stocks open in the dashboard (Indian Market MCP) every 15 s, and pushes changed prices over SSE. A feed pill shows Live / Delayed / Feed closed / Feed error / Feed lost; every live price shows its source and IST time on hover and is tagged Stale when older than 2× its poll interval
 - **Scheduled refresh** — Automatic data refresh on weekdays during market hours
 - **Manual refresh** — One-click refresh button with POST endpoint (origin-checked)
 
@@ -137,21 +143,23 @@ nova/
 │   │   ├── main.py                   # FastAPI app: health, SSE, static serving
 │   │   ├── report_loader.py          # Shared report cache loader
 │   │   ├── scheduler.py              # APScheduler auto-refresh (weekday)
+│   │   ├── live_feed.py              # Read-only live quote loop (session-gated)
 │   │   └── routes/
 │   │       ├── market.py             # GET /api/market-overview
 │   │       ├── stock.py              # GET /api/stock/:symbol, /api/symbols
-│   │       ├── analysis.py           # GET /api/market-analysis
-│   │       └── events.py             # GET /api/events (SSE stream)
+│   │       ├── analysis.py           # GET /api/market-analysis, /api/fno/:inst, /api/flows/history
+│   │       └── events.py             # GET /api/events (SSE), POST /api/refresh, /api/live/*
 │   └── frontend/
 │       ├── src/
 │       │   ├── App.tsx               # Shell: header, ticker tape, sidebar, routes
 │       │   ├── pages/
 │       │   │   ├── MarketOverview.tsx # Dashboard with all panels
 │       │   │   ├── StockAnalysis.tsx  # Per-stock deep dive
-│       │   │   └── MarketAnalysis.tsx # Nifty regime + derivatives analysis
+│       │   │   ├── MarketAnalysis.tsx # F&O desk
+│       │   │   └── Flows.tsx          # FII / DII history
 │       │   ├── components/           # NewsList, FlowGauge, SectorHeatmap, ...
-│       │   ├── hooks/                # useSSE, useMarketData, useStockAnalysis
-│       │   └── lib/                  # API client, formatters, types, theme tokens
+│       │   ├── hooks/                # useSSE, useLive, useMarketData, useStockAnalysis
+│       │   └── lib/                  # API client, live quote store, formatters, types, theme
 │       ├── package.json              # React 19, TypeScript, Vite, Tailwind
 │       └── vite.config.ts
 ├── market_lab/

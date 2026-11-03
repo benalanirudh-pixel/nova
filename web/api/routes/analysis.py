@@ -1,10 +1,12 @@
 import asyncio
 import time
 
+import pandas as pd
+
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from analysis.data import fno_desk
+from analysis.data import fno_desk, institutional_flow_engine as flow_engine
 
 from market_lab import view_model as vm
 from web.api.report_loader import load_cached_report
@@ -31,6 +33,33 @@ def market_analysis():
         "risk": vm.risk_block(r),
         "freshness": {**vm.data_age(r), "saved_at": saved["saved_at"],
                       "file_age_seconds": saved["age_seconds"]},
+        "guardrails": vm.guardrails(r),
+    }
+
+
+@router.get("/flows/history")
+async def flows_history():
+    """Daily FII/DII rows from the flow engine's history store (read-only).
+
+    Rows keep their own market_scope; the client must not sum across scopes.
+    """
+    try:
+        df = await asyncio.to_thread(flow_engine.load_history)
+    except Exception as e:
+        return JSONResponse({"error": f"Flow history unavailable: {e}"}, status_code=502)
+    cols = ["date", "fii_buy", "fii_sell", "fii_net", "dii_buy", "dii_sell", "dii_net",
+            "combined_net", "market_scope", "source", "provisional"]
+    df = df[[c for c in cols if c in df.columns]].sort_values("date")
+    rows = [{k: (None if pd.isna(v) else (v.item() if hasattr(v, "item") else v)) for k, v in r.items()}
+            for r in df.to_dict("records")]
+    saved = load_cached_report()
+    r = saved["report"] if saved else {}
+    flow = r.get("institutional_flow") or {}
+    return {
+        "rows": rows,
+        "target_scope": (flow.get("source_policy") or {}).get("target_scope") or flow_engine.COMBINED_SCOPE,
+        "summary": vm.flow_block(r) if saved else None,
+        "unit": "INR crore",
         "guardrails": vm.guardrails(r),
     }
 

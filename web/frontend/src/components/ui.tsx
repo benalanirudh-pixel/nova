@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { fmt, isNum, label, signCls } from "../lib/format";
 
 /** Dense panel: compact header bar + body. */
@@ -7,14 +7,31 @@ export function Panel({ title, right, children, className = "", bodyClass = "p-2
   title: ReactNode; right?: ReactNode; children: ReactNode; className?: string; bodyClass?: string; fill?: boolean;
 }) {
   return (
-    <section className={`min-w-0 rounded-md border border-line/40 bg-panel ${fill ? "flex min-h-0 flex-col" : ""} ${className}`}>
-      <header className="flex h-8 shrink-0 items-center gap-2 border-b border-line/30 px-2.5">
-        <h2 className="truncate text-[12px] font-semibold text-fg">{title}</h2>
+    <section className={`panel min-w-0 rounded-md border border-line/35 bg-panel transition-colors hover:border-line/60 ${fill ? "flex min-h-0 flex-col" : ""} ${className}`}>
+      <header className="flex h-8 shrink-0 items-center gap-2 rounded-t-md border-b border-line/25 bg-raised/35 px-2.5">
+        <span className="h-3 w-0.5 shrink-0 rounded-full bg-accent/70" aria-hidden />
+        <h2 className="truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-secondary">{title}</h2>
         {right && <div className="ml-auto flex min-w-0 items-center gap-2 text-[11px] text-muted">{right}</div>}
       </header>
       <div className={fill ? `relative min-h-0 flex-1 ${bodyClass}` : bodyClass}>{children}</div>
     </section>
   );
+}
+
+/** Brief green/red background when a live number moves; fades out over 600 ms. */
+export function Flash({ v, children }: { v: unknown; children: ReactNode }) {
+  const prev = useRef(v);
+  const [dir, setDir] = useState<"up" | "down" | null>(null);
+  useEffect(() => {
+    const old = prev.current;
+    prev.current = v;
+    if (!isNum(v) || !isNum(old) || v === old) return;
+    setDir(v > old ? "up" : "down");
+    const t = setTimeout(() => setDir(null), 600);
+    return () => clearTimeout(t);
+  }, [v]);
+  const bg = dir === "up" ? "bg-positive/25" : dir === "down" ? "bg-negative/25" : "bg-transparent transition-colors duration-700";
+  return <span className={`-mx-0.5 rounded-sm px-0.5 ${bg}`}>{children}</span>;
 }
 
 /** Tabular figure; `signed` adds +/- colouring. Missing shows muted N/A. */
@@ -40,8 +57,8 @@ export function Change({ abs, pct, className = "" }: { abs?: unknown; pct: unkno
 
 export function toneOf(s: unknown) {
   const u = typeof s === "string" ? s.toUpperCase() : "";
-  if (/BEAR|WEAK|SELL|BELOW|NEGATIVE|LOWER|HIGH_RISK/.test(u)) return "border-negative/40 bg-negative/10 text-negative";
-  if (/BULL|STRONG|BUY|ABOVE|POSITIVE|HIGHER/.test(u)) return "border-positive/40 bg-positive/10 text-positive";
+  if (/BEAR|WEAK|SELL|BELOW|NEGATIVE|LOWER|HIGH_RISK|DOWN/.test(u)) return "border-negative/40 bg-negative/10 text-negative";
+  if (/BULL|STRONG|BUY|ABOVE|POSITIVE|HIGHER|UPTREND/.test(u)) return "border-positive/40 bg-positive/10 text-positive";
   if (!u || u === "N/A" || u === "UNKNOWN") return "border-line/60 text-muted";
   return "border-warning/40 bg-warning/10 text-warning";
 }

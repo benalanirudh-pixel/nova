@@ -1,7 +1,7 @@
 export const COLORS = {
-  bgDeep: "#0D1015", bgPanel: "#141920", border: "#3A4757", text: "#E8ECF1",
-  textSecondary: "#A3AEBD", textMuted: "#7A8594", accent: "#FF9933",
-  positive: "#2EBD85", negative: "#F0544F", warning: "#E6C84F", info: "#5B9CF5", purple: "#A78BFA",
+  bgDeep: "#0B0E14", bgPanel: "#11161F", border: "#3A4757", text: "#E8ECF1",
+  textSecondary: "#A3AEBD", textMuted: "#838E9D", accent: "#FF9933",
+  positive: "#26C281", negative: "#F05252", warning: "#E6B450", info: "#5B9CF5", purple: "#A78BFA",
   grid: "rgba(163,174,189,0.06)", volume: "rgba(163,174,189,0.22)",
 } as const;
 

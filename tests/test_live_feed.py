@@ -134,6 +134,11 @@ class TestLiveRoutes(LiveFeedBase):
                              headers={"Origin": "https://evil.example"})
         self.assertEqual(r.status_code, 403)
 
+    def test_watch_allows_same_origin_any_port(self):
+        r = self.client.post("/api/live/watch", json={"symbols": ["TCS"]},
+                             headers={"Origin": "http://testserver", "Sec-Fetch-Site": "same-origin"})
+        self.assertEqual(r.status_code, 200)
+
     def test_watch_rejects_bad_body(self):
         r = self.client.post("/api/live/watch", json={"symbols": "TCS"})
         self.assertEqual(r.status_code, 422)

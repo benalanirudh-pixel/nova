@@ -17,7 +17,8 @@ def _cross_origin(request: Request) -> bool:
     # Absent headers (curl/scripts) pass; a browser page on another site cannot.
     origin = request.headers.get("origin")
     site = request.headers.get("sec-fetch-site")
-    return (origin is not None and origin not in ALLOWED_ORIGINS) or (
+    same = f"{request.url.scheme}://{request.headers.get('host')}"  # covers web_main.py --port
+    return (origin is not None and origin not in ALLOWED_ORIGINS and origin != same) or (
         site is not None and site not in {"same-origin", "none"})
 
 

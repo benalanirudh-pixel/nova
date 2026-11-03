@@ -1571,3 +1571,70 @@ Checks run:
 
 Not verified: real ticks during market hours against the Indian Market MCP or
 Dhan; adapter latency under 25 watched symbols.
+
+## 2026-11-03 - Web live quotes (frontend)
+
+Checks run:
+
+- `npm run build` in `web/frontend` - tsc + Vite OK.
+- `.\venv\Scripts\python.exe -m unittest discover -s tests` - all OK.
+- Browser (`web_main.py --port 8503`, 00:04 IST, market closed): `/stock?s=RELIANCE`
+  posts `/api/live/watch` (200), loads `/api/live/snapshot`, pill shows
+  "Feed closed" with reason, price tagged "Snapshot", no console errors.
+
+Not verified: tick rendering and Live/Stale tags with real in-session ticks.
+
+## 2026-11-03 - Web price flash, g-chords, muted contrast
+
+Checks run:
+
+- Contrast computed for every text token on `deep`, `panel`, `raised`: all
+  >= 4.5:1 after muted -> `#838E9D` (4.82:1 on raised).
+- `npm run build` - OK. Browser at 1920x1080: `g a` from Overview opens
+  `/analysis`; `--color-muted` resolves to `#838e9d`.
+
+Not verified: flash with real ticks (market closed). At 1920x1080 the main area
+scrolls (Overview ~450 px, F&O desk ~880 px); 2026-11-03 decision: keep page
+scroll rather than fixed-height panels or cutting content.
+
+## 2026-11-03 - Web live feed docs and screenshots
+
+- README (Real-Time Updates, tree) and `docs/ARCHITECTURE.md` (Web Dashboard
+  Live Path) describe the live feed.
+- Ticker tape clock + feed pill are now sticky on the right; at 1280 px they had
+  scrolled out of view.
+- Screenshots (Playwright CLI, port 8503, 00:10 IST, market closed):
+  `screenshots/live_overview_2560.png`, `live_overview_1280.png`,
+  `live_stock_2560.png`, `live_stock_1280.png`. Pill reads "Feed closed"; Stock
+  price tagged "Snapshot".
+- `.\venv\Scripts\python.exe -m unittest discover -s tests` - all OK;
+  `npm run build` - OK.
+
+Still not verified: in-session ticks, Live/Stale tags and price flash with real
+quotes.
+
+## 2026-11-03 - Web chart workspace, Flows page, darker surfaces
+
+Checks run:
+
+- `.\venv\Scripts\python.exe -m unittest discover -s tests` - 476 tests OK
+  (new: `/api/flows/history` keeps scope per row, NaN -> null, store failure -> 502).
+- `npm run build` - OK; chart in its own 173 kB chunk.
+- `GET /api/flows/history` on the real store: 28 rows (27 combined, 1 NSE only).
+- Screenshots (Playwright CLI, port 8503, market closed):
+  `screenshots/redesign_stock_1920.png`, `redesign_stock_1366.png`,
+  `redesign_flows_1920.png`, `redesign_flows_1366.png`. Chart renders candles,
+  volume and EMAs for RELIANCE and TCS; Flows shows 27 combined sessions.
+
+Not verified: 1600x900 and 1440x900 viewports; chart zoom/pan by hand; weekly
+and monthly views in the browser.
+
+## 2026-11-03 - Web visual polish sprint
+
+- `npm run build` OK; `unittest discover` 476 tests OK.
+- Before/after at 1600x900 (market open, 10:16 IST): `screenshots/sprint_before_*.png`,
+  `sprint_after_*.png` (Overview, F&O desk, Flows). Browser pane at 375x812:
+  no horizontal overflow, no console errors, ticker readable.
+
+Not verified: Stock page after the sprint; Overview fully loaded after the
+sprint (screenshot caught the brief loading).

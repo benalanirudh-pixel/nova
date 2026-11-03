@@ -3,6 +3,68 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-03 - Web dashboard: visual polish sprint
+
+- `Panel`: uppercase tracked titles with a saffron tick, tinted header bar,
+  faint top highlight + shadow (`.panel` in `index.css`), border brightens on hover.
+- Global table style: uppercase 10px headers, row hover. Global
+  `:focus-visible` saffron outline; disabled buttons dimmed.
+- Header: nav icons (inline SVG, no new dependency), tagline divider, shadow.
+- Ticker tape: values not from the live feed are dimmed and tagged "Saved"
+  (or "Stale"); before, a 1.6-day-old report value looked live. Clock + feed pill
+  pin right only from `sm` up so they don't cover tickers on phones.
+- Route change fades in (160 ms; off under reduced motion).
+- Flows stat tiles: 2 columns on phones.
+
+## 2026-11-03 - Web dashboard: chart workspace, Flows page, darker surfaces
+
+- Stock page: `PriceChart` (`lightweight-charts` 5.2.1, pinned, lazy-loaded)
+  is back beside the Technical snapshot. Daily candles + volume + the technical
+  engine's EMA 20/50/200 from `/api/stock/{symbol}`; 1M/3M/6M/1Y/All ranges,
+  overlay toggles, crosshair OHLC legend, wheel zoom and drag pan. Daily only:
+  the backend has no intraday history.
+- New read-only `GET /api/flows/history` returns `institutional_flow_engine
+  .load_history()` rows (each with its `market_scope`) plus the report's flow
+  summary. New Flows page (`/flows`, key 4 or `g f`): scope selector (target
+  scope default; other scopes shown separately), daily/weekly/monthly net-flow
+  bars, sortable history table with running totals.
+- Surfaces darker (`deep #0B0E14`, `panel #11161F`, `raised #171D28`);
+  direction colours `#26C281` / `#F05252`, warning `#E6B450`. Saffron accent
+  kept. All text tokens still >= 4.5:1.
+- `toneOf` now colours labels containing DOWN negative and UPTREND positive ("Strong
+  downtrend" was green).
+- Not done (no backend support): Backtesting, intraday timeframes, SENSEX in
+  the ticker tape, Bollinger/VWAP overlays, resizable panels.
+
+## 2026-11-03 - Web dashboard: live feed documented
+
+README and `docs/ARCHITECTURE.md` cover the live quote path. The ticker tape's
+clock and feed pill stay pinned right when the tape scrolls (narrow screens).
+
+## 2026-11-03 - Web dashboard: price flash, g-chords, AA muted text
+
+`Flash` (`components/ui.tsx`) gives a live number a green/red background for
+600 ms when it moves (ticker tape indices, Stock page price). New keys:
+`g o` / `g s` / `g a` switch pages (alongside 1-3); Esc leaves the focused field.
+`--color-muted` is now `#838E9D` (was `#7A8594`, 4.28:1 on raised panels) so all
+text tokens pass WCAG AA on every background; `lib/theme.ts` matches.
+
+## 2026-11-03 - Web dashboard: live quotes in the frontend
+
+`useSSE` now routes `tick` and `feed_status` events to a small store
+(`web/frontend/src/lib/live.ts`) instead of `last`, so ticks never refetch
+pages. Ticks apply once per animation frame. On every SSE (re)connect the
+client loads `/api/live/snapshot`. New hooks in `hooks/useLive.ts`:
+`useLiveQuote(symbol)` (staleness from the tick's own `as_of` and `max_age_s`,
+which ticks now carry), `useFeedStatus()` ("lost" after 30 s with no
+heartbeat) and `useLiveWatch(symbols)` (re-posts every 60 s). The ticker tape
+shows a feed pill (Live / Delayed / Feed closed / Feed error / Feed lost, reason
+on hover) and uses live NIFTY / BANKNIFTY / INDIAVIX ticks when present, else
+the saved report labelled "not live". The Stock page watches the open symbol
+and tags its price Live, Stale or Snapshot with source and IST time on hover.
+`/refresh` and `/live/watch` now also accept same-origin requests on any port
+(`web_main.py --port`). `.claude/launch.json` gained `nova-api-alt` (port 8503).
+
 ## 2026-11-02 - Web dashboard: read-only live quote feed (backend)
 
 New `web/api/live_feed.py`, started in the API lifespan. During the NSE session

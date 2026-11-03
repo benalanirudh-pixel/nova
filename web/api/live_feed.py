@@ -92,7 +92,7 @@ def fetch_indices(as_of: str) -> list[dict]:
             continue  # missing stays missing
         ticks.append({"type": "tick", "symbol": name, "ltp": q["last_price"],
                       "change": q.get("net_change"), "change_pct": _pct(q.get("net_change"), q["last_price"]),
-                      "volume": None, "source": "Dhan", "as_of": as_of})
+                      "volume": None, "source": "Dhan", "as_of": as_of, "max_age_s": 2 * INDEX_POLL_S})
     return ticks
 
 
@@ -104,7 +104,8 @@ def fetch_stocks(symbols, as_of: str) -> list[dict]:
             continue
         ticks.append({"type": "tick", "symbol": sym, "ltp": q["price"], "change": q.get("change"),
                       "change_pct": q.get("change_percent"), "volume": q.get("volume"),
-                      "source": q.get("source", "NSE MCP"), "as_of": as_of})
+                      "source": q.get("source", "NSE MCP"), "as_of": as_of,
+                      "max_age_s": 2 * STOCK_POLL_S})
     return ticks
 
 

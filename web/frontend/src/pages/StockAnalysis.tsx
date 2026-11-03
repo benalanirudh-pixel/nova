@@ -1,12 +1,16 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import MomentumGauge from "../components/MomentumGauge";
 import NewsList from "../components/NewsList";
 import { SEARCH_ID } from "../components/SymbolSearch";
-import { Body, Change, Chip, Num, Panel, Stat, toneOf } from "../components/ui";
+import { Body, Change, Chip, Flash, Num, Panel, Stat, toneOf } from "../components/ui";
+import { useLiveQuote, useLiveWatch } from "../hooks/useLive";
 import { useStockAnalysis, useStockFetch } from "../hooks/useStockAnalysis";
+import { istTime } from "../lib/live";
 import { fmt, fmtCompact, isNum } from "../lib/format";
 import type { Highlight, StockProfile } from "../lib/types";
+
+const PriceChart = lazy(() => import("../components/PriceChart")); // keeps lightweight-charts out of the main bundle
 
 const KEY = "nova.recentSymbols";
 // starting points for the empty state only; every number shown comes from the API
@@ -65,7 +69,7 @@ function EmptyState({ recent, run }: { recent: string[]; run: (s: string) => voi
   );
 }
 
-function QuoteStrip({ sym, name, sector, price, change, a }: { sym: string; name?: string | null; sector?: string; price: unknown; change: unknown; a: Record<string, unknown> }) {
+function QuoteStrip({ sym, name, sector, price, change, a, tag }: { sym: string; name?: string | null; sector?: string; price: unknown; change: unknown; a: Record<string, unknown>; tag: { text: string; title: string; cls: string } }) {
   const lo = a.low_52w, hi = a.high_52w;
   const pos = isNum(lo) && isNum(hi) && isNum(price) && hi > lo ? Math.min(100, Math.max(0, ((price - lo) / (hi - lo)) * 100)) : null;
   const Kv = ({ k, children }: { k: string; children: ReactNode }) => <span className="shrink-0"><span className="text-muted">{k} </span>{children}</span>;
@@ -78,9 +82,10 @@ function QuoteStrip({ sym, name, sector, price, change, a }: { sym: string; name
         </div>
         <div className="max-w-[22rem] truncate text-[12px] text-secondary" title={name ?? undefined}>{name ?? "—"}</div>
       </div>
-      <div className="flex items-baseline gap-2">
-        <Num v={price} className="text-2xl font-semibold" />
+      <div className="flex items-baseline gap-2" title={tag.title}>
+        <Flash v={price}><Num v={price} className="text-2xl font-semibold" /></Flash>
         <Change pct={change} className="text-[13px]" />
+        <span className={`rounded border px-1 text-[10px] font-medium uppercase ${tag.cls}`}>{tag.text}</span>
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <Kv k="Open"><Num v={a.open} /></Kv><Kv k="High"><Num v={a.high} /></Kv><Kv k="Low"><Num v={a.low} /></Kv>
@@ -326,6 +331,9 @@ export default function StockAnalysis() {
     setRecent((r) => { const n = [okSym, ...r.filter((x) => x !== okSym)].slice(0, 5); saveRecent(n); return n; });
   }, [okSym]);
 
+  useLiveWatch([okSym]);
+  const live = useLiveQuote(okSym);
+
   if (!wanted) return <EmptyState recent={recent} run={run} />;
 
   const a = tech.data?.analysis ?? {};
@@ -358,10 +366,23 @@ export default function StockAnalysis() {
           <div className="mt-1 text-secondary">{tech.error}. Check the symbol in the search bar, or try again.</div>
         </div>
       ) : (
-        <QuoteStrip sym={info?.symbol ?? wanted} name={info?.name ?? p?.profile?.company} sector={p?.profile?.sector} price={price} change={info?.change} a={a} />
+        <QuoteStrip sym={info?.symbol ?? wanted} name={info?.name ?? p?.profile?.company} sector={p?.profile?.sector} price={live ? live.ltp : price} change={live ? live.change_pct : info?.change} a={a}
+          tag={live ? { text: live.stale ? "Stale" : "Live", title: `${live.source} ${istTime(live.as_of)}${live.stale ? ", older than expected" : ""}`, cls: live.stale ? "border-warning/40 text-warning" : "border-positive/40 text-positive" }
+            : { text: "Snapshot", title: `Analysis snapshot${typeof a.source === "string" ? ` from ${a.source}` : ""}, not live`, cls: "border-line/60 text-muted" }} />
       )}
 
       {p && p.highlights.length > 0 && <Takeaways items={p.highlights} />}
+
+      {!(tech.error && !tech.data) && (
+        <div className="grid grid-cols-1 gap-2 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+          <Panel title="Price chart" right="NSE daily history" fill className="h-[26rem]" bodyClass="p-0">
+            {tl ? <Body loading lines={8}>{null}</Body> : tech.data && <Suspense fallback={<Body loading lines={8}>{null}</Body>}><PriceChart chart={tech.data.chart} /></Suspense>}
+          </Panel>
+          <Panel title="Technical snapshot" right={a.timestamp && typeof a.timestamp === "string" ? `as of ${a.timestamp.slice(0, 10)}` : undefined}>
+            <Body loading={tl} error={tech.error} lines={6}><Technicals a={a} price={price} score={tech.data?.score.overall ?? null} /></Body>
+          </Panel>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <div className="space-y-2">
@@ -401,9 +422,6 @@ export default function StockAnalysis() {
             <Body loading={pl} error={sectionErr(p?.news, "news")} lines={8}>{p?.news && <NewsList items={p.news} />}</Body>
           </Panel>
           <div className="space-y-2">
-            <Panel title="Technical snapshot" right={a.timestamp && typeof a.timestamp === "string" ? `as of ${a.timestamp.slice(0, 10)}` : undefined}>
-              <Body loading={tl} error={tech.error} lines={6}><Technicals a={a} price={price} score={tech.data?.score.overall ?? null} /></Body>
-            </Panel>
             <Panel title="Corporate actions" bodyClass="px-2.5 py-1">
               <Body loading={pl} error={sectionErr(p?.corporate_actions, "actions")}>
                 {p?.corporate_actions?.length ? p.corporate_actions.map((c, i) => (

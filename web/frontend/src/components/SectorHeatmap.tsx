@@ -8,7 +8,7 @@ const GREEN = [22, 130, 90];
 const RED = [190, 30, 55];
 
 function cellColor(v: unknown): string {
-  if (!isNum(v)) return "#141920";
+  if (!isNum(v)) return "#11161F";
   const t = Math.min(1, Math.abs(v) / SCALE);
   const end = v >= 0 ? GREEN : RED;
   return `rgb(${NEUTRAL.map((n, i) => Math.round(n + (end[i] - n) * t)).join(",")})`;

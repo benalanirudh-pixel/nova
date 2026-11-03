@@ -241,3 +241,32 @@ class TestStaticServing(unittest.TestCase):
         c = TestClient(create_app(Path(self._tmp.name) / "missing"))
         self.assertEqual(c.get("/stock").status_code, 404)
         self.assertEqual(c.get("/api/health").status_code, 200)
+
+
+class TestFlowsHistoryEndpoint(unittest.TestCase):
+    def setUp(self):
+        from starlette.testclient import TestClient
+        self.client = TestClient(create_app())
+
+    def test_rows_keep_scope_and_nan_becomes_null(self):
+        import pandas as pd
+        from unittest import mock
+        df = pd.DataFrame([
+            {"date": "2026-10-29", "fii_net": float("nan"), "dii_net": 5.0, "combined_net": None,
+             "market_scope": "NSE_ONLY", "source": "x", "provisional": False},
+            {"date": "2026-10-28", "fii_net": -10.0, "dii_net": 20.0, "combined_net": 10.0,
+             "market_scope": "NSE_BSE_MSEI_COMBINED", "source": "y", "provisional": True},
+        ])
+        with mock.patch("web.api.routes.analysis.flow_engine.load_history", return_value=df):
+            body = self.client.get("/api/flows/history").json()
+        self.assertEqual([r["date"] for r in body["rows"]], ["2026-10-28", "2026-10-29"])
+        self.assertEqual(body["rows"][1]["market_scope"], "NSE_ONLY")
+        self.assertIsNone(body["rows"][1]["fii_net"])
+        self.assertIn("target_scope", body)
+
+    def test_store_failure_returns_502(self):
+        from unittest import mock
+        with mock.patch("web.api.routes.analysis.flow_engine.load_history", side_effect=RuntimeError("bad csv")):
+            r = self.client.get("/api/flows/history")
+        self.assertEqual(r.status_code, 502)
+        self.assertIn("bad csv", r.json()["error"])
