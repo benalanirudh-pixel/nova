@@ -61,6 +61,16 @@ export interface MarketOverviewData {
   derivatives: Derivatives | null;
   freshness: Freshness | null;
   guardrails?: { text?: string } | null;
+  live?: LiveBlock;
+}
+
+export interface LiveQuote { name: string; price: number | null; change_abs: number | null; change_percent: number | null }
+export interface GiftNifty { price: number; change: number | null; change_pct: number | null; expiry?: string; as_of?: string }
+/** Live NSE overlay added by the API; data fields are null when NSE could not be reached (reason in `error`). */
+export interface LiveBlock {
+  as_of: string | null; error: string | null;
+  status: { state?: string; message?: string; trade_date?: string } | null;
+  gift_nifty: GiftNifty | null; sectors: LiveQuote[] | null;
 }
 
 export interface RiskEvent {
@@ -136,6 +146,7 @@ export interface MorningBrief {
   };
   focus: null | { as_of: string; universe: number; screens: { key: string; title: string; rule: string; rows: FocusRow[] }[] };
   morning_call: CallLine[];
+  gift_nifty?: GiftNifty | null;
   errors: Record<string, string>;
   generated: string;
   report_saved_at: string | null;

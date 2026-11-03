@@ -11,11 +11,13 @@ import time
 from datetime import datetime, time as dtime
 from zoneinfo import ZoneInfo
 
-from analysis.data import dhan_feed, nse_feed
+from analysis.data import dhan_feed, nse_feed, nse_live
 from web.api import scheduler
 
 IST = ZoneInfo("Asia/Kolkata")
 INDEX_POLL_S = float(os.getenv("NOVA_LIVE_INDEX_S", "5"))
+# without Dhan, indices come from NSE's website API; poll gently so NSE does not block the session
+NSE_INDEX_POLL_S = float(os.getenv("NOVA_LIVE_NSE_INDEX_S", "15"))
 STOCK_POLL_S = float(os.getenv("NOVA_LIVE_STOCK_S", "15"))
 HEARTBEAT_S = 10.0
 WATCH_TTL_S = 120.0  # clients re-post their symbols; closed tabs drop off
@@ -64,8 +66,12 @@ def watch(symbols, mono: float | None = None) -> dict:
     return {"accepted": accepted, "rejected": rejected, "max": MAX_WATCH}
 
 
+def _index_interval() -> float:
+    return INDEX_POLL_S if dhan_feed.is_configured() else NSE_INDEX_POLL_S
+
+
 def _interval(symbol: str) -> float:
-    return INDEX_POLL_S if symbol in INDICES else STOCK_POLL_S
+    return _index_interval() if symbol in INDICES else STOCK_POLL_S
 
 
 def snapshot(now: datetime | None = None) -> dict:
@@ -83,9 +89,18 @@ def _pct(change, ltp):
     return round(change / base * 100, 2) if base else None
 
 
+def fetch_nse_indices(as_of: str) -> list[dict]:
+    q = nse_live.parse_indices(nse_live.get("allIndices"))
+    names = {"nifty": "NIFTY", "banknifty": "BANKNIFTY", "vix": "INDIAVIX"}
+    return [{"type": "tick", "symbol": sym, "ltp": q[k]["price"], "change": q[k]["change_abs"],
+             "change_pct": q[k]["change_percent"], "volume": None, "source": "NSE", "as_of": as_of,
+             "max_age_s": 2 * NSE_INDEX_POLL_S}
+            for k, sym in names.items() if q.get(k) and q[k]["price"] is not None]
+
+
 def fetch_indices(as_of: str) -> list[dict]:
     if not dhan_feed.is_configured():
-        return []
+        return fetch_nse_indices(as_of)
     ticks = []
     for name, q in dhan_feed.get_index_quote(INDICES).items():
         if not q.get("available") or q.get("last_price") is None:
@@ -135,7 +150,7 @@ async def poll_once(mono: float, now: datetime) -> int:
         if exp <= mono:
             del _watch[sym]
 
-    sources = {"indices": (INDEX_POLL_S, lambda: fetch_indices(as_of))}
+    sources = {"indices": (_index_interval(), lambda: fetch_indices(as_of))}
     if _watch:
         syms = sorted(_watch)
         sources["stocks"] = (STOCK_POLL_S, lambda: fetch_stocks(syms, as_of))
@@ -160,8 +175,6 @@ async def poll_once(mono: float, now: datetime) -> int:
         _set_status("error", "; ".join(_errors.values()), as_of)
     elif _errors:
         _set_status("delayed", "; ".join(_errors.values()), as_of)
-    elif not dhan_feed.is_configured():
-        _set_status("delayed", "Dhan not configured: index quotes unavailable", as_of)
     else:
         _set_status("live", "", as_of)
     return sent

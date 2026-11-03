@@ -1,15 +1,14 @@
 import { useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import BreadthBars from "../components/BreadthBars";
-import DerivativesPanel from "../components/DerivativesPanel";
 import FlowGauge from "../components/FlowGauge";
 import IndicatorStrip from "../components/IndicatorStrip";
 import NewsList from "../components/NewsList";
 import SectorHeatmap from "../components/SectorHeatmap";
-import { Body, Change, Chip, Num, Panel, RangeBar, Sparkline } from "../components/ui";
+import { Body, Change, Chip, NoData, Num, Panel, RangeBar, Sparkline, Stat } from "../components/ui";
 import { useMarketData } from "../hooks/useMarketData";
 import { fmt, isNum, label, signCls } from "../lib/format";
-import type { CallLine, MarketOverviewData, MorningBrief, PreopenRow, Quote } from "../lib/types";
+import type { CallLine, FnoDesk, GiftNifty, LiveQuote, MarketOverviewData, MorningBrief, PreopenRow, Quote } from "../lib/types";
 
 const time = (iso?: string | null) => (iso ? new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "");
 const th = "px-2 py-1 font-normal";
@@ -102,16 +101,17 @@ function MorningCall({ lines }: { lines: CallLine[] }) {
   );
 }
 
-/** Price ladder: expected day range and option-OI levels around the latest NIFTY print. */
-function Levels({ b, d }: { b: MorningBrief; d: MarketOverviewData["derivatives"] }) {
-  const base = b.range?.base ?? b.session?.nifty_last ?? null;
+/** Price ladder: expected day range and live option-OI levels around the latest NIFTY print. */
+function Levels({ b, f }: { b: MorningBrief; f: FnoDesk | null }) {
+  const m = f?.metrics;
+  const base = f?.spot ?? b.range?.base ?? b.session?.nifty_last ?? null;
   const rows: { k: string; v: number; tone: string; hint: string }[] = [];
   const push = (k: string, v: unknown, tone: string, hint: string) => { if (isNum(v)) rows.push({ k, v, tone, hint }); };
-  push("Call wall", d?.call_wall?.strike, "text-negative", "Strike with the most call open interest; often acts as resistance");
+  push("Call wall", m?.resistance[0]?.strike, "text-negative", "Strike with the most call open interest; often acts as resistance");
   push("Range high", b.range?.high, "text-secondary", "Latest NIFTY + typical daily range (ATR)");
-  push("Max pain", d?.max_pain, "text-info", "Strike where option buyers lose the most at expiry");
+  push("Max pain", m?.max_pain, "text-info", "Strike where option buyers lose the most at expiry");
   push("Range low", b.range?.low, "text-secondary", "Latest NIFTY − typical daily range (ATR)");
-  push("Put wall", d?.put_wall?.strike, "text-positive", "Strike with the most put open interest; often acts as support");
+  push("Put wall", m?.support[0]?.strike, "text-positive", "Strike with the most put open interest; often acts as support");
   rows.sort((x, y) => y.v - x.v);
   const at = base === null ? -1 : rows.findIndex((r) => r.v < base);
   const Now = () => (
@@ -136,9 +136,57 @@ function Levels({ b, d }: { b: MorningBrief; d: MarketOverviewData["derivatives"
       </div>
       <div className="text-[11px] leading-relaxed text-muted">
         {b.range && <>Typical day ±{fmt(b.range.points, 0)} pts ({fmt(b.range.pct, 2)}%). </>}
-        {d?.expiry && <>Option levels for the {d.expiry} expiry, from the saved report.</>}
+        {f?.expiry && <>Option levels: live NSE chain, {f.expiry} expiry. </>}
+        {!m && <>Option chain unavailable{f?.errors.chain ? `: ${f.errors.chain}` : ""}.</>}
       </div>
     </div>
+  );
+}
+
+/** Live NIFTY options positioning; the full picture lives on the F&O desk. */
+function FnoSnapshot({ f }: { f: FnoDesk }) {
+  const m = f.metrics, t = f.technicals;
+  if (!m) return <NoData text={f.errors.chain ?? "Option chain unavailable."} />;
+  const S = ({ k, children, title }: { k: string; children: ReactNode; title?: string }) => <Stat k={k} title={title}>{children}</Stat>;
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+        <S k="PCR (OI)"><Num v={m.pcr_oi} /></S>
+        <S k="Max pain"><Num v={m.max_pain} d={0} /></S>
+        <S k="ATM IV"><Num v={m.atm_iv} d={1} suffix="%" /></S>
+        <S k="IV − RV20" title="ATM implied vol minus 20-day realized vol"><Num v={isNum(m.atm_iv) && t ? m.atm_iv - t.rv20 : null} d={1} signed suffix=" pts" /></S>
+        <S k="Call wall"><Num v={m.resistance[0]?.strike} d={0} className="text-negative" /></S>
+        <S k="Put wall"><Num v={m.support[0]?.strike} d={0} className="text-positive" /></S>
+        <S k="ATM straddle"><Num v={m.straddle} /></S>
+        <S k="Move by expiry">±<Num v={m.expected_move_pct} />%</S>
+      </div>
+      <div className="flex items-center justify-between text-[11px] text-muted">
+        <span>{f.source} · {f.expiry} · updated {time(f.generated)}</span>
+        <Link to="/analysis" className="text-accent hover:underline">Open F&amp;O desk</Link>
+      </div>
+    </div>
+  );
+}
+
+/** Today's move of NSE sector indices, live. */
+function LiveSectors({ rows, asOf }: { rows: LiveQuote[]; asOf: string | null }) {
+  const sorted = [...rows].filter((r) => isNum(r.change_percent)).sort((a, b) => (b.change_percent as number) - (a.change_percent as number));
+  const bg = (v: number) => {
+    const t = Math.min(1, Math.abs(v) / 3), c = v >= 0 ? [22, 130, 90] : [190, 30, 55], n = [27, 34, 43];
+    return `rgb(${n.map((x, i) => Math.round(x + (c[i] - x) * t)).join(",")})`;
+  };
+  return (
+    <Panel title="Sector indices · today" right={asOf && `NSE live · ${asOf}`}>
+      <div className="grid grid-cols-2 gap-px sm:grid-cols-3">
+        {sorted.map((r) => (
+          <div key={r.name} className="min-w-0 p-1.5 text-white" style={{ background: bg(r.change_percent as number) }} title={`${r.name} ${fmt(r.price)}`}>
+            <div className="truncate text-[11px] font-semibold">{r.name.replace(/^NIFTY /, "")}</div>
+            <div className="font-mono text-sm font-semibold tabular-nums">{(r.change_percent as number) > 0 ? "+" : ""}{fmt(r.change_percent)}%</div>
+            <div className="font-mono text-[10px] tabular-nums text-white/75">{fmt(r.price)}</div>
+          </div>
+        ))}
+      </div>
+    </Panel>
   );
 }
 
@@ -146,7 +194,7 @@ function Pct({ v }: { v: unknown }) {
   return <Num v={v} d={2} signed suffix="%" />;
 }
 
-function GlobalCues({ g }: { g: MorningBrief["global"] }) {
+function GlobalCues({ g, gift }: { g: MorningBrief["global"]; gift?: GiftNifty | null }) {
   const Line = ({ k, sub, v, c }: { k: string; sub?: ReactNode; v: ReactNode; c: unknown }) => (
     <div className="flex items-baseline justify-between gap-2 border-t border-line/15 py-1 text-[12px] first:border-t-0">
       <span className="text-secondary">{k}{sub && <span className="ml-1.5 text-[10.5px] text-muted">{sub}</span>}</span>
@@ -156,6 +204,7 @@ function GlobalCues({ g }: { g: MorningBrief["global"] }) {
   return (
     <div className="grid gap-x-6 sm:grid-cols-2">
       <div>
+        {gift && <><div className="mb-1 text-[11.5px] text-muted">NSE IX</div><Line k="GIFT Nifty" sub={gift.expiry} v={<Num v={gift.price} />} c={gift.change_pct} /><div className="mb-1 mt-2" /></>}
         <div className="mb-1 text-[11.5px] text-muted">World indices · last close</div>
         {g.indices?.length ? g.indices.map((i) => <Line key={i.name} k={i.name} sub={i.date.slice(5)} v={<Num v={i.last} />} c={i.change_pct} />) : <div className="text-[12px] text-muted">N/A</div>}
       </div>
@@ -287,6 +336,7 @@ function Movers({ m }: { m: MorningBrief["movers"] }) {
 export default function MarketOverview() {
   const { data, loading, error } = useMarketData<MarketOverviewData>("/market-overview");
   const brief = useMarketData<MorningBrief>("/morning-brief");
+  const fno = useMarketData<FnoDesk>("/fno/NIFTY");
   const b = brief.data;
   const bl = brief.loading && !b;
   const bErr = (v: unknown, key: string) => (brief.error && !b ? brief.error : v == null ? b?.errors[key] ?? "Source returned nothing." : null);
@@ -306,6 +356,7 @@ export default function MarketOverview() {
     <div className="mx-auto max-w-[1800px] space-y-2">
       {error && <div className="text-xs text-warning">Refresh failed ({error}); showing last data.</div>}
       {!kpis && <div className="text-xs text-warning">No saved report: run a refresh to load regime, breadth and flows.</div>}
+      {data.live?.error && <div className="text-xs text-warning">{data.live.error}. Prices below are from the saved report.</div>}
 
       <div className="grid grid-cols-1 gap-2 xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)]">
         <Panel title="Morning call" right={b && <span>{b.session?.message ?? ""}{b.session?.message && " · "}updated {time(b.generated)}</span>}>
@@ -315,7 +366,7 @@ export default function MarketOverview() {
           <div className="mt-3 border-t border-line/20 pt-2 text-[11px] text-muted">A plain reading of the inputs below, not a forecast or a buy/sell call.</div>
         </Panel>
         <Panel title="NIFTY levels to watch">
-          <Body loading={bl} error={brief.error && !b ? brief.error : null} lines={6}>{b && <Levels b={b} d={data.derivatives} />}</Body>
+          <Body loading={bl} error={brief.error && !b ? brief.error : null} lines={6}>{b && <Levels b={b} f={fno.data} />}</Body>
         </Panel>
       </div>
 
@@ -328,7 +379,7 @@ export default function MarketOverview() {
 
       <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
         <Panel title="Global cues" right="Yahoo Finance and NSE feed">
-          <Body loading={bl} error={b && !b.global.indices && !b.global.commodities ? b.errors.global ?? "Unavailable" : brief.error && !b ? brief.error : null} lines={6}>{b && <GlobalCues g={b.global} />}</Body>
+          <Body loading={bl} error={b && !b.global.indices && !b.global.commodities ? b.errors.global ?? "Unavailable" : brief.error && !b ? brief.error : null} lines={6}>{b && <GlobalCues g={b.global} gift={b.gift_nifty ?? data.live?.gift_nifty} />}</Body>
         </Panel>
         <Panel title="Pre-open session" right={b?.preopen?.timestamp && `NSE snapshot ${b.preopen.timestamp}`}>
           <Body loading={bl} error={bErr(b?.preopen, "preopen")} lines={6}>{b?.preopen && <Preopen p={b.preopen} />}</Body>
@@ -346,15 +397,17 @@ export default function MarketOverview() {
 
       <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
         <Institutional b={b ?? ({ fii_dii: null } as MorningBrief)} cached={data.flows} />
-        <Panel title="Last session movers" right={b?.session?.trade_date}>
+        <Panel title="NIFTY 50 movers" right={b?.session?.trade_date && `NSE · ${b.session.trade_date}`}>
           <Body loading={bl} error={brief.error && !b ? brief.error : null}>{b && <Movers m={b.movers} />}</Body>
         </Panel>
-        <BreadthBars breadth={data.breadth} />
+        <BreadthBars breadth={data.breadth} liveAsOf={data.live?.as_of} />
       </div>
 
       <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
-        <SectorHeatmap sectors={data.sectors} />
-        <DerivativesPanel title={data.derivatives?.instrument ?? "NIFTY"} d={data.derivatives} />
+        {data.live?.sectors?.length ? <LiveSectors rows={data.live.sectors} asOf={data.live.as_of} /> : <SectorHeatmap sectors={data.sectors} />}
+        <Panel title="NIFTY options · live">
+          <Body loading={fno.loading && !fno.data} error={fno.error && !fno.data ? fno.error : null} lines={4}>{fno.data && <FnoSnapshot f={fno.data} />}</Body>
+        </Panel>
       </div>
     </div>
   );

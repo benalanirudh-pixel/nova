@@ -2,8 +2,8 @@ import { fmt, isNum } from "../lib/format";
 import type { Breadth } from "../lib/types";
 import { Num, Panel, PctBar, Stat } from "./ui";
 
-/** A/D bar, % above EMAs, strong trend split; `detail` adds 52W highs/lows and McClellan. */
-export default function BreadthBars({ breadth: b, detail }: { breadth: Breadth | null; detail?: boolean }) {
+/** A/D bar, 52W highs/lows, % above EMAs, strong trend split. `liveAsOf`: counts came from NSE live at that time. */
+export default function BreadthBars({ breadth: b, liveAsOf }: { breadth: Breadth | null; liveAsOf?: string | null }) {
   const { advancing: a, declining: d, unchanged: u } = b ?? {};
   const ok = isNum(a) && isNum(d) && isNum(u) && a + d + u > 0;
   const total = ok ? a + d + u : 1;
@@ -31,13 +31,15 @@ export default function BreadthBars({ breadth: b, detail }: { breadth: Breadth |
             <PctBar k="Strong uptrend" v={b.strong_uptrend_percent} bar="bg-positive" />
             <PctBar k="Strong downtrend" v={b.strong_downtrend_percent} bar="bg-negative" />
           </div>
-          {detail && (
-            <div className="grid grid-cols-3 gap-1">
-              <Stat k="52W highs"><Num v={b.new_52w_highs} d={0} /></Stat>
-              <Stat k="52W lows"><Num v={b.new_52w_lows} d={0} /></Stat>
-              <Stat k="McClellan sum"><Num v={b.mcclellan_summation} /></Stat>
+          {(isNum(b.new_52w_highs) || isNum(b.new_52w_lows)) && (
+            <div className="grid grid-cols-2 gap-1">
+              <Stat k="New 52W highs"><Num v={b.new_52w_highs} d={0} className="text-positive" /></Stat>
+              <Stat k="New 52W lows"><Num v={b.new_52w_lows} d={0} className="text-negative" /></Stat>
             </div>
           )}
+          <div className="text-[11px] text-muted">
+            {liveAsOf ? `Advances, declines and 52-week counts: NSE live, ${liveAsOf}. ` : ""}% above EMAs and trend split: last full scan.
+          </div>
         </div>
       )}
     </Panel>

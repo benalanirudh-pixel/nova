@@ -91,6 +91,25 @@ max 25, each entry expires after 120 s unless re-posted) and
 poll interval). The live loop never runs the full NSE scan. Frontend not wired
 yet (Phase 2).
 
+## 2026-11-03 - Web dashboard: live NSE data everywhere a price is shown
+
+New `analysis/data/nse_live.py` reads NSE's website API over the same
+curl_cffi session as the option chain (`allIndices`, `fiidiiTradeReact`,
+`live-analysis-variations`, 52-week high/low lists, `marketStatus`).
+- `/api/market-overview` and `/api/market-analysis` overlay live NIFTY,
+  BANK NIFTY and INDIA VIX quotes, market-wide advances/declines and new
+  52-week highs/lows onto the saved report (30 s cache), and add `live`
+  (sector indices, GIFT Nifty, NSE status, error). Scan-based fields (% above
+  EMAs, trend split, returns history) still come from the last full scan.
+- Morning brief: FII/DII cash, NIFTY gainers/losers and GIFT Nifty come from
+  NSE first (MCP as fallback); the morning call gains a GIFT Nifty line.
+- Live index ticks fall back to NSE (15 s) when Dhan is not configured.
+- Overview: levels ladder and a new "NIFTY options · live" panel use
+  `/api/fno/NIFTY`; sector heatmap shows live NSE sector indices.
+  `DerivativesPanel.tsx` removed; McClellan (no source) removed from breadth.
+- Scheduler catches up once at startup when the saved report predates the
+  last scheduled slot (the server was off at 09:15 etc.).
+
 ## 2026-11-02 - Web dashboard: Market analysis is now the F&O desk
 
 The third tab ("F&O desk", route `/analysis`) covers index options only:

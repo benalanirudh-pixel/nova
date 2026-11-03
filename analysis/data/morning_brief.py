@@ -23,7 +23,7 @@ from typing import Any, Optional
 
 import pandas as pd
 
-from analysis.data import nse_feed
+from analysis.data import nse_feed, nse_live
 from analysis.data.stock_profile import CLASSIFICATION_FILE, SCANNER_DIR, _error_of, _num, parse_news
 
 JUNK_NEWS = re.compile(r"live updates|top (gainers|losers) today|stock market today live|share price - live|stock price & chart", re.I)
@@ -184,7 +184,7 @@ def stocks_in_focus(scanner_dir: Path = SCANNER_DIR, classification_file: Path =
 
 def build_morning_call(report: Optional[dict], session: Optional[dict], preopen: Optional[dict],
                        indices: Optional[list], commodities: Optional[list], fx: Optional[list],
-                       fii_dii: Optional[list], now: Optional[datetime] = None) -> list[dict]:
+                       fii_dii: Optional[list], now: Optional[datetime] = None, gift: Optional[dict] = None) -> list[dict]:
     """Plain sentences read off the data. tone: positive | negative | neutral. Never a buy/sell call."""
     out: list[dict] = []
     r = report or {}
@@ -199,6 +199,10 @@ def build_morning_call(report: Optional[dict], session: Optional[dict], preopen:
     if session and session.get("nifty_change_pct") is not None:
         p = session["nifty_change_pct"]
         add(sign(p), "NIFTY", f"NIFTY last at {session['nifty_last']:,.2f} ({p:+.2f}%), session {str(session.get('status', '')).lower()} ({session.get('trade_date')})")
+
+    if gift and gift.get("change_pct") is not None:
+        add(sign(gift["change_pct"]), "GIFT Nifty",
+            f"GIFT Nifty {gift['price']:,.1f} ({gift['change_pct']:+.2f}% on the day, {gift.get('expiry')} contract, {gift.get('as_of')})")
 
     us = [i for i in indices or [] if i["region"] == "US"]
     asia = [i for i in indices or [] if i["region"] == "Asia"]
@@ -291,7 +295,21 @@ def build_morning_brief(report: Optional[dict] = None) -> dict:
     raw["news"] = [n for n in merged if not JUNK_NEWS.search(str(n.get("title", "")))
                    and not (str(n.get("title", "")).lower() in seen or seen.add(str(n.get("title", "")).lower()))] or raw.get("news")
     preopen = section("preopen", parse_preopen)
-    fii = section("fii_dii", parse_fii_dii)
+    # NSE's own API first (the MCP's FII/DII and movers are often empty); MCP as fallback
+    try:
+        fii = nse_live.fii_dii()
+    except Exception as exc:
+        fii = section("fii_dii", parse_fii_dii)
+        errors.setdefault("fii_dii", f"NSE: {exc}")
+    try:
+        movers = nse_live.movers("NIFTY")
+    except Exception as exc:
+        errors["movers"] = f"NSE: {exc}"
+        movers = {"gainers": section("gainers", parse_movers) or [], "losers": section("losers", parse_movers) or []}
+    try:
+        gift = nse_live.parse_gift(nse_live.get("marketStatus"))
+    except Exception as exc:
+        gift, errors["gift_nifty"] = None, f"NSE: {exc}"
     commodities = section("commodities", parse_commodities)
     fx = section("fx", parse_fx)
     try:
@@ -316,11 +334,12 @@ def build_morning_brief(report: Optional[dict] = None) -> dict:
         "range": day_range,
         "preopen": preopen,
         "fii_dii": fii,
-        "movers": {"gainers": section("gainers", parse_movers) or [], "losers": section("losers", parse_movers) or []},
+        "movers": movers,
+        "gift_nifty": gift,
         "news": section("news", lambda v: fresh_news(parse_news(v, limit=80))),
         "global": {"indices": indices, "commodities": commodities, "fx": fx},
         "focus": focus,
-        "morning_call": build_morning_call(report, session, preopen, indices, commodities, fx, fii),
+        "morning_call": build_morning_call(report, session, preopen, indices, commodities, fx, fii, gift=gift),
         "errors": errors,
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }

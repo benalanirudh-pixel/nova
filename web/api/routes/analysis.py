@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from analysis.data import fno_desk, institutional_flow_engine as flow_engine
 
 from market_lab import view_model as vm
+from web.api.routes.market import apply_live, live_market
 from web.api.report_loader import load_cached_report
 
 router = APIRouter()
@@ -21,7 +22,7 @@ def market_analysis():
         return {k: None for k in ("regime", "breadth", "sectors", "flows", "derivatives",
                                   "indicators", "events", "risk", "freshness")} | {"guardrails": vm.guardrails({})}
     r = saved["report"]
-    return {
+    return apply_live({
         "regime": vm.macro(r),
         "breadth": vm.breadth_block(r),
         "sectors": vm.sector_rows(r, limit=25),
@@ -34,7 +35,7 @@ def market_analysis():
         "freshness": {**vm.data_age(r), "saved_at": saved["saved_at"],
                       "file_age_seconds": saved["age_seconds"]},
         "guardrails": vm.guardrails(r),
-    }
+    }, live_market())
 
 
 @router.get("/flows/history")

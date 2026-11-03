@@ -1,6 +1,7 @@
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -8,6 +9,7 @@ from apscheduler.triggers.cron import CronTrigger
 from market_lab.market_lab_data import get_market_lab_data
 
 IST = "Asia/Kolkata"
+SLOTS = ((9, 15), (13, 30), (15, 15), (18, 0))
 REFRESH_TIMEOUT_S = 900
 _running = False  # set synchronously so two quick calls can't both start
 _subscribers: list[asyncio.Queue] = []
@@ -62,12 +64,39 @@ async def _scheduled_refresh() -> None:
     do_refresh()
 
 
+def last_slot(now: datetime) -> datetime:
+    """Most recent scheduled refresh time at or before `now` (IST, Mon-Fri)."""
+    now = now.astimezone(ZoneInfo(IST))
+    day = now
+    while True:
+        if day.weekday() < 5:
+            for h, m in reversed(SLOTS):
+                slot = day.replace(hour=h, minute=m, second=0, microsecond=0)
+                if slot <= now:
+                    return slot
+        day = (day - timedelta(days=1)).replace(hour=23, minute=59)
+
+
+def missed_refresh(saved_at: str | None, now: datetime) -> bool:
+    """True when the saved report predates the last scheduled slot (server was down or asleep then)."""
+    if not saved_at:
+        return True
+    saved = datetime.fromisoformat(saved_at)
+    saved = saved if saved.tzinfo else saved.replace(tzinfo=ZoneInfo(IST))
+    return saved < last_slot(now)
+
+
 def start_scheduler(app) -> None:
     sched = AsyncIOScheduler(timezone=IST)
-    for hour, minute in ((9, 15), (13, 30), (15, 15), (18, 0)):
+    for hour, minute in SLOTS:
         sched.add_job(_scheduled_refresh, CronTrigger(day_of_week="mon-fri", hour=hour, minute=minute, timezone=IST))
     sched.start()
     app.state.scheduler = sched
+    # cron never re-runs a slot missed while the server was off; catch up once at startup
+    from web.api.report_loader import load_cached_report
+    saved = load_cached_report()
+    if missed_refresh(saved and saved["saved_at"], datetime.now(ZoneInfo(IST))):
+        do_refresh()
 
 
 def stop_scheduler(app) -> None:

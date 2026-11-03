@@ -26,6 +26,7 @@ class LiveFeedBase(unittest.TestCase):
         patches = [
             mock.patch.object(live_feed.scheduler, "_broadcast", side_effect=self.sent.append),
             mock.patch.object(live_feed.dhan_feed, "is_configured", return_value=False),
+            mock.patch.object(live_feed.nse_live, "get", return_value={"data": []}),  # no network in tests
         ]
         for p in patches:
             p.start()
@@ -87,6 +88,16 @@ class TestTicks(LiveFeedBase):
             self.assertEqual(self.poll(), 1)
         self.assertEqual(self.sent[0]["symbol"], "NIFTY")
         self.assertEqual(self.sent[0]["change_pct"], 0.4)
+        self.assertEqual(live_feed.snapshot()["status"]["state"], "live")
+
+
+    def test_nse_index_ticks_without_dhan(self):
+        payload = {"data": [{"index": "NIFTY 50", "last": 23661.5, "variation": 220.7, "percentChange": 0.94},
+                            {"index": "INDIA VIX", "last": 15.97, "variation": 0.47, "percentChange": 3.03}]}
+        with mock.patch.object(live_feed.nse_live, "get", return_value=payload):
+            self.assertEqual(self.poll(), 2)
+        self.assertEqual({t["symbol"] for t in self.sent}, {"NIFTY", "INDIAVIX"})
+        self.assertEqual(self.sent[0]["source"], "NSE")
         self.assertEqual(live_feed.snapshot()["status"]["state"], "live")
 
 

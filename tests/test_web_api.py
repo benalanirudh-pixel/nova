@@ -6,6 +6,20 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from web.api.main import create_app
+from unittest import mock as _mock
+
+_offline = _mock.patch("analysis.data.nse_live.market", side_effect=RuntimeError("offline test"))
+
+
+def setUpModule():
+    # routes overlay live NSE quotes; keep these tests offline and deterministic
+    _offline.start()
+    from web.api.routes import market
+    market._live_cache.clear()
+
+
+def tearDownModule():
+    _offline.stop()
 
 
 class TestHealthEndpoint(unittest.TestCase):
@@ -172,12 +186,26 @@ class TestRefreshEndpoint(unittest.TestCase):
 
     def test_lifespan_starts_and_stops_scheduler(self):
         from starlette.testclient import TestClient
+        from unittest import mock
         app = create_app()
-        with TestClient(app):
+        with mock.patch("web.api.scheduler.get_market_lab_data"),              mock.patch("analysis.data.nse_live.get", side_effect=RuntimeError("offline test")),              TestClient(app):
             jobs = app.state.scheduler.get_jobs()
             self.assertEqual(len(jobs), 4)
             for j in jobs:
                 self.assertIn("day_of_week='mon-fri'", str(j.trigger))
+
+
+    def test_missed_refresh_catch_up(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        from web.api import scheduler
+        tue_1100 = datetime(2026, 11, 3, 11, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
+        self.assertEqual(scheduler.last_slot(tue_1100).strftime("%a %H:%M"), "Tue 09:15")
+        mon_0800 = tue_1100.replace(day=2, hour=8)
+        self.assertEqual(scheduler.last_slot(mon_0800).strftime("%a %d %H:%M"), "Fri 30 18:00")  # skips weekend
+        self.assertTrue(scheduler.missed_refresh("2026-11-01T20:10:43", tue_1100))   # Sunday report
+        self.assertFalse(scheduler.missed_refresh("2026-11-03T09:20:00", tue_1100))
+        self.assertTrue(scheduler.missed_refresh(None, tue_1100))
 
 
 class TestFullIntegration(unittest.TestCase):

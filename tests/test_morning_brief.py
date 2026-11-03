@@ -82,6 +82,12 @@ class TestMorningCall(unittest.TestCase):
         self.assertTrue(any(l["topic"] == "Range" for l in lines))
         self.assertFalse(any(w in l["text"].lower() for l in lines for w in ("buy ", "sell ")))
 
+    def test_gift_nifty_line(self):
+        lines = mb.build_morning_call(None, None, None, None, None, None, None, now=NOW,
+                                      gift={"price": 23696.5, "change_pct": 1.96, "expiry": "23-Nov-2026", "as_of": "03-Nov-2026 10:56"})
+        self.assertEqual(lines[0]["topic"], "GIFT Nifty")
+        self.assertEqual(lines[0]["tone"], "positive")
+
     def test_empty_inputs(self):
         self.assertEqual(mb.build_morning_call(None, None, None, None, None, None, None), [])
 
@@ -113,12 +119,14 @@ class TestBuild(unittest.TestCase):
         raw.update(gainers=[], losers=RuntimeError("boom"), news=[])
         with mock.patch.object(mb.nse_feed, "call_tools", return_value=raw), \
              mock.patch.object(mb, "global_indices", side_effect=RuntimeError("yahoo down")), \
-             mock.patch.object(mb, "stocks_in_focus", return_value=None):
+             mock.patch.object(mb, "stocks_in_focus", return_value=None),              mock.patch.object(mb.nse_live, "get", side_effect=RuntimeError("nse blocked")):
             b = mb.build_morning_brief(None)
         for k in ("session", "preopen", "fii_dii", "news", "focus", "range"):
             self.assertIsNone(b[k], k)
         self.assertEqual(b["movers"], {"gainers": [], "losers": []})
         self.assertIn("yahoo down", b["errors"]["global"])
+        self.assertIsNone(b["gift_nifty"])
+        self.assertIn("nse blocked", b["errors"]["gift_nifty"])
         self.assertEqual(b["morning_call"], [])
 
 
@@ -128,6 +136,10 @@ class TestRoutes(unittest.TestCase):
         from web.api.main import create_app
         from web.api.routes import market
         market._brief_cache.clear()
+        market._live_cache.clear()
+        p = mock.patch.object(market.nse_live, "market", side_effect=RuntimeError("offline test"))
+        p.start()
+        self.addCleanup(p.stop)
         self.client = TestClient(create_app())
 
     def test_brief_cached_with_guardrails(self):

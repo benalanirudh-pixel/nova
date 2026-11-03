@@ -84,7 +84,7 @@ export default function TickerTape({ data }: { data: MarketOverviewData | null }
       <Sep />
       <span className="flex shrink-0 items-center gap-1.5" title={freshness?.generated ? `Generated ${freshness.generated}` : "No cache"}>
         <span className={`inline-block h-1.5 w-1.5 rounded-full ${lv.cls}`} />
-        <span className="text-muted">Data</span>
+        <span className="text-muted">Report</span>
         <span className="text-secondary">{freshness?.label ?? "No cache"}</span>
       </span>
       <SessionClock />
