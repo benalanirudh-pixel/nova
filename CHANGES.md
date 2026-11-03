@@ -3,6 +3,15 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-03 - Public README, MIT license, fresh-clone build
+
+- `README.md` rewritten for new users: screenshots in `docs/screenshots/`
+  (overview, stock, F&O desk, flows), step-by-step Windows setup,
+  troubleshooting, optional extras, API table.
+- Added `LICENSE` (MIT).
+- `web_main.py`: when `web/frontend/node_modules` is missing (fresh clone),
+  the build runs `npm ci` before `npm run build`.
+
 ## 2026-11-03 - Web dashboard: visual polish sprint
 
 - `Panel`: uppercase tracked titles with a saffron tick, tinted header bar,

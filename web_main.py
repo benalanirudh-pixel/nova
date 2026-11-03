@@ -15,8 +15,11 @@ def build_frontend() -> int:
     if not npm:
         print("error: npm not found on PATH; install Node.js first", file=sys.stderr)
         return 1
+    frontend = Path(__file__).parent / "web" / "frontend"
     try:
-        subprocess.run([npm, "run", "build"], cwd=Path(__file__).parent / "web" / "frontend", check=True)
+        if not (frontend / "node_modules").is_dir():  # fresh clone
+            subprocess.run([npm, "ci"], cwd=frontend, check=True)
+        subprocess.run([npm, "run", "build"], cwd=frontend, check=True)
     except subprocess.CalledProcessError as e:
         print(f"error: frontend build failed (exit {e.returncode})", file=sys.stderr)
         return 1

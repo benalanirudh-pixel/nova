@@ -1,282 +1,269 @@
-# Nova
+<div align="center">
 
-**Real-time Indian market analysis dashboard — runs locally, no broker, no cloud.**
+# ✦ Nova
 
-Nova is a web-based NSE analysis terminal built with FastAPI and React. It pulls live data from the National Stock Exchange, runs technical, derivatives, institutional flow, and regime analysis through Python engines, and renders everything in a professional trading dashboard at `http://127.0.0.1:8501`. AI interpretation is powered by a local Ollama instance. All data stays on your machine.
+### Your own Indian stock market research terminal. It runs on your PC and it's free.
 
-> **Analysis only.** Nova does not connect to any broker, place trades, or generate buy/sell signals.
+**NSE stocks · F&O option chains · FII/DII flows · live quotes · market regime**, all in one dark trading-desk dashboard on `localhost`.
 
----
+![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
+![Tailwind](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-476%20passing-26C281)
+![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-FF9933)
 
-## Dashboard
+<img src="docs/screenshots/overview.png" alt="Nova overview: morning call, NIFTY levels, index cards, global cues, pre-open session" width="100%">
 
-<p align="center">
-  <img src="screenshots/kilo_marketlab_full.png" alt="Nova Dashboard — Market Overview" width="100%">
-</p>
+</div>
 
-<details>
-<summary>More views</summary>
-
-| Stock Analysis | Market Analysis (Nifty Deep Dive) |
-|:---:|:---:|
-| <img src="screenshots/stock.png" alt="Stock Analysis" width="480"> | <img src="screenshots/report.png" alt="Market Analysis" width="480"> |
-
-| Desktop Terminal (PySide6) | Market Dashboard |
-|:---:|:---:|
-| <img src="screenshots/terminal_v2_final.png" alt="Nova Terminal" width="480"> | <img src="screenshots/dashboard.png" alt="Market Dashboard" width="480"> |
-
-</details>
+> [!IMPORTANT]
+> **Nova is for analysis only.** It has no broker connection, it never places orders, and it never tells you to buy or sell. Every number shows where it came from and how old it is. Missing or stale data is flagged, not invented.
 
 ---
 
-## Pages
+## Why Nova?
 
-### Overview (morning brief)
-- **Morning call** — one plain line per factor (NIFTY, US/Asian markets, crude, rupee, pre-open breadth, flows, regime, VIX, typical day range, events in the next 48h), coloured supportive / neutral / cautious; never a buy/sell call
-- **NIFTY levels to watch** — price ladder of the ATR day range, option call/put walls and max pain around the latest NSE print
-- **Index cards** — NIFTY (live NSE print), Bank Nifty and India VIX with sparklines and 5D/20D/60D returns
-- **Global cues** — S&P 500, Nasdaq, Dow, FTSE, Nikkei, Hang Seng, crude, gold, silver, gas, copper, USD/INR, EUR/INR
-- **Pre-open session** — NSE pre-open breadth plus top gainers, losers and most traded at the indicative open
-- **Stocks in focus** — screens over the latest scan (near 52-week high on volume, strongest momentum, unusual volume, oversold), liquid names only; rows open the stock page
-- **Market news**, **last-session movers**, **FII/DII activity**, **breadth**, **sector heatmap**, **derivatives**
+Most free market sites give you one piece at a time: a chart here, an option chain there, FII data in a PDF somewhere else. Nova pulls it **all into one screen** and does the maths for you:
 
-### Stock Analysis (research page, no charts)
-- **Search-first landing** — recent and popular symbols; header search with Ctrl+K or `/`
-- **Quote strip** — price, change, OHLC, volume, 52-week range, 1D/5D/20D/60D returns
-- **Key takeaways** — rule-based statements from the numbers (growth, ROE, leverage, PEG, peer rank, results due)
-- **Company, valuation and ratios** — P/E, P/B, PEG, EV/EBITDA, ROE, margins, growth, dividend
-- **Quarterly results** — last 5 quarters with QoQ/YoY growth; **results calendar** with estimates
-- **Ownership** — promoters vs institutions (FII/DII split when NSE's filing is reachable)
-- **Competitors** — same-industry NSE stocks from the classification and scanner caches
-- **News**, **technical snapshot** (momentum, conditions, moving averages), **corporate actions**
-
-### F&O desk (NIFTY 50, BANK NIFTY, SENSEX)
-- **Index switcher** — spot, change, PCR, max pain, ATM IV and expected move for all three at a glance
-- **Metric strip** — expiry picker with days left, ATM strike, PCR (OI / volume / change in OI), max pain vs spot, ATM IV, IV minus 20-day realized vol, 3% OTM skew, ATM straddle
-- **Desk read** — plain lines on positioning: PCR, fresh OI, OI range, max pain, straddle-implied move, skew, IV vs RV, trend; never a trade call
-- **Levels** — call/put OI walls, max pain, straddle breakevens and floor pivots sorted around spot
-- **OI profile** — put vs call open interest (or change in OI) by strike with spot, ATM and max pain marked
-- **Option chain** — calls | strike | puts with OI heat, ITM shading and ATM outline
-- **Volatility smile**, **spot technicals** (EMAs, RSI, ATR, realized vol, 52-week range), **India VIX regime**, **FII/DII flows**, **event risk**
-- Live chains: NSE (NIFTY, BANKNIFTY) and BSE (SENSEX); refreshes every minute while the market is open
-
-### Flows (FII / DII)
-- **Daily / weekly / monthly** net flow bars and a sortable history table with buy, sell, net, combined and running totals
-- Rows come from the flow engine's own history store (`GET /api/flows/history`); each `market_scope` (combined NSE + BSE + MSEI vs NSE only) is shown separately and never summed together
-- Engine 5D / 10D / 20D sums, streaks, coverage and provisional flags from the saved report
-
-### Real-Time Updates
-- **SSE (Server-Sent Events)** — Dashboard auto-updates on data refresh
-- **Live quotes (read-only)** — During the NSE session (09:15–15:30 IST, Mon–Fri) the API polls NIFTY / BANKNIFTY / INDIAVIX (Dhan, when configured) every 5 s and the stocks open in the dashboard (Indian Market MCP) every 15 s, and pushes changed prices over SSE. A feed pill shows Live / Delayed / Feed closed / Feed error / Feed lost; every live price shows its source and IST time on hover and is tagged Stale when older than 2× its poll interval
-- **Scheduled refresh** — Automatic data refresh on weekdays during market hours
-- **Manual refresh** — One-click refresh button with POST endpoint (origin-checked)
+- 🧭 **Morning call.** One plain-English line per factor: NIFTY, US/Asia, crude, rupee, pre-open breadth, flows, regime, VIX. Each line is coloured supportive, neutral or cautious.
+- 📈 **Real charts.** Daily candlesticks with EMA 20/50/200 and volume. Scroll to zoom, drag to pan, and the crosshair shows OHLC.
+- 🧮 **F&O desk.** PCR, max pain, OI walls, ATM IV vs realized vol, skew, straddle-implied move and the full option chain for **NIFTY, BANK NIFTY and SENSEX**.
+- 🏦 **FII / DII flows.** Daily, weekly and monthly bars with a sortable history and running totals.
+- ⚡ **Live prices.** During market hours, prices stream into the page. A pill always tells you if data is *Live*, *Delayed*, *Saved* or *Stale*.
+- 🔍 **Stock research.** Valuation, ratios, quarterly results, results calendar, ownership, peers, news and a technical snapshot for any NSE stock.
+- 🔒 **100% local.** Everything runs on `127.0.0.1`. No account, no cloud and no tracking.
 
 ---
 
-## Quick Start
+## 📸 What it looks like
 
-**Requirements:** Windows 10/11, Python 3.14, Node.js (for frontend build), Git
+### Stock research: chart, technicals, fundamentals, news
+<img src="docs/screenshots/stock.png" alt="Stock page for RELIANCE: price chart with EMAs, technical snapshot, company, results calendar, news" width="100%">
+
+The **key takeaways** row turns raw numbers into plain sentences: *"Revenue up 29.8% year on year"*, *"Return on equity 8.8% (below 10%)"*, *"Ranked 3 of 7 listed peers by 20-day return"*. The technical snapshot scores momentum from 0 to 100 and labels trend, structure, RSI, MACD and VWAP.
+
+### F&O desk: option chain analytics for NIFTY, BANK NIFTY, SENSEX
+<img src="docs/screenshots/fno.png" alt="F&O desk: index switcher, PCR, max pain, IV, desk read, levels ladder, OI profile, option chain" width="100%">
+
+The **desk read** explains positioning in words, for example *"OI PCR 1.77: put-heavy, writers are defending lower strikes"*. The **levels** ladder sorts call/put OI walls, max pain, straddle breakevens and pivots around spot.
+
+### FII / DII flows: who's buying, who's selling
+<img src="docs/screenshots/flows.png" alt="Flows page: institutional activity stats, daily net flow bars, daily history table" width="100%">
+
+Every row shows its **source** (NSE primary or a mirror) and provisional days carry a `*`. Combined NSE+BSE+MSEI data and NSE-only data are **never mixed**.
+
+---
+
+## 🚀 Get it running (about 10 minutes)
+
+### 1. Install these first
+
+| Tool | Version | Get it |
+|------|---------|--------|
+| **Windows** | 10 or 11 | |
+| **Python** | 3.14 | [python.org/downloads](https://www.python.org/downloads/). Tick **"Add python.exe to PATH"** |
+| **Node.js** | 20 or newer (LTS) | [nodejs.org](https://nodejs.org/). Only needed to build the dashboard once |
+| **Git** | any | [git-scm.com](https://git-scm.com/download/win) |
+
+### 2. Clone and install
+
+Open **PowerShell** and run:
 
 ```powershell
 git clone https://github.com/benalanirudh-pixel/nova.git
 cd nova
-
 python -m venv venv
 .\venv\Scripts\pip.exe install -r requirements.txt
 ```
 
-### Launch the Dashboard
+> The install is big (about 100 packages) because the same repo also ships a desktop AI assistant. It's a one-time step.
+
+### 3. Build your first market report
 
 ```powershell
-# Build frontend (first time only)
-.\venv\Scripts\python.exe web_main.py --build
+.\venv\Scripts\python.exe market_lab\market_lab_data.py
+```
 
-# Start the dashboard — opens at http://127.0.0.1:8501
+On a fresh clone there is no cache yet, so this scans **all ~2,300 NSE stocks** once. It takes **2 to 3 minutes**. Later runs reuse the cache and finish in seconds.
+
+### 4. Launch the dashboard
+
+```powershell
 .\venv\Scripts\python.exe web_main.py
 ```
 
-### Development Mode
+The first launch installs and builds the frontend automatically (about a minute). Then your browser opens **http://127.0.0.1:8501**. 🎉
 
-```powershell
-# API only (run Vite dev server separately for hot reload)
-.\venv\Scripts\python.exe web_main.py --dev
+Next time, just run step 4.
 
-# In another terminal:
-cd web/frontend && npm run dev
-```
+### Keyboard shortcuts
 
-### Market Data
-
-```powershell
-# Cache-first report (fast, uses existing data)
-.\venv\Scripts\python.exe market_lab\market_lab_data.py
-
-# JSON export
-.\venv\Scripts\python.exe market_lab\market_lab_data.py --json
-
-# Full NSE scan (2,333 stocks, ~2-3 min — use sparingly)
-.\venv\Scripts\python.exe market_lab\market_lab_data.py --refresh
-
-# Service health check
-.\venv\Scripts\python.exe start_nova.py --check
-```
-
-### Desktop Surfaces (Alternative)
-
-Nova also ships PySide6 desktop UIs for offline use without a browser:
-
-```powershell
-.\venv\Scripts\python.exe terminal_main.py      # Unified Bloomberg-style terminal
-.\venv\Scripts\python.exe market_lab_ui.py       # Market Lab standalone
-.\venv\Scripts\python.exe main.py                # Nova Assistant (AI chat + voice)
-```
+| Key | Action |
+|-----|--------|
+| `Ctrl+K` or `/` | Search any NSE symbol or company |
+| `1` `2` `3` `4` | Overview · Stock · F&O desk · Flows |
+| `g` then `o` / `s` / `a` / `f` | Same pages, Vim-style |
+| `Esc` | Leave the search box |
 
 ---
 
-## Architecture
+## 🛠 Troubleshooting
+
+<details>
+<summary><b>The dashboard opens but panels are empty</b></summary>
+
+You skipped step 3. Run `.\venv\Scripts\python.exe market_lab\market_lab_data.py` once, then press **Refresh data** in the top-right corner.
+</details>
+
+<details>
+<summary><b><code>npm not found on PATH</code></b></summary>
+
+Install Node.js LTS from [nodejs.org](https://nodejs.org/), close and reopen PowerShell, then run `web_main.py` again.
+</details>
+
+<details>
+<summary><b>The feed pill says "Delayed" or "Feed closed"</b></summary>
+
+That's expected. Live polling only runs during the NSE session (**09:15–15:30 IST, Mon–Fri**). Outside it, Nova shows the last saved values tagged **Saved**. Fast index ticks (every 5 s) need the optional Dhan data API (see below). Without it, index prices are delayed and stock prices still update every 15 s.
+</details>
+
+<details>
+<summary><b>Port 8501 is already in use</b></summary>
+
+```powershell
+.\venv\Scripts\python.exe web_main.py --port 8502
+```
+</details>
+
+<details>
+<summary><b>Force a completely fresh scan</b></summary>
+
+```powershell
+.\venv\Scripts\python.exe market_lab\market_lab_data.py --refresh
+```
+
+This re-downloads everything (2 to 3 minutes). Use it sparingly, because the normal run is cache-first on purpose.
+</details>
+
+<details>
+<summary><b>Check that all services are healthy</b></summary>
+
+```powershell
+.\venv\Scripts\python.exe start_nova.py --check
+```
+</details>
+
+---
+
+## ⚙️ Optional extras
+
+| Extra | What it adds | How |
+|-------|--------------|-----|
+| **Dhan data API** | 5-second live NIFTY / BANK NIFTY / VIX ticks and Dhan candles | Put your *read-only data* token in a `.env` or `dhan_config.json` (both git-ignored). Off by default. Nova never uses order APIs. |
+| **Ollama** | AI interpretation in the desktop apps | Install [Ollama](https://ollama.com) and `ollama pull qwen3.5:4b`. The web dashboard doesn't need it. |
+| **Desktop apps** | PySide6 terminal, Market Lab and a voice assistant | `terminal_main.py`, `market_lab_ui.py`, `main.py` |
+
+---
+
+## 🧠 How it works
 
 ```
-nova/
-├── web_main.py                       # Dashboard launcher (build / serve / dev)
-├── web/
-│   ├── api/
-│   │   ├── main.py                   # FastAPI app: health, SSE, static serving
-│   │   ├── report_loader.py          # Shared report cache loader
-│   │   ├── scheduler.py              # APScheduler auto-refresh (weekday)
-│   │   ├── live_feed.py              # Read-only live quote loop (session-gated)
-│   │   └── routes/
-│   │       ├── market.py             # GET /api/market-overview
-│   │       ├── stock.py              # GET /api/stock/:symbol, /api/symbols
-│   │       ├── analysis.py           # GET /api/market-analysis, /api/fno/:inst, /api/flows/history
-│   │       └── events.py             # GET /api/events (SSE), POST /api/refresh, /api/live/*
-│   └── frontend/
-│       ├── src/
-│       │   ├── App.tsx               # Shell: header, ticker tape, sidebar, routes
-│       │   ├── pages/
-│       │   │   ├── MarketOverview.tsx # Dashboard with all panels
-│       │   │   ├── StockAnalysis.tsx  # Per-stock deep dive
-│       │   │   ├── MarketAnalysis.tsx # F&O desk
-│       │   │   └── Flows.tsx          # FII / DII history
-│       │   ├── components/           # NewsList, FlowGauge, SectorHeatmap, ...
-│       │   ├── hooks/                # useSSE, useLive, useMarketData, useStockAnalysis
-│       │   └── lib/                  # API client, live quote store, formatters, types, theme
-│       ├── package.json              # React 19, TypeScript, Vite, Tailwind
-│       └── vite.config.ts
-├── market_lab/
-│   └── market_lab_data.py            # Central report gateway (all engines)
-├── analysis/
-│   └── data/                         # Python analysis engines (see below)
-└── tests/                            # 423 offline tests
+ NSE · BSE · Yahoo · Dhan (optional)
+            │  read-only adapters
+            ▼
+  ┌──────────────────────────┐      ┌───────────────────────┐
+  │ 11 Python analysis       │      │ live_feed.py          │
+  │ engines (analysis/data/) │      │ polls quotes in market│
+  │ technical · volatility   │      │ hours, change-only    │
+  │ derivatives · flows ·    │      └──────────┬────────────┘
+  │ sectors · risk · events  │                 │ ticks
+  └────────────┬─────────────┘                 │
+               │ cache-first JSON report        │
+               ▼                                ▼
+  ┌──────────────────────────────────────────────────────┐
+  │ FastAPI (127.0.0.1:8501): REST + Server-Sent Events  │
+  └──────────────────────────┬───────────────────────────┘
+                             ▼
+  ┌──────────────────────────────────────────────────────┐
+  │ React 19 + TypeScript + Tailwind + lightweight-charts│
+  └──────────────────────────────────────────────────────┘
 ```
-
-### Analysis Engines
-
-The backend runs 11 Python analysis engines under `analysis/data/`:
 
 | Engine | What it computes |
 |--------|-----------------|
-| `technical_engine.py` | RSI, MACD, ATR, EMA, ADX, trend, momentum scoring |
-| `volatility_engine.py` | VIX context, realized volatility, IV, ATR regime |
-| `derivatives_engine.py` | Nifty/Bank Nifty option chain: PCR, max pain, OI walls, unusual activity |
-| `institutional_flow_engine.py` | FII/DII flow history with primary-source validation |
-| `sector_engine.py` | Sector and macro-sector performance intelligence |
-| `risk_engine.py` | Risk-budget and position-risk calculations |
-| `event_risk_engine.py` | Event-risk context (earnings, expiry, policy dates) |
+| `technical_engine.py` | RSI, MACD, ATR, EMA, ADX, trend and momentum scoring |
+| `volatility_engine.py` | VIX regime, realized vol, IV, ATR regime |
+| `derivatives_engine.py` | PCR, max pain, OI walls, unusual activity |
+| `institutional_flow_engine.py` | FII/DII history with primary-source validation |
+| `sector_engine.py` | Sector and macro-sector strength |
+| `risk_engine.py` | Risk-budget and position-risk maths |
+| `event_risk_engine.py` | Earnings, expiry and policy-date risk |
 | `research_factor_engine.py` | Multi-factor scoring |
-| `market_scanner.py` | Full NSE equity scanner (2,333 stocks) + factor ranking |
-| `nse_feed.py` | Indian Market MCP adapter (primary data source) |
-| `dhan_feed.py` | Optional Dhan market-data adapter (read-only, off by default) |
+| `market_scanner.py` | Full NSE scan (~2,300 stocks) and factor ranking |
+| `nse_feed.py` | Indian Market MCP adapter (primary data) |
+| `dhan_feed.py` | Optional Dhan adapter (read-only, off by default) |
 
-### Report Pipeline
+More detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-`market_lab_data.py::get_market_lab_data()` aggregates all engines into a single JSON report:
-
-1. Load cached NSE equity scan (or full scan with `--refresh`)
-2. Aggregate: scanner → regime → breadth → technical → volatility → sector → derivatives → institutional → event risk → research factors
-3. Optionally overlay Dhan live quotes (Nifty, Bank Nifty, VIX)
-4. Cache to `analysis/data/cache/market_lab/`
-5. Serve to the dashboard via FastAPI endpoints
-
-Modes: **CACHE_FIRST** (default), **FORCED_REFRESH** (`--refresh`), **LIVE_ONLY** (`--live-only`).
-
-### Data Sources
-
-| Source | Adapter | Coverage |
-|--------|---------|----------|
-| NSE via Indian Market MCP | `nse_feed.py` | Live quotes, history, option chains, equity master |
-| Yahoo Finance | `market_data.py` | Fallback for historical candles |
-| NSE FII/DII endpoints | `institutional_flow_engine.py` | Daily institutional flow + Groww mirror |
-| NSE archives | `derivatives_engine.py` | Option chain snapshots |
-| Dhan (optional) | `dhan_feed.py` | Historical candles + live quotes; off by default |
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| **Backend** | Python 3.14, FastAPI, Uvicorn, APScheduler, SSE-Starlette |
-| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS |
-| **Analysis** | 11 Python engines: technicals, derivatives, volatility, institutional flow, sectors, risk, regime |
-| **AI** | Ollama (qwen3.5:4b) for market interpretation and stock research |
-| **Data** | Indian Market MCP, Yahoo Finance, NSE, Dhan (optional) |
-| **Desktop** | PySide6, QPainter (alternative offline UI) |
-
----
-
-## API Endpoints
+<details>
+<summary><b>API endpoints</b></summary>
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/health` | Service health + guardrail text |
-| GET | `/api/market-overview` | Cached market dashboard data (regime, breadth, flows, sectors, derivatives) |
-| GET | `/api/morning-brief` | Live pre-market brief: morning call, pre-open, global cues, news, stocks in focus (5 min cache) |
-| GET | `/api/stock/:symbol` | Per-stock technicals |
-| GET | `/api/stock/:symbol/profile` | Company, ratios, quarterly results, results date, ownership, peers, news (15 min cache) |
-| GET | `/api/symbols?q=` | Symbol search across NSE equities |
-| GET | `/api/market-analysis` | Cached context for the F&O desk (VIX regime, flows, events) |
-| GET | `/api/fno/:instrument?expiry=` | Live F&O desk for NIFTY, BANKNIFTY or SENSEX (60 s cache) |
-| GET | `/api/events` | SSE stream (refresh events) |
-| POST | `/api/refresh` | Trigger data refresh (origin-checked) |
+| GET | `/api/health` | Service health and guardrail text |
+| GET | `/api/market-overview` | Regime, breadth, flows, sectors, derivatives |
+| GET | `/api/morning-brief` | Morning call, pre-open, global cues, news, stocks in focus |
+| GET | `/api/stock/:symbol` | Per-stock technicals and chart data |
+| GET | `/api/stock/:symbol/profile` | Company, ratios, results, ownership, peers, news |
+| GET | `/api/symbols?q=` | Symbol search |
+| GET | `/api/market-analysis` | VIX regime, flows, events for the F&O desk |
+| GET | `/api/fno/:instrument?expiry=` | Live F&O desk for NIFTY, BANKNIFTY or SENSEX |
+| GET | `/api/flows/history` | FII/DII history rows, each with its own scope |
+| GET | `/api/events` | SSE stream: refresh events, live ticks, feed status |
+| GET | `/api/live/snapshot` | Latest live ticks |
+| POST | `/api/live/watch` | Ask the server to poll these symbols (origin-checked) |
+| POST | `/api/refresh` | Trigger a data refresh (origin-checked) |
 
-All endpoints return JSON. The dashboard is localhost-only (`127.0.0.1`).
+</details>
 
----
-
-## External Services
-
-All services run locally. No data leaves your machine.
-
-| Service | Default URL | Purpose |
-|---------|-------------|---------|
-| Ollama | `http://localhost:11434` | Local LLM inference (qwen3.5:4b) |
-| Indian Market MCP | stdio | NSE market data |
-| SearXNG | `http://localhost:8080` | Web research (assistant only) |
-
----
-
-## Tests
+<details>
+<summary><b>Developer mode (hot reload)</b></summary>
 
 ```powershell
-# Run all 423 tests (offline, no external services needed)
-.\venv\Scripts\python.exe -m unittest discover -s tests -v
+.\venv\Scripts\python.exe web_main.py --dev     # API only
+cd web\frontend; npm run dev                    # Vite on http://localhost:5173
 ```
 
-CI (`.github/workflows/ci.yml`) runs a dependency-free gate: AST-parse every `.py` file plus stdlib-only tests. Full suite runs locally (heavy Windows stack).
+Run the tests (offline, no services needed):
+
+```powershell
+.\venv\Scripts\python.exe -m unittest discover -s tests
+```
+</details>
 
 ---
 
-## Safety
+## 🛡 Guardrails
 
-- **Analysis only** — No broker integration, no order placement, no trade execution, no BUY/SELL
-- **No invented data** — Missing or stale data is flagged, never fabricated
-- **Cache-first** — Full NSE scans only on explicit `--refresh` or empty cache
-- **Guardrails** — Every surface (web and desktop) shows the analysis-only disclaimer
-- **Localhost-only** — Web dashboard binds to `127.0.0.1`, POST `/refresh` is origin-checked
-- **No credentials in code** — Optional Dhan token via git-ignored `.env` or `dhan_config.json`
+- **Analysis only.** No broker integration, no order placement and no BUY/SELL signals. `buy_sell_authorized` is hard-wired to `False`.
+- **No invented data.** Every price shows its source and time. Stale or missing values are labelled.
+- **Cache-first.** The expensive full scan only runs on `--refresh` or when no cache exists.
+- **Local only.** The server binds to `127.0.0.1`. Write endpoints reject cross-origin requests.
+- **No secrets in git.** Tokens live in git-ignored files.
+
+> Nova is a research tool, not investment advice. Markets carry risk. Do your own research and make your own decisions.
 
 ---
 
-## License
+## 📄 License
 
-Private repository. All rights reserved.
+[MIT](LICENSE) © 2026 Anirudh. Fork it, run it, share it.
+
+<div align="center">
+
+**If Nova helps you read the market, give it a ⭐**
+
+</div>
