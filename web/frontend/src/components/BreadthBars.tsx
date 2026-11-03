@@ -38,7 +38,7 @@ export default function BreadthBars({ breadth: b, liveAsOf }: { breadth: Breadth
             </div>
           )}
           <div className="text-[11px] text-muted">
-            {liveAsOf ? `Advances, declines and 52-week counts: NSE live, ${liveAsOf}. ` : ""}% above EMAs and trend split: last full scan.
+            {liveAsOf ? `Advances, declines and 52-week counts: NSE, ${liveAsOf}. ` : ""}% above EMAs and trend split: last full scan.
           </div>
         </div>
       )}

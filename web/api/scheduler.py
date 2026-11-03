@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from market_lab.market_lab_data import get_market_lab_data
+from market_lab.market_lab_data import get_market_lab_data, save_json_report
 
 IST = "Asia/Kolkata"
 SLOTS = ((9, 15), (13, 30), (15, 15), (18, 0))
@@ -32,12 +32,16 @@ def _broadcast(event: dict) -> None:
         q.put_nowait(json.dumps(event))
 
 
+def _refresh_and_save() -> None:
+    # the dashboard reads only saved reports, so a refresh that is not saved changes nothing
+    save_json_report(get_market_lab_data(force_refresh=True))
+
+
 async def _run_refresh() -> None:
     global _running
     try:
         # The worker thread can't be killed, so a late-finishing scan may overlap the next one.
-        await asyncio.wait_for(asyncio.to_thread(get_market_lab_data, force_refresh=True),
-                               timeout=REFRESH_TIMEOUT_S)
+        await asyncio.wait_for(asyncio.to_thread(_refresh_and_save), timeout=REFRESH_TIMEOUT_S)
         _broadcast({"type": "refresh_complete", "timestamp": datetime.now().isoformat()})
     except asyncio.TimeoutError:
         _broadcast({"type": "refresh_failed", "timestamp": datetime.now().isoformat(),

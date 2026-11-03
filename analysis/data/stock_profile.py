@@ -58,6 +58,9 @@ def _error_of(v: Any) -> Optional[str]:
 # ---------------------------------------------------------------- sections
 
 def parse_profile(p: dict) -> dict:
+    # the MCP answers unknown symbols with blank strings and zeros instead of an error
+    if not str(p.get("company") or "").strip():
+        raise ValueError("no company profile for this symbol")
     return {
         "company": p.get("company"),
         "sector": p.get("sector"),
@@ -69,6 +72,8 @@ def parse_profile(p: dict) -> dict:
 
 
 def parse_ratios(r: dict, price: Any = None) -> dict:
+    if not _num(r.get("market_cap_cr")):  # zero market cap = placeholder row, not data
+        raise ValueError("no fundamentals for this symbol")
     out = {k: _num(r.get(k)) for k in (
         "market_cap_cr", "enterprise_value_cr", "pe_trailing", "pe_forward", "pb", "ps", "peg",
         "ev_ebitda", "roe", "roa", "current_ratio", "eps_trailing", "eps_forward",

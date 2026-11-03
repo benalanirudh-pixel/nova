@@ -18,7 +18,8 @@ def load_cached_report():
     for path in files:
         try:
             with path.open("r", encoding="utf-8") as f:
-                report = json.load(f)
+                # NaN/Infinity (e.g. a partial candle) are not valid JSON for the API: read them as missing
+                report = json.load(f, parse_constant=lambda _: None)
             if isinstance(report, dict) and report:
                 modified = path.stat().st_mtime
                 return {

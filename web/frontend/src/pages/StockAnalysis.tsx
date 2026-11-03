@@ -10,7 +10,14 @@ import { istTime } from "../lib/live";
 import { fmt, fmtCompact, isNum } from "../lib/format";
 import type { Highlight, StockProfile } from "../lib/types";
 
-const PriceChart = lazy(() => import("../components/PriceChart")); // keeps lightweight-charts out of the main bundle
+// keeps lightweight-charts out of the main bundle; after a rebuild the old chunk 404s, so reload once to get the new one
+const PriceChart = lazy(() => import("../components/PriceChart").catch((e) => {
+  let reloaded = false;
+  try { reloaded = sessionStorage.getItem("nova.chunkReload") === "1"; sessionStorage.setItem("nova.chunkReload", "1"); } catch { /* storage unavailable */ }
+  if (reloaded) throw e;  // already tried: surface the error instead of looping
+  location.reload();
+  return new Promise<never>(() => {});
+}).then((m) => { try { sessionStorage.removeItem("nova.chunkReload"); } catch { /* storage unavailable */ } return m; }));
 
 const KEY = "nova.recentSymbols";
 // starting points for the empty state only; every number shown comes from the API
@@ -154,10 +161,10 @@ function Quarters({ q }: { q: NonNullable<StockProfile["quarters"]> }) {
             <tr key={r.period} className="border-t border-line/15 hover:bg-raised/60">
               <td className="whitespace-nowrap px-2 py-1 text-secondary">{qLabel(r.period)}</td>
               <td className="px-2 text-right"><Num v={r.revenue_cr} d={0} /></td>
-              <td className="px-2 text-right"><Num v={r.revenue_qoq} d={1} signed suffix="%" /></td>
-              <td className="px-2 text-right"><Num v={r.revenue_yoy} d={1} signed suffix="%" /></td>
+              <td className="px-2 text-right">{isNum(r.revenue_qoq) ? <Num v={r.revenue_qoq} d={1} signed suffix="%" /> : <span className="text-muted" title="Needs an older quarter than the source reports">—</span>}</td>
+              <td className="px-2 text-right">{isNum(r.revenue_yoy) ? <Num v={r.revenue_yoy} d={1} signed suffix="%" /> : <span className="text-muted" title="Needs an older quarter than the source reports">—</span>}</td>
               <td className="px-2 text-right"><Num v={r.net_income_cr} d={0} /></td>
-              <td className="px-2 text-right"><Num v={r.net_income_qoq} d={1} signed suffix="%" /></td>
+              <td className="px-2 text-right">{isNum(r.net_income_qoq) ? <Num v={r.net_income_qoq} d={1} signed suffix="%" /> : <span className="text-muted" title="Needs an older quarter than the source reports">—</span>}</td>
               <td className="px-2 text-right"><Num v={r.operating_margin} d={1} suffix="%" /></td>
               <td className="px-2 text-right"><Num v={r.eps} /></td>
             </tr>
@@ -343,6 +350,8 @@ export default function StockAnalysis() {
   const err = p?.errors ?? {};
   const pl = prof.loading || (!p && !prof.error);
   const tl = tech.loading || (!tech.data && !tech.error);
+  const failed = !!tech.error && !tech.data;
+  const notFound = failed && /not found/i.test(tech.error ?? "");  // unknown symbol: nothing to research
   const sectionErr = (v: unknown, key: string) => (prof.error ? prof.error : v == null ? err[key] ?? "Source returned nothing." : null);
 
   return (
@@ -355,12 +364,12 @@ export default function StockAnalysis() {
         ))}
         <div className="ml-auto min-w-0 truncate text-[11px]" role="status" aria-busy={tech.loading || prof.loading}>
           {tech.loading || prof.loading ? <span className="text-accent">Analyzing {wanted}… prices, fundamentals and news can take up to 40s</span>
-            : tech.error ? <span className="text-negative" title={tech.error}>{tech.error}</span>
+            : tech.error && !failed ? <span className="text-negative" title={tech.error}>{tech.error}</span>
               : <span className="text-muted">{typeof a.source === "string" && `Prices: ${a.source}`}{p && ` · Fundamentals and news: NSE feed and Yahoo Finance, ${new Date(p.generated).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`}</span>}
         </div>
       </div>
 
-      {tech.error && !tech.data ? (
+      {failed ? (
         <div className="rounded-md border border-negative/30 bg-negative/5 px-4 py-6 text-center text-[13px]">
           <div className="font-medium text-negative">Couldn't analyze {wanted}</div>
           <div className="mt-1 text-secondary">{tech.error}. Check the symbol in the search bar, or try again.</div>
@@ -371,9 +380,9 @@ export default function StockAnalysis() {
             : { text: "Snapshot", title: `Analysis snapshot${typeof a.source === "string" ? ` from ${a.source}` : ""}, not live`, cls: "border-line/60 text-muted" }} />
       )}
 
-      {p && p.highlights.length > 0 && <Takeaways items={p.highlights} />}
+      {p && !notFound && p.highlights.length > 0 && <Takeaways items={p.highlights} />}
 
-      {!(tech.error && !tech.data) && (
+      {!failed && (
         <div className="grid grid-cols-1 gap-2 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
           <Panel title="Price chart" right="NSE daily history" fill className="h-[26rem]" bodyClass="p-0">
             {tl ? <Body loading lines={8}>{null}</Body> : tech.data && <Suspense fallback={<Body loading lines={8}>{null}</Body>}><PriceChart chart={tech.data.chart} /></Suspense>}
@@ -384,7 +393,7 @@ export default function StockAnalysis() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)]">
+      {!notFound && <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <div className="space-y-2">
           <Panel title="Company" right={p?.profile?.website && <a href={p.profile.website} target="_blank" rel="noopener noreferrer" className="text-secondary hover:text-accent">{p.profile.website.replace(/^https?:\/\/(www\.)?/, "")}</a>}>
             <Body loading={pl} error={sectionErr(p?.profile, "profile")}>
@@ -431,7 +440,7 @@ export default function StockAnalysis() {
             </Panel>
           </div>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

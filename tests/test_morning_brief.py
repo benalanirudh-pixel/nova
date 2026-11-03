@@ -88,6 +88,14 @@ class TestMorningCall(unittest.TestCase):
         self.assertEqual(lines[0]["topic"], "GIFT Nifty")
         self.assertEqual(lines[0]["tone"], "positive")
 
+    def test_live_vix_beats_saved_report(self):
+        report = {"volatility": {"india_vix": {"value": 15.3, "direction": "RISING", "regime": "MODERATE"}}}
+        lines = mb.build_morning_call(report, None, None, None, None, None, None, now=NOW,
+                                      vix_live={"price": 15.67, "change_percent": 1.09})
+        vol = next(l for l in lines if l["topic"] == "Volatility")
+        self.assertIn("15.67", vol["text"])
+        self.assertNotIn("15.30", vol["text"])
+
     def test_empty_inputs(self):
         self.assertEqual(mb.build_morning_call(None, None, None, None, None, None, None), [])
 

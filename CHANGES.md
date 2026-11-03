@@ -91,6 +91,21 @@ max 25, each entry expires after 120 s unless re-posted) and
 poll interval). The live loop never runs the full NSE scan. Frontend not wired
 yet (Phase 2).
 
+## 2026-11-04 - Web dashboard: UI bug sweep
+
+- Web refreshes (scheduler, startup catch-up, Refresh button) now call
+  `save_json_report()`; before, they scanned but never saved, so the dashboard
+  kept showing the 2026-11-01 report.
+- `load_cached_report()` reads NaN/Infinity as null; a partial candle in a new
+  report made `/api/market-overview` and `/api/market-analysis` return 500.
+- Stock page: an unknown symbol shows only the error (no research grid, no
+  duplicated status line); the MCP's blank-profile / zero-market-cap
+  placeholders are rejected instead of becoming "ROE 0.0%" takeaways.
+- Quarterly growth that needs an older quarter shows "—", not N/A.
+- Price chart chunk reloads the page once if a rebuild removed the old chunk.
+- Morning call VIX line uses live NSE VIX; NIFTY card shows its day range;
+  "NSE live" labels read "NSE · <time>" so they stay true after the close.
+
 ## 2026-11-03 - Web dashboard: live NSE data everywhere a price is shown
 
 New `analysis/data/nse_live.py` reads NSE's website API over the same

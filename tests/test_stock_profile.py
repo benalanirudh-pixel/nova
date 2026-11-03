@@ -42,10 +42,17 @@ class TestParsers(unittest.TestCase):
         self.assertEqual(n[0]["published"], "2026-11-02T03:50:00+00:00")
 
     def test_ratios_scale_debt_equity_and_derive_yield(self):
-        r = sp.parse_ratios({"debt_to_equity": 44.3, "dividend_per_share": 6, "dividend_yield": 52.0}, price=1200)
+        r = sp.parse_ratios({"market_cap_cr": 1000.0, "debt_to_equity": 44.3, "dividend_per_share": 6, "dividend_yield": 52.0}, price=1200)
         self.assertAlmostEqual(r["debt_to_equity_x"], 0.443)
         self.assertAlmostEqual(r["dividend_yield_pct"], 0.5)
         self.assertNotIn("dividend_yield", r)
+
+    def test_unknown_symbol_placeholders_rejected(self):
+        # the MCP answers unknown symbols with blanks and zeros; those must not become data
+        with self.assertRaises(ValueError):
+            sp.parse_profile({"company": "", "sector": ""})
+        with self.assertRaises(ValueError):
+            sp.parse_ratios({"market_cap_cr": 0.0, "roe": 0.0})
 
     def test_error_of(self):
         self.assertEqual(sp._error_of({"error": "blocked"}), "blocked")

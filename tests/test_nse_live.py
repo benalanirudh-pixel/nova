@@ -65,7 +65,7 @@ class TestOverlay(unittest.TestCase):
         out = apply_live(body, live)
         self.assertEqual(out["kpis"]["nifty"]["price"], 23661.45)
         self.assertEqual(out["kpis"]["nifty"]["series"], [1])          # history kept
-        self.assertIn("NSE live", out["kpis"]["nifty"]["source_label"])
+        self.assertTrue(out["kpis"]["nifty"]["source_label"].startswith("NSE · "))
         self.assertEqual(out["kpis"]["vix"]["value"], 15.97)
         self.assertEqual(out["kpis"]["macro"]["nifty_price"], 23661.45)
         self.assertEqual(out["regime"]["india_vix"], 15.97)

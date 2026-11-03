@@ -184,7 +184,8 @@ def stocks_in_focus(scanner_dir: Path = SCANNER_DIR, classification_file: Path =
 
 def build_morning_call(report: Optional[dict], session: Optional[dict], preopen: Optional[dict],
                        indices: Optional[list], commodities: Optional[list], fx: Optional[list],
-                       fii_dii: Optional[list], now: Optional[datetime] = None, gift: Optional[dict] = None) -> list[dict]:
+                       fii_dii: Optional[list], now: Optional[datetime] = None, gift: Optional[dict] = None,
+                       vix_live: Optional[dict] = None) -> list[dict]:
     """Plain sentences read off the data. tone: positive | negative | neutral. Never a buy/sell call."""
     out: list[dict] = []
     r = report or {}
@@ -242,7 +243,12 @@ def build_morning_call(report: Optional[dict], session: Optional[dict], preopen:
         add("positive" if "BULL" in regime else "negative" if "BEAR" in regime else "neutral", "Trend",
             f"Market regime {regime.replace('_', ' ').lower()} (saved report)")
     vix = ((r.get("volatility") or {}).get("india_vix") or {})
-    if vix.get("value") is not None:
+    if vix_live and vix_live.get("price") is not None and vix_live.get("change_percent") is not None:
+        chg = vix_live["change_percent"]
+        vix_regime = f", {vix['regime']} regime" if vix.get("regime") else ""
+        add("negative" if chg > 0 else "neutral", "Volatility",
+            f"India VIX {vix_live['price']:.2f} ({chg:+.2f}% today, NSE){vix_regime}")
+    elif vix.get("value") is not None:
         add("negative" if "RIS" in str(vix.get("direction")) else "neutral", "Volatility",
             f"India VIX {vix['value']:.2f}, {str(vix.get('direction', 'N/A')).lower()}, {vix.get('regime', 'N/A')} regime")
     nifty_risk = ((r.get("risk_context") or {}).get("instruments") or {}).get("nifty") or {}
@@ -310,6 +316,10 @@ def build_morning_brief(report: Optional[dict] = None) -> dict:
         gift = nse_live.parse_gift(nse_live.get("marketStatus"))
     except Exception as exc:
         gift, errors["gift_nifty"] = None, f"NSE: {exc}"
+    try:
+        vix_live = nse_live.parse_indices(nse_live.get("allIndices")).get("vix")
+    except Exception as exc:
+        vix_live, errors["vix"] = None, f"NSE: {exc}"
     commodities = section("commodities", parse_commodities)
     fx = section("fx", parse_fx)
     try:
@@ -339,7 +349,7 @@ def build_morning_brief(report: Optional[dict] = None) -> dict:
         "news": section("news", lambda v: fresh_news(parse_news(v, limit=80))),
         "global": {"indices": indices, "commodities": commodities, "fx": fx},
         "focus": focus,
-        "morning_call": build_morning_call(report, session, preopen, indices, commodities, fx, fii, gift=gift),
+        "morning_call": build_morning_call(report, session, preopen, indices, commodities, fx, fii, gift=gift, vix_live=vix_live),
         "errors": errors,
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }

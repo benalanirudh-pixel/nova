@@ -25,21 +25,20 @@ function Returns({ q }: { q?: Quote }) {
   );
 }
 
-function IndexCard({ q, fallback, live }: { q?: Quote; fallback: string; live?: MorningBrief["session"] }) {
+function IndexCard({ q, fallback }: { q?: Quote; fallback: string }) {
   const closes = (q?.series ?? []).map((p) => p.close);
-  // the live NSE print beats the saved report when we have it
-  const price = live?.nifty_last ?? q?.price;
+  const price = q?.price;
   return (
-    <Panel title={q?.name ?? fallback} right={live ? <span title={`NSE market status, ${live.trade_date}`}>NSE {live.trade_date}</span> : q?.source_label && <span className="truncate" title={q.source_label}>{q.source_label}</span>}>
+    <Panel title={q?.name ?? fallback} right={q?.source_label && <span className="truncate" title={q.source_label}>{q.source_label}</span>}>
       <div className="space-y-1.5">
         <div className="flex items-end justify-between gap-2">
           <div>
             <Num v={price} className="text-2xl font-semibold leading-none" />
-            <div className="mt-1 text-xs">{live ? <Change abs={live.nifty_change} pct={live.nifty_change_pct} /> : <Change abs={q?.change_abs} pct={q?.change_percent} />}</div>
+            <div className="mt-1 text-xs"><Change abs={q?.change_abs} pct={q?.change_percent} /></div>
           </div>
           <Sparkline values={closes} className="h-10 w-28" title={`Last ${closes.filter(isNum).length} closes`} />
         </div>
-        {!live && <RangeBar low={q?.low} high={q?.high} value={q?.price} lowLabel="Day L" highLabel="H" />}
+        <RangeBar low={q?.low} high={q?.high} value={q?.price} lowLabel="Day L" highLabel="H" />
         <Returns q={q} />
       </div>
     </Panel>
@@ -176,7 +175,7 @@ function LiveSectors({ rows, asOf }: { rows: LiveQuote[]; asOf: string | null })
     return `rgb(${n.map((x, i) => Math.round(x + (c[i] - x) * t)).join(",")})`;
   };
   return (
-    <Panel title="Sector indices · today" right={asOf && `NSE live · ${asOf}`}>
+    <Panel title="Sector indices · today" right={asOf && `NSE · ${asOf}`}>
       <div className="grid grid-cols-2 gap-px sm:grid-cols-3">
         {sorted.map((r) => (
           <div key={r.name} className="min-w-0 p-1.5 text-white" style={{ background: bg(r.change_percent as number) }} title={`${r.name} ${fmt(r.price)}`}>
@@ -371,7 +370,7 @@ export default function MarketOverview() {
       </div>
 
       <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-        <IndexCard q={kpis?.nifty} fallback="NIFTY 50" live={b?.session} />
+        <IndexCard q={kpis?.nifty} fallback="NIFTY 50" />
         <IndexCard q={kpis?.banknifty} fallback="BANK NIFTY" />
         <VixCard q={kpis?.vix} pctile={kpis?.macro?.vix_percentile_1y} />
       </div>

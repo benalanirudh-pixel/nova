@@ -9,17 +9,20 @@ from web.api.main import create_app
 from unittest import mock as _mock
 
 _offline = _mock.patch("analysis.data.nse_live.market", side_effect=RuntimeError("offline test"))
+_no_save = _mock.patch("web.api.scheduler.save_json_report")  # never write real reports from tests
 
 
 def setUpModule():
     # routes overlay live NSE quotes; keep these tests offline and deterministic
     _offline.start()
+    _no_save.start()
     from web.api.routes import market
     market._live_cache.clear()
 
 
 def tearDownModule():
     _offline.stop()
+    _no_save.stop()
 
 
 class TestHealthEndpoint(unittest.TestCase):
@@ -206,6 +209,33 @@ class TestRefreshEndpoint(unittest.TestCase):
         self.assertTrue(scheduler.missed_refresh("2026-11-01T20:10:43", tue_1100))   # Sunday report
         self.assertFalse(scheduler.missed_refresh("2026-11-03T09:20:00", tue_1100))
         self.assertTrue(scheduler.missed_refresh(None, tue_1100))
+
+
+class TestRefreshSaves(unittest.TestCase):
+    def test_refresh_saves_the_report(self):
+        import asyncio
+        from unittest import mock
+        from web.api import scheduler
+        with mock.patch.object(scheduler, "get_market_lab_data", return_value={"generated": "x"}) as g,              mock.patch.object(scheduler, "save_json_report") as save,              mock.patch.object(scheduler, "_running", True):
+            asyncio.run(scheduler._run_refresh())
+        g.assert_called_once_with(force_refresh=True)
+        save.assert_called_once_with({"generated": "x"})
+
+
+class TestReportLoader(unittest.TestCase):
+    def test_nan_in_saved_report_reads_as_null(self):
+        import json, tempfile
+        from pathlib import Path
+        from unittest import mock
+        from web.api import report_loader
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "market_lab").mkdir()
+            (Path(d) / "market_lab" / "market_lab_20261104_010618.json").write_text('{"nifty_candles": [{"c": NaN}], "x": Infinity}')
+            with mock.patch.object(report_loader, "CACHE_DIR", d):
+                r = report_loader.load_cached_report()["report"]
+        self.assertIsNone(r["nifty_candles"][0]["c"])
+        self.assertIsNone(r["x"])
+        json.dumps(r, allow_nan=False)  # the API encoder's rule
 
 
 class TestFullIntegration(unittest.TestCase):

@@ -47,7 +47,7 @@ def apply_live(body: dict, live: dict) -> dict:
             continue
         card = k.get(key) or {}
         card.update({f: q[f] for f in ("change_abs", "change_percent", "open", "high", "low", "prev_close")},
-                    source_label=f"NSE live · {d['as_of']}")
+                    source_label=f"NSE · {d['as_of']}")
         card["value" if key == "vix" else "price"] = q["price"]
         card.setdefault("name", q["name"])
         k[key] = card
