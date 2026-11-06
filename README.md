@@ -11,7 +11,7 @@
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 ![Tailwind](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-476%20passing-26C281)
+![Tests](https://img.shields.io/badge/tests-498%20passing-26C281)
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-FF9933)
 
@@ -105,7 +105,7 @@ Next time, just run step 4.
 | Key | Action |
 |-----|--------|
 | `Ctrl+K` or `/` | Search symbols, pages and actions |
-| `F1` to `F7` | Equity · F&O · Flows · Screener · Sectors · Note · Audit |
+| `F1` to `F7` | Stock analysis · F&O · Flows · Screener · Sectors · Note · Audit |
 | `↑` `↓` | Move through the Monitor list |
 | `R` | Run a full data refresh |
 
@@ -189,8 +189,8 @@ This re-downloads everything (2 to 3 minutes). Use it sparingly, because the nor
   └──────────────────────────┬───────────────────────────┘
                              ▼
   ┌──────────────────────────────────────────────────────┐
-  │ React 19 + TypeScript + Tailwind + lightweight-charts│
-  │ shadcn/ui (Radix) + TanStack Table/Virtual + sonner  │
+  │ React 19 + TypeScript + Tailwind + custom CSS tables  │
+  │ (no charts, no component library)                     │
   └──────────────────────────────────────────────────────┘
 ```
 
