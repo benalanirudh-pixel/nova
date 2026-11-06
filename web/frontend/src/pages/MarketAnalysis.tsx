@@ -1,9 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+
+// keeps lightweight-charts out of the main bundle (same as the stock page chart)
+const LevelsChart = lazy(() => import("../components/LevelsChart"));
+import { createColumnHelper } from "@tanstack/react-table";
+import DataTable from "../components/DataTable";
 import FlowGauge from "../components/FlowGauge";
+import type { Level } from "../components/LevelsChart";
+import Term from "../components/Term";
+import { cn } from "@/lib/utils";
 import { Body, Chip, NoData, Num, Panel } from "../components/ui";
 import { useMarketData } from "../hooks/useMarketData";
 import { fetchJSON } from "../lib/api";
 import { fmt, fmtCompact, isNum, signCls } from "../lib/format";
+import { COLORS } from "../lib/theme";
 import { istSession } from "../lib/schedule";
 import type { CallLine, ChainRow, FnoDesk, MarketAnalysisData } from "../lib/types";
 
@@ -11,7 +20,6 @@ const KEYS = ["NIFTY", "BANKNIFTY", "SENSEX"] as const;
 type Key = (typeof KEYS)[number];
 const LABEL: Record<Key, string> = { NIFTY: "NIFTY 50", BANKNIFTY: "BANK NIFTY", SENSEX: "SENSEX" };
 const TAB_KEY = "nova.fnoTab";
-const th = "px-1.5 py-1 font-normal";
 
 interface Slot { data: FnoDesk | null; loading: boolean; error: string | null }
 
@@ -68,10 +76,10 @@ function IndexTab({ k, s, active, onClick }: { k: Key; s: Slot; active: boolean;
   );
 }
 
-function Metric({ k, children, sub, title }: { k: string; children: ReactNode; sub?: ReactNode; title?: string }) {
+function Metric({ k, t, children, sub }: { k: string; t?: string; children: ReactNode; sub?: ReactNode }) {
   return (
-    <div className="min-w-[7.5rem] flex-1 border-l border-line/25 px-3 py-1.5 first:border-l-0" title={title}>
-      <div className="text-[11px] text-muted">{k}</div>
+    <div className="min-w-[7.5rem] flex-1 border-l border-line/25 px-3 py-1.5 first:border-l-0">
+      <div className="text-[11px] text-muted">{t ? <Term k={t}>{k}</Term> : k}</div>
       <div className="text-[15px] font-semibold leading-tight">{children}</div>
       {sub && <div className="text-[11px] text-muted">{sub}</div>}
     </div>
@@ -92,17 +100,17 @@ function MetricStrip({ d, onExpiry }: { d: FnoDesk; onExpiry: (e: string) => voi
           </select>
         ) : <span className="font-mono">{d.expiry ?? "N/A"}</span>}
       </Metric>
-      <Metric k="ATM strike"><Num v={m?.atm} d={0} /></Metric>
-      <Metric k="PCR (OI)" sub={<>Vol <Num v={m?.pcr_volume} /> · ΔOI <Num v={m?.pcr_change_oi} /></>} title="Put OI ÷ call OI across the expiry">
+      <Metric k="ATM strike" t="atm"><Num v={m?.atm} d={0} /></Metric>
+      <Metric k="PCR (OI)" t="pcr" sub={<><Term k="pcr_vol">Vol</Term> <Num v={m?.pcr_volume} /> · <Term k="pcr_chg">ΔOI</Term> <Num v={m?.pcr_change_oi} /></>}>
         <span className={m?.pcr_oi == null ? "" : m.pcr_oi >= 1.2 ? "text-positive" : m.pcr_oi <= 0.7 ? "text-negative" : ""}><Num v={m?.pcr_oi} /></span>
       </Metric>
-      <Metric k="Max pain" sub={<><Num v={mpGap} d={2} signed suffix="%" /> vs spot</>}><Num v={m?.max_pain} d={0} /></Metric>
-      <Metric k="ATM IV" sub={<>C <Num v={m?.atm_call_iv} d={1} /> · P <Num v={m?.atm_put_iv} d={1} /></>}><Num v={m?.atm_iv} d={2} suffix="%" /></Metric>
-      <Metric k="IV − RV20" sub={<>RV20 <Num v={t?.rv20} d={1} />%</>} title="ATM implied vol minus 20-day realized vol of the index">
+      <Metric k="Max pain" t="max_pain" sub={<><Num v={mpGap} d={2} signed suffix="%" /> vs spot</>}><Num v={m?.max_pain} d={0} /></Metric>
+      <Metric k="ATM IV" t="atm_iv" sub={<>C <Num v={m?.atm_call_iv} d={1} /> · P <Num v={m?.atm_put_iv} d={1} /></>}><Num v={m?.atm_iv} d={2} suffix="%" /></Metric>
+      <Metric k="IV − RV20" t="iv_rv" sub={<><Term k="rv20">RV20</Term> <Num v={t?.rv20} d={1} />%</>}>
         <Num v={ivRv} d={1} signed suffix=" pts" />
       </Metric>
-      <Metric k="Skew (3% OTM)" title="3% OTM put IV minus 3% OTM call IV" sub="put − call IV"><Num v={m?.skew} d={1} signed suffix=" pts" /></Metric>
-      <Metric k="ATM straddle" sub={<>±<Num v={m?.expected_move_pct} />% by expiry</>}><Num v={m?.straddle} /></Metric>
+      <Metric k="Skew (3% OTM)" t="skew" sub="put − call IV"><Num v={m?.skew} d={1} signed suffix=" pts" /></Metric>
+      <Metric k="ATM straddle" t="straddle" sub={<>±<Num v={m?.expected_move_pct} />% by expiry</>}><Num v={m?.straddle} /></Metric>
     </div>
   );
 }
@@ -214,47 +222,58 @@ function OiProfile({ rows, spot, atm, maxPain }: { rows: ChainRow[]; spot: numbe
   );
 }
 
+const col = createColumnHelper<ChainRow>();
+
+/** Calls | strike | puts. Sort by any column; OI cells carry heat bars, ITM cells a tint, the ATM row an outline. */
 function Chain({ rows, spot, atm }: { rows: ChainRow[]; spot: number | null; atm?: number }) {
-  const maxC = Math.max(1, ...rows.map((r) => r.call_oi ?? 0)), maxP = Math.max(1, ...rows.map((r) => r.put_oi ?? 0));
-  const heat = (v: number | null, max: number, rgb: string) => (isNum(v) ? { background: `linear-gradient(to left, rgba(${rgb},0.28) ${(v / max) * 100}%, transparent 0)` } : undefined);
-  const heatR = (v: number | null, max: number, rgb: string) => (isNum(v) ? { background: `linear-gradient(to right, rgba(${rgb},0.28) ${(v / max) * 100}%, transparent 0)` } : undefined);
-  const iv = (v: number | null) => (isNum(v) && v > 0 ? fmt(v, 1) : "–");
+  const cols = useMemo(() => {
+    const maxC = Math.max(1, ...rows.map((r) => r.call_oi ?? 0)), maxP = Math.max(1, ...rows.map((r) => r.put_oi ?? 0));
+    const itm = (r: ChainRow, leg: "call" | "put") => isNum(spot) && (leg === "call" ? r.strike < spot : r.strike > spot);
+    // full-height cell body so the ITM tint and heat bars fill the cell
+    const box = (r: ChainRow, leg: "call" | "put", body: ReactNode, cls = "", heat?: number | null, max = 1) => (
+      <div className={cn("-mx-2 flex h-7 items-center px-2", leg === "call" ? "justify-end" : "justify-start", itm(r, leg) && "bg-warning/[0.05]", cls)}
+        style={isNum(heat) ? { background: `linear-gradient(to ${leg === "call" ? "left" : "right"}, ${leg === "call" ? "rgba(240,82,82,0.28)" : "rgba(38,194,129,0.28)"} ${(heat / max) * 100}%, transparent 0)` } : undefined}>{body}</div>
+    );
+    const ivf = (v: number | null) => (isNum(v) && v > 0 ? fmt(v, 1) : "–");
+    const R = { align: "right" as const }, L = { align: "left" as const };
+    return [
+      col.accessor("call_oi", { header: "OI", meta: { ...R, title: "Call open interest" }, cell: (c) => box(c.row.original, "call", fmtCompact(c.getValue()), "", c.getValue(), maxC) }),
+      col.accessor("call_change_oi", { header: "ΔOI", meta: R, cell: (c) => box(c.row.original, "call", fmtCompact(c.getValue()), signCls(c.getValue())) }),
+      col.accessor("call_volume", { header: "Vol", meta: R, cell: (c) => box(c.row.original, "call", fmtCompact(c.getValue()), "text-secondary") }),
+      col.accessor("call_iv", { header: "IV", meta: R, cell: (c) => box(c.row.original, "call", ivf(c.getValue()), "text-secondary") }),
+      col.accessor("call_ltp", { header: "LTP", meta: R, cell: (c) => box(c.row.original, "call", fmt(c.getValue())) }),
+      col.accessor("strike", { header: "Strike", meta: { align: "center", cell: "p-0" }, sortDescFirst: false,
+        cell: (c) => <div className={cn("flex h-7 items-center justify-center px-2 font-semibold", c.getValue() === atm ? "bg-accent/15 text-accent" : "bg-raised/60 text-fg")}>{fmt(c.getValue(), 0)}</div> }),
+      col.accessor("put_ltp", { header: "LTP", meta: L, cell: (c) => box(c.row.original, "put", fmt(c.getValue())) }),
+      col.accessor("put_iv", { header: "IV", meta: L, cell: (c) => box(c.row.original, "put", ivf(c.getValue()), "text-secondary") }),
+      col.accessor("put_volume", { header: "Vol", meta: L, cell: (c) => box(c.row.original, "put", fmtCompact(c.getValue()), "text-secondary") }),
+      col.accessor("put_change_oi", { header: "ΔOI", meta: L, cell: (c) => box(c.row.original, "put", fmtCompact(c.getValue()), signCls(c.getValue())) }),
+      col.accessor("put_oi", { header: "OI", meta: { ...L, title: "Put open interest" }, cell: (c) => box(c.row.original, "put", fmtCompact(c.getValue()), "", c.getValue(), maxP) }),
+    ];
+  }, [rows, spot, atm]);
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[44rem] text-[11.5px]">
-        <thead className="sticky top-0 z-10 bg-panel text-[10.5px] text-muted">
-          <tr><th colSpan={5} className="py-1 text-center font-medium text-negative">Calls</th><th /><th colSpan={5} className="py-1 text-center font-medium text-positive">Puts</th></tr>
-          <tr className="border-b border-line/25">
-            <th className={`${th} text-right`}>OI</th><th className={`${th} text-right`}>ΔOI</th><th className={`${th} text-right`}>Volume</th><th className={`${th} text-right`}>IV</th><th className={`${th} text-right`}>LTP</th>
-            <th className={`${th} text-center`}>Strike</th>
-            <th className={`${th} text-left`}>LTP</th><th className={`${th} text-left`}>IV</th><th className={`${th} text-left`}>Volume</th><th className={`${th} text-left`}>ΔOI</th><th className={`${th} text-left`}>OI</th>
-          </tr>
-        </thead>
-        <tbody className="font-mono tabular-nums">
-          {rows.map((r) => {
-            const callItm = isNum(spot) && r.strike < spot, putItm = isNum(spot) && r.strike > spot;
-            const isAtm = r.strike === atm;
-            return (
-              <tr key={r.strike} className={`border-t border-line/10 hover:bg-raised/70 ${isAtm ? "outline outline-1 -outline-offset-1 outline-accent/50" : ""}`}>
-                <td className={`px-1.5 py-[3px] text-right ${callItm ? "bg-warning/[0.04]" : ""}`} style={heat(r.call_oi, maxC, "240,84,79")}>{fmtCompact(r.call_oi)}</td>
-                <td className={`px-1.5 text-right ${signCls(r.call_change_oi)} ${callItm ? "bg-warning/[0.04]" : ""}`}>{fmtCompact(r.call_change_oi)}</td>
-                <td className={`px-1.5 text-right text-secondary ${callItm ? "bg-warning/[0.04]" : ""}`}>{fmtCompact(r.call_volume)}</td>
-                <td className={`px-1.5 text-right text-secondary ${callItm ? "bg-warning/[0.04]" : ""}`}>{iv(r.call_iv)}</td>
-                <td className={`px-1.5 text-right ${callItm ? "bg-warning/[0.04]" : ""}`}>{fmt(r.call_ltp)}</td>
-                <td className={`px-2 text-center font-semibold ${isAtm ? "bg-accent/15 text-accent" : "bg-raised/60 text-fg"}`}>{fmt(r.strike, 0)}</td>
-                <td className={`px-1.5 ${putItm ? "bg-warning/[0.04]" : ""}`}>{fmt(r.put_ltp)}</td>
-                <td className={`px-1.5 text-secondary ${putItm ? "bg-warning/[0.04]" : ""}`}>{iv(r.put_iv)}</td>
-                <td className={`px-1.5 text-secondary ${putItm ? "bg-warning/[0.04]" : ""}`}>{fmtCompact(r.put_volume)}</td>
-                <td className={`px-1.5 ${signCls(r.put_change_oi)} ${putItm ? "bg-warning/[0.04]" : ""}`}>{fmtCompact(r.put_change_oi)}</td>
-                <td className={`px-1.5 ${putItm ? "bg-warning/[0.04]" : ""}`} style={heatR(r.put_oi, maxP, "46,189,133")}>{fmtCompact(r.put_oi)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <div className="mt-1 px-1 text-[11px] text-muted">Shaded cells are in the money. Bar shading shows OI relative to the largest strike on each side.</div>
+    <div>
+      <div className="grid grid-cols-[1fr_auto_1fr] border-b border-line/20 px-2 pt-1 text-[11px] font-medium">
+        <span className="text-center text-negative">Calls</span><span className="w-16" /><span className="text-center text-positive">Puts</span>
+      </div>
+      <DataTable data={rows} columns={cols} initialSort={[{ id: "strike", desc: false }]} label="Option chain"
+        rowClass={(r) => (r.strike === atm ? "outline outline-1 -outline-offset-1 outline-accent/50" : "")} className="min-w-[44rem]" />
+      <div className="mt-1 px-2 pb-1 text-[11px] text-muted">Click a header to sort. Tinted cells are in the money; bars show OI relative to the largest strike on each side.</div>
     </div>
   );
+}
+
+/** Every level the desk tracks, drawn on the index chart. */
+function deskLevels(d: FnoDesk): Level[] {
+  const m = d.metrics, p = d.technicals?.pivots;
+  return [
+    { label: "Call wall", price: m?.resistance[0]?.strike, color: COLORS.negative },
+    { label: "Put wall", price: m?.support[0]?.strike, color: COLORS.positive },
+    { label: "Max pain", price: m?.max_pain, color: COLORS.info },
+    { label: "BE high", price: m?.breakeven_high, color: COLORS.warning, dashed: true },
+    { label: "BE low", price: m?.breakeven_low, color: COLORS.warning, dashed: true },
+    { label: "Pivot", price: p?.pp, color: COLORS.textMuted, dashed: true },
+  ];
 }
 
 /** Call and put IV across strikes; the shape shows where the market pays up for protection. */
@@ -339,6 +358,12 @@ export default function MarketAnalysis() {
   const { slots, load } = useDesks(expiry);
   const ctx = useMarketData<MarketAnalysisData>("/market-analysis");
   const pick = (k: Key) => { setTab(k); try { localStorage.setItem(TAB_KEY, k); } catch { /* storage unavailable */ } };
+  // the command palette's "F&O desk > SENSEX" switches the tab while this page is already open
+  useEffect(() => {
+    const on = (e: Event) => { const k = (e as CustomEvent<string>).detail; if ((KEYS as readonly string[]).includes(k)) setTab(k as Key); };
+    window.addEventListener("nova:desk", on);
+    return () => window.removeEventListener("nova:desk", on);
+  }, []);
   const s = slots[tab], d = s.data, m = d?.metrics;
   const rows = useMemo(() => m?.profile ?? [], [m]);
   const r = ctx.data?.regime;
@@ -364,15 +389,19 @@ export default function MarketAnalysis() {
           {d.errors.chain && <div className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-[12px] text-warning">{d.errors.chain}. Spot technicals below still use daily history.</div>}
           <MetricStrip d={d} onExpiry={(e) => { setExpiry((x) => ({ ...x, [tab]: e })); load(tab, e); }} />
 
-          <div className="grid grid-cols-1 gap-2 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-            <Panel title="Desk read" right={`${LABEL[tab]} · ${d.expiry ?? "no expiry"}`}>
-              <DeskRead lines={d.read} />
-              <div className="mt-3 border-t border-line/20 pt-2 text-[11px] text-muted">Describes current positioning from the chain and daily history. Not a forecast or a trade recommendation.</div>
+          <div className="grid grid-cols-1 gap-2 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+            <Panel title={`${LABEL[tab]} · daily with option levels`} right="Yahoo daily · live chain levels" fill className="h-[28rem]" bodyClass="p-0">
+              <Suspense fallback={<Body loading lines={8}>{null}</Body>}><LevelsChart candles={d.technicals?.candles ?? []} levels={deskLevels(d)} /></Suspense>
             </Panel>
-            <Panel title="Levels">
+            <Panel title="Levels" fill className="h-[28rem]" bodyClass="overflow-auto p-1.5">
               <Ladder d={d} />
             </Panel>
           </div>
+
+          <Panel title="Desk read" right={`${LABEL[tab]} · ${d.expiry ?? "no expiry"}`}>
+            <DeskRead lines={d.read} />
+            <div className="mt-3 border-t border-line/20 pt-2 text-[11px] text-muted">Describes current positioning from the chain and daily history. Not a forecast or a trade recommendation.</div>
+          </Panel>
 
           {m && (
             <div className="grid grid-cols-1 gap-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
@@ -380,7 +409,7 @@ export default function MarketAnalysis() {
                 <OiProfile rows={rows} spot={d.spot} atm={m.atm} maxPain={m.max_pain} />
               </Panel>
               <Panel title="Option chain" right={`${rows.length} strikes around ATM`} bodyClass="max-h-[40rem] overflow-auto p-0">
-                <Chain rows={[...rows].sort((a, b) => a.strike - b.strike)} spot={d.spot} atm={m.atm} />
+                <Chain rows={rows} spot={d.spot} atm={m.atm} />
               </Panel>
             </div>
           )}

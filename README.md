@@ -189,6 +189,7 @@ This re-downloads everything (2 to 3 minutes). Use it sparingly, because the nor
                              ▼
   ┌──────────────────────────────────────────────────────┐
   │ React 19 + TypeScript + Tailwind + lightweight-charts│
+  │ shadcn/ui (Radix) + TanStack Table/Virtual + sonner  │
   └──────────────────────────────────────────────────────┘
 ```
 

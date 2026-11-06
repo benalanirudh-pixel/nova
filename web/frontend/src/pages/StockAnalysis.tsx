@@ -1,14 +1,17 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { createColumnHelper } from "@tanstack/react-table";
+import DataTable from "../components/DataTable";
+import Term from "../components/Term";
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import MomentumGauge from "../components/MomentumGauge";
 import NewsList from "../components/NewsList";
-import { SEARCH_ID } from "../components/SymbolSearch";
+import { openSearch } from "../components/CommandPalette";
 import { Body, Change, Chip, Flash, Num, Panel, Stat, toneOf } from "../components/ui";
 import { useLiveQuote, useLiveWatch } from "../hooks/useLive";
 import { useStockAnalysis, useStockFetch } from "../hooks/useStockAnalysis";
 import { istTime } from "../lib/live";
 import { fmt, fmtCompact, isNum } from "../lib/format";
-import type { Highlight, StockProfile } from "../lib/types";
+import type { Highlight, Peer, StockProfile } from "../lib/types";
 
 // keeps lightweight-charts out of the main bundle; after a rebuild the old chunk 404s, so reload once to get the new one
 const PriceChart = lazy(() => import("../components/PriceChart").catch((e) => {
@@ -56,7 +59,7 @@ function EmptyState({ recent, run }: { recent: string[]; run: (s: string) => voi
       <p className="mt-2 max-w-md text-[14px] leading-relaxed text-secondary">
         Valuation, quarterly results, the next results date, ownership, competitors, news and technicals on one page.
       </p>
-      <button onClick={() => document.getElementById(SEARCH_ID)?.focus()}
+      <button onClick={openSearch}
         className="mt-6 flex w-full max-w-sm items-center gap-2 rounded-md border border-line/50 bg-panel px-3 py-2.5 text-left text-[13px] text-muted hover:border-accent/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
         <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5L14 14" /></svg>
         Search symbol or company
@@ -130,14 +133,14 @@ function Takeaways({ items }: { items: Highlight[] }) {
 }
 
 function Ratios({ r }: { r: Record<string, number | null> }) {
-  const S = ({ k, v, d = 2, suf = "", title }: { k: string; v: unknown; d?: number; suf?: string; title?: string }) =>
-    <Stat k={k} title={title}><Num v={v} d={d} suffix={isNum(v) ? suf : ""} /></Stat>;
+  const S = ({ k, t, v, d = 2, suf = "", title }: { k: string; t?: string; v: unknown; d?: number; suf?: string; title?: string }) =>
+    <Stat k={t ? <Term k={t}>{k}</Term> : k} title={title}><Num v={v} d={d} suffix={isNum(v) ? suf : ""} /></Stat>;
   return (
     <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
       <Stat k="Market cap"><span className="font-mono tabular-nums">{cr(r.market_cap_cr)}</span></Stat>
-      <S k="P/E (TTM)" v={r.pe_trailing} /><S k="P/E (forward)" v={r.pe_forward} />
-      <S k="P/B" v={r.pb} /><S k="PEG" v={r.peg} /><S k="EV / EBITDA" v={r.ev_ebitda} />
-      <S k="ROE" v={r.roe} d={1} suf="%" /><S k="ROA" v={r.roa} d={1} suf="%" /><S k="Debt / equity" v={r.debt_to_equity_x} suf="x" />
+      <S k="P/E (TTM)" t="pe" v={r.pe_trailing} /><S k="P/E (forward)" v={r.pe_forward} />
+      <S k="P/B" t="pb" v={r.pb} /><S k="PEG" t="peg" v={r.peg} /><S k="EV / EBITDA" t="ev_ebitda" v={r.ev_ebitda} />
+      <S k="ROE" t="roe" v={r.roe} d={1} suf="%" /><S k="ROA" v={r.roa} d={1} suf="%" /><S k="Debt / equity" t="de" v={r.debt_to_equity_x} suf="x" />
       <S k="Operating margin" v={r.operating_margin} d={1} suf="%" /><S k="Net margin" v={r.profit_margin} d={1} suf="%" /><S k="Current ratio" v={r.current_ratio} />
       <Stat k="Revenue growth"><Num v={r.revenue_growth} d={1} signed suffix="%" /></Stat>
       <Stat k="Earnings growth"><Num v={r.earnings_growth} d={1} signed suffix="%" /></Stat>
@@ -234,34 +237,25 @@ function Ownership({ o, err }: { o: NonNullable<StockProfile["ownership"]>; err?
   );
 }
 
+const pc = createColumnHelper<Peer>();
+
 function Peers({ p, run }: { p: NonNullable<StockProfile["peers"]>; run: (s: string) => void }) {
+  const cols = useMemo(() => [
+    pc.accessor("symbol", { header: "Company", enableSorting: false, meta: { cell: "font-sans" },
+      cell: (c) => <div className="max-w-[12rem] py-0.5 leading-tight">
+        <span className={`font-mono font-medium ${c.row.original.is_self ? "text-accent" : "text-fg"}`}>{c.getValue()}</span>
+        <div className="truncate text-[11px] text-muted" title={c.row.original.company_name}>{c.row.original.company_name}</div></div> }),
+    pc.accessor("price", { header: "Price", meta: { align: "right" }, cell: (c) => <Num v={c.getValue()} /> }),
+    pc.accessor("return_20d", { header: "20D", meta: { align: "right" }, cell: (c) => <Num v={c.getValue()} d={1} signed suffix="%" /> }),
+    pc.accessor("return_60d", { header: "60D", meta: { align: "right" }, cell: (c) => <Num v={c.getValue()} d={1} signed suffix="%" /> }),
+    pc.accessor("relative_strength_20d", { header: () => <Term k="rs">RS 20D</Term>, meta: { align: "right" }, cell: (c) => <Num v={c.getValue()} d={1} signed /> }),
+    pc.accessor("rsi_14", { header: () => <Term k="rsi">RSI</Term>, meta: { align: "right" }, cell: (c) => <Num v={c.getValue()} d={0} /> }),
+    pc.accessor("trend", { header: "Trend", meta: { align: "right", cell: "font-sans" }, cell: (c) => <Chip text={c.getValue()} /> }),
+  ], []);
   if (p.rows.length === 0) return <div className="p-1 text-[12px] text-muted">No scanner cache to compare against. Run a full refresh to build one.</div>;
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-[12px]">
-        <thead className="text-[11px] text-muted">
-          <tr className="border-b border-line/25"><th className={`${th} text-left`}>Company</th><th className={`${th} text-right`}>Price</th><th className={`${th} text-right`}>20D</th><th className={`${th} text-right`}>60D</th><th className={`${th} text-right`} title="Relative strength vs NIFTY, 20 days">RS 20D</th><th className={`${th} text-right`}>RSI</th><th className={`${th} text-right`}>Trend</th></tr>
-        </thead>
-        <tbody>
-          {p.rows.map((r) => (
-            <tr key={r.symbol} onClick={() => !r.is_self && run(r.symbol)}
-              className={`border-t border-line/15 ${r.is_self ? "bg-accent/8" : "cursor-pointer hover:bg-raised/60"}`}>
-              <td className="max-w-[12rem] px-2 py-1">
-                {r.is_self ? <span className="font-mono font-medium text-accent">{r.symbol}</span>
-                  : <button onClick={(e) => { e.stopPropagation(); run(r.symbol); }} className="font-mono font-medium text-fg hover:text-accent focus:outline-none focus-visible:underline">{r.symbol}</button>}
-                <div className="truncate text-[11px] text-muted" title={r.company_name}>{r.company_name}</div>
-              </td>
-              <td className="px-2 text-right"><Num v={r.price} /></td>
-              <td className="px-2 text-right"><Num v={r.return_20d} d={1} signed suffix="%" /></td>
-              <td className="px-2 text-right"><Num v={r.return_60d} d={1} signed suffix="%" /></td>
-              <td className="px-2 text-right"><Num v={r.relative_strength_20d} d={1} signed /></td>
-              <td className="px-2 text-right"><Num v={r.rsi_14} d={0} /></td>
-              <td className="px-2 text-right"><Chip text={r.trend} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable data={p.rows} columns={cols} label="Competitors"
+      onRowClick={(r) => !r.is_self && run(r.symbol)} rowClass={(r) => (r.is_self ? "bg-accent/8 cursor-default" : "")} />
   );
 }
 

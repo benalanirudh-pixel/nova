@@ -175,6 +175,7 @@ export interface FnoDesk {
     as_of: string; ema: Record<string, number>; rsi: number; atr: number; atr_pct: number; rv20: number;
     pivots: { r2: number; r1: number; pp: number; s1: number; s2: number; from: string };
     high_52w: number; low_52w: number; returns: Record<string, C>;
+    candles?: { t: string; o: number; h: number; l: number; c: number }[];
   };
   read: CallLine[];
   errors: Record<string, string>;

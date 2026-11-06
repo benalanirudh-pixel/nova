@@ -61,13 +61,11 @@ def apply_live(body: dict, live: dict) -> dict:
     b = body.get("breadth")
     if b is not None:
         lb = d["breadth"]
-        # report key <- live key (market-wide counts from NSE)
-        for dst, src in (("advancing", "advances"), ("declining", "declines"), ("unchanged", "unchanged"),
-                         ("new_52w_highs", "new_52w_highs"), ("new_52w_lows", "new_52w_lows")):
-            if lb.get(src) is not None:
-                b[dst] = lb[src]
-        if lb.get("advances") is not None and lb.get("declines"):
-            b["ad_ratio"] = lb["advances"] / lb["declines"]
+        # allIndices advances/declines are summed across every index, so a stock counts many times;
+        # only the 52-week counts are real market-wide figures. Advance/decline stays from the scan.
+        for key in ("new_52w_highs", "new_52w_lows"):
+            if lb.get(key) is not None:
+                b[key] = lb[key]
     return body
 
 

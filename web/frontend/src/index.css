@@ -15,6 +15,23 @@
   --color-warning: #E6B450;
   --color-info: #5B9CF5;
   --color-purple: #A78BFA;
+  /* shadcn/ui semantic tokens mapped onto Nova's palette. Nova already uses
+     accent / muted / secondary with different meanings, so components added by
+     the shadcn CLI get those classes rewritten (bg-accent -> bg-raised, etc.). */
+  --color-background: #0B0E14;
+  --color-foreground: #E8ECF1;
+  --color-card: #11161F;
+  --color-card-foreground: #E8ECF1;
+  --color-popover: #171D28;
+  --color-popover-foreground: #E8ECF1;
+  --color-primary: #FF9933;
+  --color-primary-foreground: #0B0E14;
+  --color-accent-foreground: #E8ECF1;
+  --color-muted-foreground: #838E9D;
+  --color-destructive: #F05252;
+  --color-border: #3A4757;
+  --color-input: #3A4757;
+  --color-ring: #FF9933;
   --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
 }

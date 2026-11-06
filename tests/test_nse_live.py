@@ -56,7 +56,7 @@ class TestParsers(unittest.TestCase):
 
 
 class TestOverlay(unittest.TestCase):
-    def test_live_prices_and_breadth_replace_report_values(self):
+    def test_live_prices_replace_report_values_but_not_scan_breadth(self):
         from web.api.routes.market import apply_live
         live = {"error": None, "data": {**nse_live.parse_indices(ALL), "status": {"state": "Open"}, "gift_nifty": None}}
         live["data"]["breadth"].update(new_52w_highs=46.0, new_52w_lows=58.0)
@@ -69,10 +69,10 @@ class TestOverlay(unittest.TestCase):
         self.assertEqual(out["kpis"]["vix"]["value"], 15.97)
         self.assertEqual(out["kpis"]["macro"]["nifty_price"], 23661.45)
         self.assertEqual(out["regime"]["india_vix"], 15.97)
-        self.assertEqual(out["breadth"]["advancing"], 6946.0)
+        self.assertEqual(out["breadth"]["advancing"], 1)  # NSE's figure sums every index, the scan's does not
         self.assertEqual(out["breadth"]["new_52w_highs"], 46.0)
         self.assertEqual(out["breadth"]["above_ema20_percent"], 40.0)  # scan-based field untouched
-        self.assertAlmostEqual(out["breadth"]["ad_ratio"], 6946 / 2613)
+        self.assertNotIn("ad_ratio", out["breadth"])
         self.assertEqual(out["live"]["sectors"][0]["name"], "NIFTY IT")
 
     def test_failure_keeps_report_and_reports_error(self):

@@ -1,6 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { createColumnHelper } from "@tanstack/react-table";
 import BreadthBars from "../components/BreadthBars";
+import DataTable from "../components/DataTable";
+import Term from "../components/Term";
 import FlowGauge from "../components/FlowGauge";
 import IndicatorStrip from "../components/IndicatorStrip";
 import NewsList from "../components/NewsList";
@@ -8,10 +11,9 @@ import SectorHeatmap from "../components/SectorHeatmap";
 import { Body, Change, Chip, NoData, Num, Panel, RangeBar, Sparkline, Stat } from "../components/ui";
 import { useMarketData } from "../hooks/useMarketData";
 import { fmt, isNum, label, signCls } from "../lib/format";
-import type { CallLine, FnoDesk, GiftNifty, LiveQuote, MarketOverviewData, MorningBrief, PreopenRow, Quote } from "../lib/types";
+import type { CallLine, FnoDesk, FocusRow, GiftNifty, LiveQuote, MarketOverviewData, MorningBrief, PreopenRow, Quote } from "../lib/types";
 
 const time = (iso?: string | null) => (iso ? new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "");
-const th = "px-2 py-1 font-normal";
 
 function Returns({ q }: { q?: Quote }) {
   return (
@@ -146,18 +148,18 @@ function Levels({ b, f }: { b: MorningBrief; f: FnoDesk | null }) {
 function FnoSnapshot({ f }: { f: FnoDesk }) {
   const m = f.metrics, t = f.technicals;
   if (!m) return <NoData text={f.errors.chain ?? "Option chain unavailable."} />;
-  const S = ({ k, children, title }: { k: string; children: ReactNode; title?: string }) => <Stat k={k} title={title}>{children}</Stat>;
+  const S = ({ k, t, children }: { k: string; t: string; children: ReactNode }) => <Stat k={<Term k={t}>{k}</Term>}>{children}</Stat>;
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-        <S k="PCR (OI)"><Num v={m.pcr_oi} /></S>
-        <S k="Max pain"><Num v={m.max_pain} d={0} /></S>
-        <S k="ATM IV"><Num v={m.atm_iv} d={1} suffix="%" /></S>
-        <S k="IV − RV20" title="ATM implied vol minus 20-day realized vol"><Num v={isNum(m.atm_iv) && t ? m.atm_iv - t.rv20 : null} d={1} signed suffix=" pts" /></S>
-        <S k="Call wall"><Num v={m.resistance[0]?.strike} d={0} className="text-negative" /></S>
-        <S k="Put wall"><Num v={m.support[0]?.strike} d={0} className="text-positive" /></S>
-        <S k="ATM straddle"><Num v={m.straddle} /></S>
-        <S k="Move by expiry">±<Num v={m.expected_move_pct} />%</S>
+        <S k="PCR (OI)" t="pcr"><Num v={m.pcr_oi} /></S>
+        <S k="Max pain" t="max_pain"><Num v={m.max_pain} d={0} /></S>
+        <S k="ATM IV" t="atm_iv"><Num v={m.atm_iv} d={1} suffix="%" /></S>
+        <S k="IV − RV20" t="iv_rv"><Num v={isNum(m.atm_iv) && t ? m.atm_iv - t.rv20 : null} d={1} signed suffix=" pts" /></S>
+        <S k="Call wall" t="call_wall"><Num v={m.resistance[0]?.strike} d={0} className="text-negative" /></S>
+        <S k="Put wall" t="put_wall"><Num v={m.support[0]?.strike} d={0} className="text-positive" /></S>
+        <S k="ATM straddle" t="straddle"><Num v={m.straddle} /></S>
+        <S k="Move by expiry" t="move">±<Num v={m.expected_move_pct} />%</S>
       </div>
       <div className="flex items-center justify-between text-[11px] text-muted">
         <span>{f.source} · {f.expiry} · updated {time(f.generated)}</span>
@@ -230,6 +232,28 @@ function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { k: T; label
   );
 }
 
+const fc = createColumnHelper<FocusRow>();
+const focusCols = [
+  fc.accessor("symbol", { header: "Stock", enableSorting: false, meta: { cell: "font-sans" },
+    cell: (c) => <div className="max-w-[13rem] py-0.5 leading-tight"><div className="font-mono text-fg">{c.getValue()}</div><div className="truncate text-[11px] text-muted">{c.row.original.sector ?? c.row.original.company_name ?? ""}</div></div> }),
+  fc.accessor("price", { header: "Price", meta: { align: "right" }, cell: (c) => <Num v={c.getValue()} /> }),
+  fc.accessor("return_1d", { header: "1D", meta: { align: "right" }, cell: (c) => <Num v={c.getValue()} d={1} signed suffix="%" /> }),
+  fc.accessor("return_20d", { header: "20D", meta: { align: "right" }, cell: (c) => <Num v={c.getValue()} d={1} signed suffix="%" /> }),
+  fc.accessor("rsi_14", { header: () => <Term k="rsi">RSI</Term>, meta: { align: "right" }, cell: (c) => <Num v={c.getValue()} d={0} /> }),
+  fc.accessor("relative_volume", { header: () => <Term k="rel_vol">Rel. vol</Term>, meta: { align: "right" }, cell: (c) => <Num v={c.getValue()} d={1} suffix={isNum(c.getValue()) ? "x" : ""} /> }),
+  fc.accessor("distance_52w_high", { header: "Off high", sortDescFirst: false, meta: { align: "right", title: "% below the 52-week high" },
+    cell: (c) => { const v = c.getValue(); return isNum(v) && v < 0.05 ? <span className="text-positive">At high</span> : <Num v={isNum(v) ? -v : null} d={1} suffix={isNum(v) ? "%" : ""} />; } }),
+  fc.accessor("trend", { header: "Trend", meta: { align: "right", cell: "font-sans" }, cell: (c) => <Chip text={c.getValue()} /> }),
+];
+
+const pc = createColumnHelper<PreopenRow>();
+const preopenCols = [
+  pc.accessor("symbol", { header: "Symbol", enableSorting: false, cell: (c) => <span className="text-fg">{c.getValue()}</span> }),
+  pc.accessor("iep", { header: "Indicative open", meta: { align: "right" }, cell: (c) => <Num v={c.getValue()} /> }),
+  pc.accessor("change_pct", { header: "vs prev close", meta: { align: "right" }, cell: (c) => <Pct v={c.getValue()} /> }),
+  pc.accessor("turnover_cr", { header: "Value (Cr)", meta: { align: "right" }, cell: (c) => <Num v={c.getValue()} d={1} /> }),
+];
+
 function Preopen({ p }: { p: NonNullable<MorningBrief["preopen"]> }) {
   const [tab, setTab] = useState<"gainers" | "losers" | "most_active">("gainers");
   const nav = useNavigate();
@@ -245,19 +269,8 @@ function Preopen({ p }: { p: NonNullable<MorningBrief["preopen"]> }) {
         <div className="mt-1 flex justify-between font-mono text-[11px] tabular-nums"><span className="text-positive">▲ {fmt(a, 0)} up</span><span className="text-muted">{fmt(u, 0)} flat</span><span className="text-negative">▼ {fmt(d, 0)} down</span></div>
       </div>
       <Tabs value={tab} onChange={setTab} tabs={[{ k: "gainers", label: "Top gainers" }, { k: "losers", label: "Top losers" }, { k: "most_active", label: "Most traded" }]} />
-      <table className="w-full text-[12px]">
-        <thead className="text-[11px] text-muted"><tr><th className={`${th} text-left`}>Symbol</th><th className={`${th} text-right`}>Indicative open</th><th className={`${th} text-right`}>vs prev close</th><th className={`${th} text-right`}>Value (Cr)</th></tr></thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.symbol} className="cursor-pointer border-t border-line/15 hover:bg-raised/60" onClick={() => nav(`/stock?s=${encodeURIComponent(r.symbol)}`)}>
-              <td className="px-2 py-1 font-mono text-fg">{r.symbol}</td>
-              <td className="px-2 text-right"><Num v={r.iep} /></td>
-              <td className="px-2 text-right"><Pct v={r.change_pct} /></td>
-              <td className="px-2 text-right"><Num v={r.turnover_cr} d={1} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataTable data={rows} columns={preopenCols} label="Pre-open movers"
+        onRowClick={(r) => nav(`/stock?s=${encodeURIComponent(r.symbol)}`)} />
       {tab !== "most_active" && <div className="text-[11px] text-muted">Only stocks with at least ₹{p.min_turnover_cr} Cr traded in pre-open.</div>}
     </div>
   );
@@ -273,25 +286,8 @@ function Focus({ f }: { f: NonNullable<MorningBrief["focus"]> }) {
       <Tabs value={s.key} onChange={setKey} tabs={f.screens.map((x) => ({ k: x.key, label: `${x.title} (${x.rows.length})` }))} />
       <div className="text-[11.5px] text-muted">{s.rule}. Liquid stocks only, from the scan at {f.as_of.replace("T", " ")}.</div>
       {s.rows.length === 0 ? <div className="p-1 text-[12px] text-muted">No stock meets this screen in the latest scan.</div> : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-[12px]">
-            <thead className="text-[11px] text-muted"><tr className="border-b border-line/25"><th className={`${th} text-left`}>Stock</th><th className={`${th} text-right`}>Price</th><th className={`${th} text-right`}>1D</th><th className={`${th} text-right`}>20D</th><th className={`${th} text-right`}>RSI</th><th className={`${th} text-right`}>Rel. vol</th><th className={`${th} text-right`}>Off high</th><th className={`${th} text-right`}>Trend</th></tr></thead>
-            <tbody>
-              {s.rows.map((r) => (
-                <tr key={r.symbol} className="cursor-pointer border-t border-line/15 hover:bg-raised/60" onClick={() => nav(`/stock?s=${encodeURIComponent(r.symbol)}`)}>
-                  <td className="max-w-[13rem] px-2 py-1"><div className="font-mono text-fg">{r.symbol}</div><div className="truncate text-[11px] text-muted">{r.sector ?? r.company_name ?? ""}</div></td>
-                  <td className="px-2 text-right"><Num v={r.price} /></td>
-                  <td className="px-2 text-right"><Num v={r.return_1d} d={1} signed suffix="%" /></td>
-                  <td className="px-2 text-right"><Num v={r.return_20d} d={1} signed suffix="%" /></td>
-                  <td className="px-2 text-right"><Num v={r.rsi_14} d={0} /></td>
-                  <td className="px-2 text-right"><Num v={r.relative_volume} d={1} suffix={isNum(r.relative_volume) ? "x" : ""} /></td>
-                  <td className="px-2 text-right" title="% below the 52-week high">{isNum(r.distance_52w_high) && r.distance_52w_high < 0.05 ? <span className="text-positive">At high</span> : <Num v={isNum(r.distance_52w_high) ? -r.distance_52w_high : null} d={1} suffix={isNum(r.distance_52w_high) ? "%" : ""} />}</td>
-                  <td className="px-2 text-right"><Chip text={r.trend} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable data={s.rows} columns={focusCols} label={s.title}
+          onRowClick={(r) => nav(`/stock?s=${encodeURIComponent(r.symbol)}`)} />
       )}
       <div className="text-[11px] text-muted">Screens of measured data, not predictions or buy signals. Click a row for the full stock research page.</div>
     </div>

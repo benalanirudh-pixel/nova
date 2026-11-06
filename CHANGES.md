@@ -3,6 +3,25 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-06 - Nova Desk replaces the web dashboard UI
+
+- `web/frontend/src/App.tsx` now serves Nova Desk, a chart-free analysis
+  terminal: Equity, F&O, Flows, Screener, Sectors, Note, Audit (F1 to F7),
+  with Graphite and Day themes. Code lives in `web/frontend/src/desk/`.
+- `desk/analytics.ts` derives ATR, realized vol, beta, levels, the parity
+  forward, implied probabilities, delta and OI-gamma on the client. Greeks are
+  model output; gamma assumes dealers long calls, short puts, and says so.
+- New `web/api/routes/desk.py`: `/api/scan` (last scan of 1,500+ stocks plus
+  recomputed sector table) and `/api/audit`. Neither starts a scan.
+  `/api/flows/history` also returns the flow engine `metrics`.
+- `apply_live` no longer overlays advancing/declining/ad_ratio. NSE's
+  allIndices figures sum every index, so a stock counts many times; only the
+  52-week high/low counts are overlaid.
+- Stock options remain unavailable: the option feed covers NIFTY, BANKNIFTY
+  and SENSEX only. The UI flags this rather than filling it.
+- Old pages in `src/pages/` and their chart components are no longer routed.
+  `/stock` and `/analysis` redirect to `/` and `/fno`.
+
 ## 2026-11-03 - Public README, MIT license, fresh-clone build
 
 - `README.md` rewritten for new users: screenshots in `docs/screenshots/`
@@ -90,6 +109,28 @@ max 25, each entry expires after 120 s unless re-posted) and
 `GET /api/live/snapshot` (last tick per symbol, `stale` when older than 2x its
 poll interval). The live loop never runs the full NSE scan. Frontend not wired
 yet (Phase 2).
+
+## 2026-11-04 - Web dashboard: terminal UI kit (shadcn/ui, TanStack, lightweight-charts)
+
+- shadcn/ui set up in `web/frontend` (`components.json`, `@/` alias, `src/lib/utils.ts`
+  `cn()`); added button, command, dialog, tabs, tooltip, sonner under
+  `src/components/ui/`. shadcn tokens map onto Nova's palette in `index.css`;
+  Nova's own `accent` / `muted` / `secondary` mean different things, so classes
+  from the CLI get rewritten (`bg-accent` -> `bg-raised`, etc.). The CLI cannot
+  resolve the `@/` alias under TypeScript 7 and writes `import { cn } from "cn"`
+  plus an unrelated `cn` npm package: fix the import and `npm uninstall cn`
+  after every `shadcn add`.
+- `@tanstack/react-table` pinned to v8 (v9's API is new; its v8 shim is
+  deprecated) + `@tanstack/react-virtual`. New `components/DataTable.tsx`:
+  sortable headers (numbers high-first), sticky header, virtualized past 80 rows.
+  Used by the option chain, stocks in focus, pre-open, competitors, flow history.
+- Ctrl+K / "/" command palette (`components/CommandPalette.tsx`) replaces the
+  search dropdown: symbols, pages, F&O desks, refresh. Refresh results show as
+  toasts (sonner). `components/Term.tsx`: glossary tooltips on F&O metrics,
+  ratios and table headers.
+- F&O desk: new `LevelsChart` (lightweight-charts, lazy-loaded) shows the index's
+  daily candles with call/put walls, max pain, straddle breakevens and pivot as
+  price lines; `/api/fno/*` technicals now include `candles` (last 180 days).
 
 ## 2026-11-04 - Web dashboard: UI bug sweep
 

@@ -1638,3 +1638,13 @@ and monthly views in the browser.
 
 Not verified: Stock page after the sprint; Overview fully loaded after the
 sprint (screenshot caught the brief loading).
+
+## 2026-11-06 - Nova Desk
+
+- `.env\Scripts\python.exe -m unittest tests.test_web_api tests.test_nse_live tests.test_live_feed tests.test_fno_desk` - 71 tests OK.
+- `npx tsc --noEmit -p .` and `npm run build` in `web/frontend` - OK.
+- Built app on `http://localhost:8501` against the 6 Nov close: all 7 screens
+  loaded with no console errors and no NaN or undefined text. Checked stock
+  sheets for TCS and RELIANCE, sector click into Screener, column sort, Ctrl K
+  palette, Day theme, and 390px width with no horizontal scroll.
+- Not checked: live ticks during market hours, the Refresh scan button.

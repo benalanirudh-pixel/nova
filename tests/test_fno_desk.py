@@ -91,6 +91,15 @@ class TestTechnicals(unittest.TestCase):
             fd.spot_technicals(self.hist("2026-11-02").tail(10))
 
 
+class TestCandles(unittest.TestCase):
+    def test_tail_and_missing_rows_dropped(self):
+        idx = pd.date_range(end="2026-11-03", periods=5, freq="D")  # 10-30 .. 11-03
+        h = pd.DataFrame({"Open": [1, 2, None, 4, 5], "High": [2, 3, 4, 5, 6], "Low": [0, 1, 2, 3, 4], "Close": [1.5, 2.5, 3.5, 4.5, 5.5]}, index=idx)
+        self.assertEqual([x["t"] for x in fd.daily_candles(h, n=3)], ["2026-10-31", "2026-11-02", "2026-11-03"])  # 11-01 has no open
+        self.assertEqual(fd.daily_candles(h)[0], {"t": "2026-10-30", "o": 1.0, "h": 2.0, "l": 0.0, "c": 1.5})
+        self.assertEqual(fd.daily_candles(pd.DataFrame({"Close": [1]})), [])
+
+
 class TestRead(unittest.TestCase):
     def test_tones(self):
         m = {"pcr_oi": 1.5, "call_change_oi": 10, "put_change_oi": 100, "resistance": [{"strike": 105.0}],

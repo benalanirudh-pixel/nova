@@ -60,6 +60,7 @@ async def flows_history():
         "rows": rows,
         "target_scope": (flow.get("source_policy") or {}).get("target_scope") or flow_engine.COMBINED_SCOPE,
         "summary": vm.flow_block(r) if saved else None,
+        "metrics": flow.get("metrics"),
         "unit": "INR crore",
         "guardrails": vm.guardrails(r),
     }

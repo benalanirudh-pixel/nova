@@ -76,7 +76,7 @@ export function Chip({ text, tone, title }: { text: unknown; tone?: string; titl
 }
 
 /** Label/value cell for stat grids. */
-export function Stat({ k, children, title }: { k: string; children: ReactNode; title?: string }) {
+export function Stat({ k, children, title }: { k: ReactNode; children: ReactNode; title?: string }) {
   return (
     <div className="min-w-0 rounded border border-line/25 bg-raised/60 px-2 py-1.5" title={title}>
       <div className="truncate text-[11px] text-muted">{k}</div>

@@ -3,8 +3,8 @@ Live NSE market data over the browser-impersonating session that
 derivatives_engine already uses for the option chain (the MCP's equivalents
 are often blocked or broken). Read-only; analysis only.
 
-- market(): NIFTY / BANK NIFTY / INDIA VIX quotes, sector indices, market-wide
-  advances/declines, new 52-week highs/lows, NSE status and GIFT Nifty.
+- market(): NIFTY / BANK NIFTY / INDIA VIX quotes, sector indices, index-summed
+  advances/declines (not stock counts), new 52-week highs/lows, NSE status and GIFT Nifty.
 - fii_dii(): latest FII/FPI and DII cash-market activity (₹ crore).
 - movers(index): top gainers and losers for an index ("NIFTY", "BANKNIFTY", ...).
 

@@ -203,6 +203,16 @@ def spot_technicals(closes: pd.DataFrame, now: Optional[datetime] = None) -> dic
     }
 
 
+def daily_candles(hist: pd.DataFrame, n: int = 180) -> list[dict]:
+    """Last n daily bars for the desk chart; rows with any missing OHLC are dropped, not filled."""
+    cols = ["Open", "High", "Low", "Close"]
+    if not set(cols) <= set(hist.columns):
+        return []
+    tail = hist[cols].dropna().tail(n)
+    return [{"t": str(i)[:10], "o": float(r.Open), "h": float(r.High), "l": float(r.Low), "c": float(r.Close)}
+            for i, r in tail.iterrows()]
+
+
 def fetch_spot_history(yahoo: str) -> pd.DataFrame:
     import yfinance as yf
     df = yf.Ticker(yahoo).history(period="2y", interval="1d", auto_adjust=False)
@@ -280,7 +290,9 @@ def build_fno(instrument: str, expiry: Optional[str] = None, today: Optional[dat
     except Exception as exc:
         errors["chain"] = f"{meta['exchange']} option chain unavailable: {exc}"
     try:
-        tech = spot_technicals(fetch_spot_history(meta["yahoo"]))
+        hist = fetch_spot_history(meta["yahoo"])
+        tech = spot_technicals(hist)
+        tech["candles"] = daily_candles(hist)
     except Exception as exc:
         errors["technicals"] = f"Spot history unavailable: {exc}"
 

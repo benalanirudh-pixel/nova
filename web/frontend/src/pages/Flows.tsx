@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { createColumnHelper } from "@tanstack/react-table";
+import DataTable from "../components/DataTable";
 import { Body, Chip, Num, Panel, Stat, btn } from "../components/ui";
 import { useMarketData } from "../hooks/useMarketData";
 import { fmt, isNum, label } from "../lib/format";
@@ -16,6 +18,12 @@ const SCOPE_LABEL: Record<string, string> = {
   NSE_ONLY: "NSE only",
 };
 const scopeName = (s: string) => SCOPE_LABEL[s] ?? label(s);
+
+interface TRow {
+  key: string; provisional: boolean; days: number; fii: number | null; dii: number | null; combined: number | null;
+  fii_buy: unknown; fii_sell: unknown; dii_buy: unknown; dii_sell: unknown; cum_fii: number | null; cum_dii: number | null; source: string | null;
+}
+const fh = createColumnHelper<TRow>();
 
 type View = "Daily" | "Weekly" | "Monthly";
 interface Bucket { key: string; fii: number | null; dii: number | null; combined: number | null; days: number; provisional: boolean; rows: FlowRow[] }
@@ -77,7 +85,6 @@ export default function FlowsPage() {
   const { data, loading, error } = useMarketData<FlowHistory>("/flows/history");
   const [scope, setScope] = useState<string | null>(null);
   const [view, setView] = useState<View>("Daily");
-  const [desc, setDesc] = useState(true);
 
   const scopes = useMemo(() => {
     const c = new Map<string, number>();
@@ -94,6 +101,30 @@ export default function FlowsPage() {
   const s = data?.summary;
   const last = rows[rows.length - 1];
   const tab = (on: boolean) => `${btn} ${on ? "border-accent/70 text-accent" : "border-line/50 text-muted hover:text-secondary"}`;
+
+  const tableRows = useMemo(() => buckets.map((b) => {
+    const r = b.rows[0], c = cumulative.get(b.key);
+    return { key: b.key, provisional: b.provisional, days: b.days, fii: b.fii, dii: b.dii, combined: b.combined,
+      fii_buy: r.fii_buy, fii_sell: r.fii_sell, dii_buy: r.dii_buy, dii_sell: r.dii_sell, cum_fii: c?.fii ?? null, cum_dii: c?.dii ?? null, source: r.source ?? null };
+  }), [buckets, cumulative]);
+  const cols = useMemo(() => {
+    const n = (k: keyof TRow, header: string, signed = false, d?: number) =>
+      fh.accessor(k, { header, meta: { align: "right" }, cell: (c) => <Num v={c.getValue()} signed={signed} d={d} /> });
+    const daily = view === "Daily";
+    return [
+      fh.accessor("key", { header: daily ? "Date" : "Period", meta: { cell: "text-secondary" },
+        cell: (c) => <>{c.getValue()}{c.row.original.provisional && <span className="ml-1 text-warning" title="Provisional">*</span>}</> }),
+      ...(daily ? [n("fii_buy", "FII buy"), n("fii_sell", "FII sell")] : []),
+      n("fii", "FII net", true),
+      ...(daily ? [n("dii_buy", "DII buy"), n("dii_sell", "DII sell")] : []),
+      n("dii", "DII net", true), n("combined", "Combined", true),
+      fh.accessor("cum_fii", { header: "Cum. FII", meta: { align: "right", title: "Running total from the first period shown" }, cell: (c) => <Num v={c.getValue()} d={0} signed /> }),
+      n("cum_dii", "Cum. DII", true, 0),
+      daily
+        ? fh.accessor("source", { header: "Source", enableSorting: false, meta: { cell: "max-w-[16rem] truncate font-sans text-[11px] text-muted" }, cell: (c) => c.getValue() ?? "N/A" })
+        : fh.accessor("days", { header: "Sessions", meta: { align: "right" } }),
+    ];
+  }, [view]);
 
   return (
     <div className="mx-auto max-w-[1800px] space-y-2">
@@ -138,36 +169,9 @@ export default function FlowsPage() {
         </Panel>
       </div>
 
-      <Panel title={`${view} history`} right={scopeName(active)} bodyClass="max-h-[28rem] overflow-auto p-0">
+      <Panel title={`${view} history`} right={scopeName(active)} bodyClass="p-0">
         <Body loading={loading && !data} error={error} lines={8}>
-          <table className="w-full text-[12px]">
-            <thead className="sticky top-0 z-10 bg-panel text-[10.5px] text-muted">
-              <tr className="border-b border-line/30 text-right [&>th]:px-2 [&>th]:py-1.5 [&>th]:font-medium">
-                <th className="text-left"><button onClick={() => setDesc((d) => !d)} className="hover:text-fg" title="Sort by date">{view === "Daily" ? "Date" : "Period"} {desc ? "▼" : "▲"}</button></th>
-                {view === "Daily" && <><th>FII buy</th><th>FII sell</th></>}
-                <th>FII net</th>
-                {view === "Daily" && <><th>DII buy</th><th>DII sell</th></>}
-                <th>DII net</th><th>Combined</th><th title="Running total from the first period shown">Cum. FII</th><th>Cum. DII</th>
-                {view === "Daily" ? <th className="text-left">Source</th> : <th>Sessions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {(desc ? [...buckets].reverse() : buckets).map((b) => {
-                const r = b.rows[0], c = cumulative.get(b.key);
-                return (
-                  <tr key={b.key} className="border-b border-line/15 text-right font-mono tabular-nums hover:bg-raised/50 [&>td]:px-2 [&>td]:py-1">
-                    <td className="text-left text-secondary">{b.key}{b.provisional && <span className="ml-1 text-warning" title="Provisional">*</span>}</td>
-                    {view === "Daily" && <><td><Num v={r.fii_buy} /></td><td><Num v={r.fii_sell} /></td></>}
-                    <td><Num v={b.fii} signed /></td>
-                    {view === "Daily" && <><td><Num v={r.dii_buy} /></td><td><Num v={r.dii_sell} /></td></>}
-                    <td><Num v={b.dii} signed /></td><td><Num v={b.combined} signed /></td>
-                    <td><Num v={c?.fii} d={0} signed /></td><td><Num v={c?.dii} d={0} signed /></td>
-                    {view === "Daily" ? <td className="max-w-[16rem] truncate text-left font-sans text-[11px] text-muted" title={r.source ?? ""}>{r.source ?? "N/A"}</td> : <td>{b.days}</td>}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <DataTable data={tableRows} columns={cols} initialSort={[{ id: "key", desc: true }]} maxHeight="28rem" label={`${view} flow history`} />
         </Body>
       </Panel>
       <div className="text-[11px] text-muted">Historical exchange-reported flows. Descriptive context only, not a buy/sell signal. * provisional.</div>

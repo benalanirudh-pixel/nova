@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from web.api.routes.analysis import router as analysis_router
+from web.api.routes.desk import router as desk_router
 from web.api import live_feed, scheduler
 from web.api.routes.events import router as events_router
 from web.api.routes.market import router as market_router
@@ -46,6 +47,7 @@ def create_app(dist: Path | None = None) -> FastAPI:
 
     app.include_router(market_router, prefix="/api")
     app.include_router(analysis_router, prefix="/api")
+    app.include_router(desk_router, prefix="/api")
     app.include_router(stock_router, prefix="/api")
     app.include_router(events_router, prefix="/api")
 

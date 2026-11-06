@@ -328,3 +328,58 @@ class TestFlowsHistoryEndpoint(unittest.TestCase):
             r = self.client.get("/api/flows/history")
         self.assertEqual(r.status_code, 502)
         self.assertIn("bad csv", r.json()["error"])
+
+
+class TestDeskEndpoints(unittest.TestCase):
+    def setUp(self):
+        from starlette.testclient import TestClient
+        self.client = TestClient(create_app())
+
+    def test_scan_shape_and_guardrail(self):
+        r = self.client.get("/api/scan")
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertIn("rows", body)
+        if body["available"]:
+            self.assertEqual(len(body["rows"][0]), len(body["columns"]))
+            self.assertFalse(body["guardrails"]["buy_sell_authorization"])
+
+    def test_audit_exposes_policy(self):
+        r = self.client.get("/api/audit")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("decision_policy", r.json())
+
+    def test_partial_scan_is_skipped(self):
+        import csv, tempfile, os
+        from web.api.routes import desk
+        with tempfile.TemporaryDirectory() as d:
+            partial, full = os.path.join(d, "market_scan_b.csv"), os.path.join(d, "market_scan_a.csv")
+            for path, count in ((partial, 3), (full, desk.MIN_COMPLETE_ROWS)):
+                with open(path, "w", newline="", encoding="utf8") as f:
+                    w = csv.DictWriter(f, ["symbol", "price"])
+                    w.writeheader()
+                    w.writerows({"symbol": f"S{i}", "price": 10} for i in range(count))
+            path, rows, newest = desk.latest_complete_scan(d, [partial, full])
+        self.assertEqual(path, full)
+        self.assertEqual(len(rows), desk.MIN_COMPLETE_ROWS)
+        self.assertEqual(newest, 3)
+
+    def test_sector_table_skips_thin_groups_and_counts_above_200d(self):
+        from web.api.routes import desk
+        row = dict.fromkeys(("price", "volume", "return_1d", "return_5d", "return_20d", "return_60d", "relative_strength_20d", "ema_20", "ema_50", "ema_200", "rsi_14", "atr_percent", "relative_volume", "high_52w", "low_52w", "distance_52w_high", "score"), 100)
+        rows = [{**row, "symbol": f"A{i}", "trend": "UPTREND", "price": 110 if i else 90} for i in range(5)] + [{**row, "symbol": "B", "trend": "UPTREND"}]
+        stocks = desk.build_stocks(rows, {**{f"A{i}": "Big" for i in range(5)}, "B": "Thin"}, {})
+        table = desk.build_sectors(stocks)
+        self.assertEqual([s["n"] for s in table], ["Big"])
+        self.assertEqual(table[0]["a200"], 80.0)
+        self.assertEqual(stocks[0]["t"], "Up")
+
+
+class TestLiveBreadth(unittest.TestCase):
+    def test_index_summed_advances_never_replace_scan_breadth(self):
+        from web.api.routes.market import apply_live
+        live = {"data": {"as_of": "t", "status": None, "gift_nifty": None, "sectors": [], "breadth": {"advances": 4761, "declines": 4752, "new_52w_highs": 40}}, "error": None}
+        body = apply_live({"kpis": {}, "breadth": {"advancing": 660, "declining": 1326, "ad_ratio": 0.5}}, live)
+        self.assertEqual(body["breadth"]["advancing"], 660)
+        self.assertEqual(body["breadth"]["ad_ratio"], 0.5)
+        self.assertEqual(body["breadth"]["new_52w_highs"], 40)
