@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Activity, ArrowLeftRight, BarChart3, LayoutGrid, Layers, RefreshCw, Search } from "lucide-react";
+import { Activity, ArrowLeftRight, LayoutGrid, Layers, RefreshCw, Search } from "lucide-react";
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command";
 
 export interface SymbolItem { symbol: string; name: string }
@@ -21,7 +21,7 @@ export function rankSymbols(symbols: SymbolItem[], query: string, n = 25): Symbo
 }
 
 const PAGES = [
-  { to: "/", label: "Equity", icon: BarChart3, key: "F1" },
+  { to: "/", label: "Stock analysis", icon: LayoutGrid, key: "F1" },
   { to: "/fno", label: "F&O desk", icon: Layers, key: "F2" },
   { to: "/flows", label: "Institutional flows", icon: ArrowLeftRight, key: "F3" },
   { to: "/screener", label: "Screener", icon: LayoutGrid, key: "F4" },

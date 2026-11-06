@@ -21,8 +21,8 @@ import { istSession, nextRefreshLabel } from "./lib/schedule";
 import { GUARDRAIL_TEXT } from "./lib/theme";
 
 const NAV = [
-  { to: "/", label: "Equity", end: true }, { to: "/fno", label: "F&O" }, { to: "/flows", label: "Flows" }, { to: "/screener", label: "Screener" },
-  { to: "/sectors", label: "Sectors" }, { to: "/note", label: "Note" }, { to: "/audit", label: "Audit" },
+  { to: "/", label: "Stock analysis", end: true }, { to: "/fno", label: "F&O desk" }, { to: "/flows", label: "Institutional flows" },
+  { to: "/screener", label: "Screener" }, { to: "/sectors", label: "Sectors" }, { to: "/note", label: "Market note" }, { to: "/audit", label: "Audit" },
 ];
 type TapeItem = [string, unknown, unknown];
 
