@@ -76,7 +76,7 @@ warns):
 .\venv\Scripts\python.exe start_nova.py main
 .\venv\Scripts\python.exe start_nova.py market
 .\venv\Scripts\python.exe start_nova.py --check
-.\venv\Scripts\python.exe start_nova.py        # interactive menu
+.\venv\Scripts\python.exe start_nova.py        # opens Nova Desk
 ```
 
 The full refresh command is intentionally heavier:

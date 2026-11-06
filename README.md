@@ -4,7 +4,7 @@
 
 ### Your own Indian stock market research terminal. It runs on your PC and it's free.
 
-**NSE stocks · F&O option chains · FII/DII flows · live quotes · market regime**, all in one dark trading-desk dashboard on `localhost`.
+**NSE stocks · F&O option chains · FII/DII flows · live quotes · market regime**, all in **Nova Desk**, a dark analysis terminal on `localhost`.
 
 ![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)
@@ -15,7 +15,7 @@
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-FF9933)
 
-<img src="docs/screenshots/overview.png" alt="Nova overview: morning call, NIFTY levels, index cards, global cues, pre-open session" width="100%">
+<img src="docs/screenshots/overview.png" alt="Nova Desk equity sheet for Nifty 50: monitor, performance, trend structure, level map, risk and assessment" width="100%">
 
 </div>
 
@@ -28,32 +28,33 @@
 
 Most free market sites give you one piece at a time: a chart here, an option chain there, FII data in a PDF somewhere else. Nova pulls it **all into one screen** and does the maths for you:
 
-- 🧭 **Morning call.** One plain-English line per factor: NIFTY, US/Asia, crude, rupee, pre-open breadth, flows, regime, VIX. Each line is coloured supportive, neutral or cautious.
-- 📈 **Real charts.** Daily candlesticks with EMA 20/50/200 and volume. Scroll to zoom, drag to pan, and the crosshair shows OHLC.
-- 🧮 **F&O desk.** PCR, max pain, OI walls, ATM IV vs realized vol, skew, straddle-implied move and the full option chain for **NIFTY, BANK NIFTY and SENSEX**.
-- 🏦 **FII / DII flows.** Daily, weekly and monthly bars with a sortable history and running totals.
-- ⚡ **Live prices.** During market hours, prices stream into the page. A pill always tells you if data is *Live*, *Delayed*, *Saved* or *Stale*.
-- 🔍 **Stock research.** Valuation, ratios, quarterly results, results calendar, ownership, peers, news and a technical snapshot for any NSE stock.
+- 🧭 **Plain read.** A one-line market view, then Trend, Momentum, Extension, Volatility and Relative strength, each with the number behind it.
+- 📊 **Equity sheet.** Performance against Nifty, trend structure, a level map in % and ATR, realized vol, beta, alpha, valuation, results, peers and news for any NSE stock. Tables only, no charts.
+- 🧮 **F&O desk.** Chain with delta and net gamma, parity forward, implied probabilities, skew, OI concentration and PCR by distance for **NIFTY, BANK NIFTY and SENSEX**.
+- 🏦 **FII / DII flows.** Rolling windows and a daily ledger that shows the source of every session.
+- 🔎 **Screener and sectors.** The full NSE universe with presets, plus live sector indices.
+- ⚡ **Live prices.** During market hours, watched prices stream in and option chains refresh every minute.
+- 🧾 **Audit.** Conflicting, stale or missing data is listed on screen, never hidden.
 - 🔒 **100% local.** Everything runs on `127.0.0.1`. No account, no cloud and no tracking.
 
 ---
 
 ## 📸 What it looks like
 
-### Stock research: chart, technicals, fundamentals, news
-<img src="docs/screenshots/stock.png" alt="Stock page for RELIANCE: price chart with EMAs, technical snapshot, company, results calendar, news" width="100%">
+### Equity: one sheet for any stock
+<img src="docs/screenshots/stock.png" alt="Nova Desk equity sheet for RELIANCE: performance against Nifty, trend structure, level map, risk, valuation and assessment" width="100%">
 
-The **key takeaways** row turns raw numbers into plain sentences: *"Revenue up 29.8% year on year"*, *"Return on equity 8.8% (below 10%)"*, *"Ranked 3 of 7 listed peers by 20-day return"*. The technical snapshot scores momentum from 0 to 100 and labels trend, structure, RSI, MACD and VWAP.
+Pick a symbol and every pane updates. The right rail turns the measured figures into a short assessment, kept separate from the data itself.
 
-### F&O desk: option chain analytics for NIFTY, BANK NIFTY, SENSEX
-<img src="docs/screenshots/fno.png" alt="F&O desk: index switcher, PCR, max pain, IV, desk read, levels ladder, OI profile, option chain" width="100%">
+### F&O desk: positioning for NIFTY, BANK NIFTY, SENSEX
+<img src="docs/screenshots/fno.png" alt="Nova Desk F&O screen: index comparison, option chain with delta and net gamma, implied probabilities and read" width="100%">
 
-The **desk read** explains positioning in words, for example *"OI PCR 1.77: put-heavy, writers are defending lower strikes"*. The **levels** ladder sorts call/put OI walls, max pain, straddle breakevens and pivots around spot.
+Probabilities and Greeks are model estimates and are labelled that way. Stock options are not covered: Nova's option feed serves the three indices only.
 
 ### FII / DII flows: who's buying, who's selling
-<img src="docs/screenshots/flows.png" alt="Flows page: institutional activity stats, daily net flow bars, daily history table" width="100%">
+<img src="docs/screenshots/flows.png" alt="Nova Desk flows screen: rolling flow, daily ledger with sources, assessment" width="100%">
 
-Every row shows its **source** (NSE primary or a mirror) and provisional days carry a `*`. Combined NSE+BSE+MSEI data and NSE-only data are **never mixed**.
+Every row shows its **source** (NSE primary or a mirror). Combined NSE+BSE+MSEI data and NSE-only data are **never mixed**.
 
 ---
 
@@ -89,13 +90,13 @@ python -m venv venv
 
 On a fresh clone there is no cache yet, so this scans **all ~2,300 NSE stocks** once. It takes **2 to 3 minutes**. Later runs reuse the cache and finish in seconds.
 
-### 4. Launch the dashboard
+### 4. Open Nova Desk
 
 ```powershell
 .\venv\Scripts\python.exe web_main.py
 ```
 
-The first launch installs and builds the frontend automatically (about a minute). Then your browser opens **http://127.0.0.1:8501**. 🎉
+`start_nova.py` opens the same terminal after a service check. The first launch installs and builds the frontend automatically (about a minute), and it rebuilds by itself after you pull changes. Then your browser opens **http://127.0.0.1:8501**. 🎉
 
 Next time, just run step 4.
 
@@ -103,10 +104,10 @@ Next time, just run step 4.
 
 | Key | Action |
 |-----|--------|
-| `Ctrl+K` or `/` | Search any NSE symbol or company |
-| `1` `2` `3` `4` | Overview · Stock · F&O desk · Flows |
-| `g` then `o` / `s` / `a` / `f` | Same pages, Vim-style |
-| `Esc` | Leave the search box |
+| `Ctrl+K` or `/` | Search symbols, pages and actions |
+| `F1` to `F7` | Equity · F&O · Flows · Screener · Sectors · Note · Audit |
+| `↑` `↓` | Move through the Monitor list |
+| `R` | Run a full data refresh |
 
 ---
 

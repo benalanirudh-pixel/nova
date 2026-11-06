@@ -52,10 +52,10 @@ function useDeskValue() {
   useEffect(() => {
     const t = setInterval(() => {
       if (istSession().session !== "Open") return;
-      overview.refresh(); nifty.refresh(); bank.refresh(); sensex.refresh();
+      overview.refresh(); analysis.refresh(); brief.refresh(); nifty.refresh(); bank.refresh(); sensex.refresh(); // each route has its own server TTL
     }, FNO_POLL_MS);
     return () => clearInterval(t);
-  }, [overview.refresh, nifty.refresh, bank.refresh, sensex.refresh]);
+  }, [overview.refresh, analysis.refresh, brief.refresh, nifty.refresh, bank.refresh, sensex.refresh]);
 
   const stocks = useMemo(() => (scan.data?.rows ?? []).map((a) => Object.fromEntries(scan.data!.columns.map((k, i) => [k, a[i]])) as unknown as ScanRow), [scan.data]);
   const bySymbol = useMemo(() => Object.fromEntries(stocks.map((r) => [r.s, r])), [stocks]);

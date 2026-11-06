@@ -127,20 +127,21 @@ class TestMain(unittest.TestCase):
                 rc = start_nova.main(["--check"])
         self.assertEqual(rc, 1)
 
-    def test_launch_called_for_app_arg_and_no_prompt(self):
+    def _run(self, argv):
         with mock.patch.object(
             start_nova, "check_all", return_value=[
                 {"name": "A", "url": "u", "why": "w", "ok": True, "detail": "d"},
             ]
-        ), mock.patch.object(
-            start_nova, "launch", return_value=1234
-        ) as launcher, mock.patch.object(
-            start_nova, "_prompt_app"
-        ) as prompt:
+        ), mock.patch.object(start_nova, "launch", return_value=1234) as launcher:
             with redirect_stdout(io.StringIO()):
-                start_nova.main(["market"])
-            launcher.assert_called_once_with("market")
-            prompt.assert_not_called()
+                start_nova.main(argv)
+        return launcher
+
+    def test_launch_called_for_app_arg(self):
+        self._run(["market"]).assert_called_once_with("market")
+
+    def test_no_arg_opens_nova_desk(self):
+        self._run([]).assert_called_once_with("desk")
 
 
 if __name__ == "__main__":

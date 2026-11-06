@@ -163,5 +163,4 @@ th.so button{all:unset;cursor:pointer}th.so button:focus-visible{outline:2px sol
 .tab:hover{color:var(--ink)}
 .tab.active{color:var(--ink)}
 .tab.active::after{content:"";position:absolute;left:10px;right:10px;bottom:0;height:2px;background:var(--acc)}
-.app th{text-transform:none;letter-spacing:0}
 .sub-tabs{overflow-x:auto;scrollbar-width:none}.sub-tabs button{white-space:nowrap;flex:none}

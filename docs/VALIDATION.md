@@ -1648,3 +1648,11 @@ sprint (screenshot caught the brief loading).
   sheets for TCS and RELIANCE, sector click into Screener, column sort, Ctrl K
   palette, Day theme, and 390px width with no horizontal scroll.
 - Not checked: live ticks during market hours, the Refresh scan button.
+
+## 2026-11-06 - Nova Desk as the only web terminal
+
+- `tests.test_web_api tests.test_nse_live tests.test_live_feed tests.test_fno_desk tests.test_start_nova tests.test_packaging` - 85 tests OK.
+- `npm run build` in `web/frontend` - OK after removing the old UI and its packages.
+- Fresh server on port 8503: Equity, RELIANCE sheet, F&O and Flows loaded with
+  no console errors; `/analysis` redirected to `/fno`.
+- Not checked: live ticks during market hours.

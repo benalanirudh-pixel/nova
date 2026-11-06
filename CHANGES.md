@@ -19,8 +19,12 @@ coding agents.
   52-week high/low counts are overlaid.
 - Stock options remain unavailable: the option feed covers NIFTY, BANKNIFTY
   and SENSEX only. The UI flags this rather than filling it.
-- Old pages in `src/pages/` and their chart components are no longer routed.
-  `/stock` and `/analysis` redirect to `/` and `/fno`.
+- The old web UI is deleted: `src/pages/`, its chart and table components, and
+  the `lightweight-charts` and `@tanstack` packages. `/stock` and `/analysis`
+  redirect to `/` and `/fno`.
+- Nova Desk is the default: `start_nova.py` with no argument opens it (the menu
+  is gone), `web_main.py` rebuilds when source is newer than `dist`, and the
+  page is served with `Cache-Control: no-cache`.
 
 ## 2026-11-03 - Public README, MIT license, fresh-clone build
 

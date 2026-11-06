@@ -273,6 +273,7 @@ class TestStaticServing(unittest.TestCase):
         r = self.client.get("/stock")
         self.assertEqual(r.status_code, 200)
         self.assertIn("SPA", r.text)
+        self.assertEqual(r.headers["cache-control"], "no-cache")  # a new build must show at once
         self.assertIn("text/html", r.headers["content-type"])
 
     def test_assets_and_top_level_files(self):
@@ -383,3 +384,23 @@ class TestLiveBreadth(unittest.TestCase):
         self.assertEqual(body["breadth"]["advancing"], 660)
         self.assertEqual(body["breadth"]["ad_ratio"], 0.5)
         self.assertEqual(body["breadth"]["new_52w_highs"], 40)
+
+
+class TestLauncherBuild(unittest.TestCase):
+    def test_rebuilds_when_missing_or_older_than_source(self):
+        import os, tempfile
+        import web_main
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "src").mkdir()
+            source = root / "src" / "a.tsx"
+            source.write_text("x", encoding="utf-8")
+            dist = root / "dist" / "index.html"
+            with _mock.patch.multiple(web_main, FRONTEND=root, DIST_INDEX=dist):
+                self.assertTrue(web_main.needs_build())
+                dist.parent.mkdir()
+                dist.write_text("built", encoding="utf-8")
+                os.utime(dist, (2_000_000_000, 2_000_000_000))
+                self.assertFalse(web_main.needs_build())
+                os.utime(source, (2_000_000_100, 2_000_000_100))
+                self.assertTrue(web_main.needs_build())

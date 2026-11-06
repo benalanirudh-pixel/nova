@@ -62,6 +62,7 @@ def create_app(dist: Path | None = None) -> FastAPI:
             f = (dist / path).resolve()
             if f.is_file() and f.is_relative_to(dist):
                 return FileResponse(f)
-            return FileResponse(dist / "index.html")  # SPA deep-link fallback
+            # no-cache: a browser must never keep showing a previous build's page
+            return FileResponse(dist / "index.html", headers={"Cache-Control": "no-cache"})  # SPA deep-link fallback
 
     return app

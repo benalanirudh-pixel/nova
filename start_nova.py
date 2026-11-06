@@ -2,10 +2,10 @@
 Nova launcher + preflight health check.
 
 Usage:
-    python start_nova.py main          # launch the main assistant (main.py)
+    python start_nova.py               # launch Nova Desk, the main terminal (web_main.py)
+    python start_nova.py main          # launch the voice assistant (main.py)
     python start_nova.py market        # launch Nova Market Lab (market_lab_ui.py)
     python start_nova.py --check       # check services only, launch nothing
-    python start_nova.py               # interactive: show menu, then launch
 
 Before launching, it verifies the two local services Nova depends on and
 reports clearly what is or isn't running:
@@ -43,6 +43,7 @@ SERVICES = [
 ]
 
 APPS = {
+    "desk": "web_main.py",
     "main": "main.py",
     "market": "market_lab_ui.py",
 }
@@ -110,19 +111,6 @@ def launch(app_key):
     return proc.pid
 
 
-def _prompt_app():
-    print("Which Nova app do you want to open?")
-    print("  1) main   - Nova desktop assistant (voice, telemetry, chat)")
-    print("  2) market - Nova Market Lab (market dashboard)")
-    for _ in range(3):
-        choice = input("Enter 1 or 2: ").strip().lower()
-        if choice in ("1", "main"):
-            return "main"
-        if choice in ("2", "market"):
-            return "market"
-    raise SystemExit("No valid choice given; nothing launched.")
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Nova launcher and local-service health check."
@@ -131,7 +119,7 @@ def main(argv=None):
         "app",
         nargs="?",
         choices=list(APPS.keys()),
-        help="which app to launch (main or market)",
+        help="which app to launch (default: desk)",
     )
     parser.add_argument(
         "--check",
@@ -145,7 +133,7 @@ def main(argv=None):
     if args.check:
         return 0 if all_ok else 1
 
-    app_key = args.app or _prompt_app()
+    app_key = args.app or "desk"
 
     pid = launch(app_key)
     print(f"\nLaunched {APPS[app_key]} (pid {pid}).")

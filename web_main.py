@@ -1,4 +1,4 @@
-"""Nova web dashboard launcher (localhost only)."""
+"""Nova Desk launcher (localhost only)."""
 import argparse
 import shutil
 import subprocess
@@ -26,7 +26,17 @@ def build_frontend() -> int:
     return 0
 
 
-DIST_INDEX = Path(__file__).parent / "web" / "frontend" / "dist" / "index.html"
+FRONTEND = Path(__file__).parent / "web" / "frontend"
+DIST_INDEX = FRONTEND / "dist" / "index.html"
+
+
+def needs_build() -> bool:
+    """True when dist is missing or older than the frontend source, e.g. after a git pull."""
+    if not DIST_INDEX.exists():
+        return True
+    sources = [*(FRONTEND / "src").rglob("*"), FRONTEND / "index.html", FRONTEND / "package.json"]
+    built = DIST_INDEX.stat().st_mtime
+    return any(f.is_file() and f.stat().st_mtime > built for f in sources)
 
 
 def main() -> None:
@@ -40,10 +50,10 @@ def main() -> None:
         sys.exit(build_frontend())
     if a.dev:
         print("Dev mode: in another shell run `cd web/frontend && npm run dev` (http://localhost:5173)")
-    elif not DIST_INDEX.exists() and build_frontend() != 0:
-        sys.exit(1)
+    elif needs_build() and build_frontend() != 0 and not DIST_INDEX.exists():
+        sys.exit(1)  # an older build still works; only stop when there is nothing to serve
     url = f"http://localhost:{5173 if a.dev else a.port}/"
-    print(f"Nova dashboard: {url}")
+    print(f"Nova Desk: {url}")
     if not a.no_browser:
         threading.Timer(1.5, webbrowser.open, args=(url,)).start()
     uvicorn.run("web.api.main:create_app", factory=True, host="127.0.0.1", port=a.port)

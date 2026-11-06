@@ -1,39 +1,39 @@
 @import "tailwindcss";
 
-/* Graphite + saffron. Saffron is the single accent; green/red carry price direction only. */
+/* Shared tokens for dialogs and toasts; they mirror the Graphite values in desk/desk.css. */
 @theme {
-  --color-deep: #0B0E14;
-  --color-panel: #11161F;
-  --color-raised: #171D28;
-  --color-line: #3A4757;
-  --color-fg: #E8ECF1;
-  --color-secondary: #A3AEBD;
-  --color-muted: #838E9D; /* 4.8:1 on raised (WCAG AA) */
-  --color-accent: #FF9933;
-  --color-positive: #26C281;
-  --color-negative: #F05252;
+  --color-deep: #0E0F11;
+  --color-panel: #17181B;
+  --color-raised: #1F2024;
+  --color-line: #3D3F46;
+  --color-fg: #EDEDEA;
+  --color-secondary: #B3B5B9;
+  --color-muted: #94979D; /* 4.8:1 on raised (WCAG AA) */
+  --color-accent: #E2C088;
+  --color-positive: #46C78F;
+  --color-negative: #F2705C;
   --color-warning: #E6B450;
   --color-info: #5B9CF5;
   --color-purple: #A78BFA;
   /* shadcn/ui semantic tokens mapped onto Nova's palette. Nova already uses
      accent / muted / secondary with different meanings, so components added by
      the shadcn CLI get those classes rewritten (bg-accent -> bg-raised, etc.). */
-  --color-background: #0B0E14;
-  --color-foreground: #E8ECF1;
-  --color-card: #11161F;
-  --color-card-foreground: #E8ECF1;
-  --color-popover: #171D28;
-  --color-popover-foreground: #E8ECF1;
-  --color-primary: #FF9933;
-  --color-primary-foreground: #0B0E14;
-  --color-accent-foreground: #E8ECF1;
-  --color-muted-foreground: #838E9D;
-  --color-destructive: #F05252;
-  --color-border: #3A4757;
-  --color-input: #3A4757;
-  --color-ring: #FF9933;
-  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
+  --color-background: #0E0F11;
+  --color-foreground: #EDEDEA;
+  --color-card: #17181B;
+  --color-card-foreground: #EDEDEA;
+  --color-popover: #1F2024;
+  --color-popover-foreground: #EDEDEA;
+  --color-primary: #E2C088;
+  --color-primary-foreground: #0E0F11;
+  --color-accent-foreground: #EDEDEA;
+  --color-muted-foreground: #94979D;
+  --color-destructive: #F2705C;
+  --color-border: #3D3F46;
+  --color-input: #3D3F46;
+  --color-ring: #E2C088;
+  --font-sans: "Geist", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Cascadia Mono", Consolas, monospace;
 }
 
 :root { color-scheme: dark; }
@@ -45,23 +45,11 @@ body {
 }
 ::selection { background: color-mix(in srgb, var(--color-accent) 35%, transparent); }
 * { scrollbar-width: thin; scrollbar-color: var(--color-line) transparent; }
-/* panels: faint top highlight gives depth without shadows */
-.panel { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.025), 0 1px 2px rgb(0 0 0 / 0.35); }
-
-/* every data table: quiet uppercase headers, row hover */
-table thead th { font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; font-size: 10px; }
-table tbody tr { transition: background-color 120ms ease; }
-table tbody tr:hover { background-color: color-mix(in srgb, var(--color-raised) 70%, transparent); }
-
 :where(button, a, input, select, [tabindex]):focus-visible {
   outline: 1px solid color-mix(in srgb, var(--color-accent) 80%, transparent);
   outline-offset: 1px;
 }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
-
-/* route change: short fade so page swaps don't flash */
-@keyframes page-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
-.page-in { animation: page-in 160ms ease-out; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

@@ -70,10 +70,12 @@ terminal_main.py -> terminal/main_window.py (NovaTerminal)
 Additional engines: `analysis/regime/regime_engine.py`,
 `analysis/sectors/sector_engine.py`, `analysis/backtest_harness.py`.
 
-## Web Dashboard Live Path
+## Nova Desk Live Path
+
+Nova Desk is the main terminal. Its screens live in `web/frontend/src/desk/`.
 
 `web_main.py` serves the FastAPI app (`web/api/main.py`) and the built React
-frontend. The lifespan starts the refresh scheduler and the live quote loop.
+frontend, rebuilding it when the source is newer than `dist`. The lifespan starts the refresh scheduler and the live quote loop.
 
 ```
 web/api/live_feed.py  (asyncio task, 09:15-15:30 IST Mon-Fri; no holiday calendar)
@@ -84,7 +86,7 @@ web/api/live_feed.py  (asyncio task, 09:15-15:30 IST Mon-Fri; no holiday calenda
         -> hooks/useSSE.ts              tick/feed_status -> lib/live.ts store (per-frame batch)
                                         refresh_* -> page refetch
            -> hooks/useLive.ts          useLiveQuote, useFeedStatus, useLiveWatch
-              -> TickerTape, StockAnalysis
+              -> App Tape, desk/Equity
 POST /api/live/watch    client registers symbols (origin-checked, re-posted every 60 s)
 GET  /api/live/snapshot last tick per symbol + status (loaded on every SSE reconnect)
 ```

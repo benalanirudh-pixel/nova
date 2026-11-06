@@ -8,15 +8,17 @@ full agent rules; this file is the quick-start.
 
 | Command | Surface |
 |---------|---------|
+| `.\venv\Scripts\python.exe web_main.py` | **Nova Desk, the main terminal** (web, live data) |
 | `.\venv\Scripts\python.exe main.py` | Nova Assistant (personal AI desktop) |
 | `.\venv\Scripts\python.exe market_lab_ui.py` | Market Lab (standalone) |
 | `.\venv\Scripts\python.exe terminal_main.py` | Nova Terminal (unified) |
-| `.\venv\Scripts\python.exe start_nova.py [main\|market\|--check]` | Launcher with preflight |
+| `.\venv\Scripts\python.exe start_nova.py [desk\|main\|market\|--check]` | Launcher with preflight; opens Nova Desk by default |
 
 ## Architecture (summary)
 
 See `docs/ARCHITECTURE.md` for full map.
 
+- **Nova Desk path:** `web_main.py` → `web/api/main.py` (routes in `web/api/routes/`) → React app in `web/frontend/src/desk/`
 - **Assistant path:** `main.py` → `ui.py` → `brain.py` (Ollama `qwen3.5:4b`) → `tools.py` → `analysis/data/*`
 - **Market Lab path:** `market_lab_ui.py` → `market_lab/market_lab_data.py` (cache-first report) → `analysis/data/*`; `market_lab/market_lab_brain.py` (AI interpretation)
 - **Terminal path:** `terminal_main.py` → `terminal/main_window.py` → pages in `terminal/pages/` (wires both paths above)
