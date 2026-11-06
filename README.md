@@ -21,6 +21,22 @@ Nova Desk is a dark, data-dense terminal for NSE equity and F&O analysis. It pul
 
 ---
 
+## What it looks like
+
+### Stock analysis — one sheet per NSE symbol
+<img src="docs/screenshots/stock.png" alt="Nova Desk equity sheet: price, trend structure, level map, risk, valuation, assessment" width="100%">
+
+### F&O desk — NIFTY, BANK NIFTY, SENSEX
+<img src="docs/screenshots/fno.png" alt="Nova Desk F&O screen: option chain, delta, net gamma, implied probabilities" width="100%">
+
+### Institutional flows — FII / DII
+<img src="docs/screenshots/flows.png" alt="Nova Desk flows screen: rolling windows, daily ledger, source attribution" width="100%">
+
+### Market overview
+<img src="docs/screenshots/overview.png" alt="Nova Desk overview: regime, breadth, derivatives, sectors" width="100%">
+
+---
+
 ## Screens
 
 **Stock analysis (F1)** — One sheet per NSE symbol: price vs Nifty, trend structure (EMA 9/20/50/200, MACD, RSI, ATR), level map in % and ATR, realized vol, beta/alpha, valuation & quality ratios, ownership, quarterly results, peers, news. Tables only.
