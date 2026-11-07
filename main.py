@@ -5,6 +5,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from ui import NovaWindow
+from ui.theme import apply_theme
 
 
 def main():
@@ -13,6 +14,8 @@ def main():
     app.setApplicationName("Nova")
     app.setApplicationDisplayName("Nova — Personal AI Command System")
     app.setStyle("Fusion")
+
+    apply_theme(app)
 
     window = NovaWindow()
     window.show()

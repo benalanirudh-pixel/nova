@@ -8669,6 +8669,17 @@
       "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; semantically similar concepts with no structural link"
     },
     {
+      "source": "_BrainWorker",
+      "target": "BrainError",
+      "source_files": [
+        "terminal/pages/nova_ai.py",
+        "brain.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "uses",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; bridges separate communities"
+    },
+    {
       "source": "MarketLabSmokeTestCase",
       "target": "MarketLabWindow",
       "source_files": [
@@ -8689,21 +8700,43 @@
       "confidence": "INFERRED",
       "relation": "uses",
       "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; bridges separate communities"
-    },
-    {
-      "source": "TestTerminalLayout",
-      "target": "MarketLabWindow",
-      "source_files": [
-        "tests/test_gui_smoke.py",
-        "market_lab_ui.py"
-      ],
-      "confidence": "INFERRED",
-      "relation": "uses",
-      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; bridges separate communities"
     }
   ],
-  "tokens": {
-    "input": 0,
-    "output": 0
-  }
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `Nova Desk` connect `Nova Desk` to `start_nova.py`, `data.tsx`, `Datetime Inspect Icons`?",
+      "why": "High betweenness centrality (0.070) - this node is a cross-community bridge."
+    },
+    {
+      "type": "isolated_nodes",
+      "question": "What connects `nova`, `/api/audit`, `/api/flows/history` to the rest of the system?",
+      "why": "56 weakly-connected nodes found - possible documentation gaps or missing edges."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `UI/UX Pro Max Tests` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.029404527559055118 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `TestShadcnInstaller` connect `TestShadcnInstaller` to `.test_init_default_project_root`, `.test_init_custom_project_root`, `.test_init_dry_run`, `.test_check_shadcn_config_exists`, `.test_check_shadcn_config_not_exists`, `.test_get_installed_components_empty`, `.test_get_installed_components_with_files`, `BM25 Search Core`, `.temp_project`, `patch`, `.test_add_components_no_config`, `.test_add_components_already_installed`, `.test_add_components_with_overwrite`, `.test_add_components_dry_run`, `.test_add_all_components_dry_run`, `.test_list_installed_no_config`, `.test_list_installed_with_components`?",
+      "why": "High betweenness centrality (0.031) - this node is a cross-community bridge."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Design Token System` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.0412280701754386 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `TestTailwindConfigGenerator` connect `TestTailwindConfigGenerator` to `.test_recommend_plugins_nextjs`, `.test_generate_typescript_config`, `.test_init_default_typescript`, `.test_generate_javascript_config`, `.test_generate_config_with_colors`, `.test_generate_config_with_plugins`, `.test_validate_config_valid`, `.test_validate_config_no_content`, `BM25 Search Core`, `.test_validate_config_empty_theme`, `.test_init_javascript`, `.test_write_config`, `.test_write_config_creates_content`, `.test_full_configuration_typescript`, `.test_init_framework`, `.test_full_configuration_javascript`, `.test_default_output_path_typescript`, `.test_custom_output_path`, `.test_base_config_structure`, `.test_default_content_paths_react`, `.test_default_content_paths_vue`, `.test_add_colors`, `.test_write_config_invalid_path`, `.test_add_colors_multiple_times`, `.test_add_color_palette`, `.test_add_fonts`, `.test_add_spacing`, `.test_add_breakpoints`, `.test_add_plugins_no_duplicates`?",
+      "why": "High betweenness centrality (0.024) - this node is a cross-community bridge."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Market Data Engine` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.05679974034404414 - nodes in this community are weakly interconnected."
+    }
+  ]
 }

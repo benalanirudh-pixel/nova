@@ -3,6 +3,24 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-07 - UI polish pass on Nova Assistant (`ui.py` / `styles/nova_theme.qss`)
+
+Rewrote `styles/nova_theme.qss` with a modern glassmorphism trading-terminal
+aesthetic: deeper panel gradients, cyan/green/red neon accent glows, larger
+border radii (10-14px), tighter typography hierarchy, improved hover/pressed
+states on all buttons, cards, tables, inputs, scrollbars, and chips.
+- `main.py`: now calls `apply_theme(app)` so the shared QSS theme is applied at
+  the QApplication level for both Nova Assistant and Market Lab surfaces.
+- `ui.py`: removed the inline `apply_styles()` f-string monolith so the theme
+  QSS owns all styling; widget object names (#topBar, #panel, #btn-primary, etc.)
+  are preserved so QSS selectors match.
+- `styles/nova_theme.qss`: full rewrite — glass surfaces with gradient borders,
+  cyan primary buttons with glow, disabled states, interactive-card hover
+  states, chat bubbles with depth, service/telemetry cards with gradients,
+  refined scrollbars, progress bars, and status chips.
+
+Files changed: `styles/nova_theme.qss`, `main.py`, `ui.py`.
+
 ## 2026-11-06 - Nova Desk replaces the web dashboard UI
 
 - `web/frontend/src/App.tsx` now serves Nova Desk, a chart-free analysis

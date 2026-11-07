@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nova UI Preview — Glassmorphism Trading Terminal</title>
+<style>
+:root {
+  --bg: #050B10;
+  --surface: #091620;
+  --surface-alt: #0D1B26;
+  --sidebar: #061019;
+  --header: #061019;
+  --border: #183746;
+  --border-bright: #1B6170;
+  --border-dim: #0F202B;
+  --text: #F2F6FA;
+  --secondary: #91A9BE;
+  --muted: #617A91;
+  --muted2: #4A6572;
+  --green: #00E6A0;
+  --red: #FF4058;
+  --amber: #FFBD4A;
+  --blue: #3198FF;
+  --cyan: #00D9F5;
+  --purple: #B49AFF;
+  --ink: #000000;
+  --glass: rgba(14, 31, 46, 0.88);
+  --glass-border: rgba(0, 217, 245, 0.35);
+  --radius-lg: 14px;
+  --radius-md: 12px;
+  --radius-sm: 10px;
+  --radius-pill: 9999px;
+  --font-ui: 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Consolas', 'Monaco', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 11pt;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* App shell */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+/* Header */
+.header {
+  background: var(--header);
+  border-bottom: 1px solid var(--border);
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  flex-shrink: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo {
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 6px;
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+}
+
+.identity-title {
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
+.identity-sub {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  line-height: 1;
+}
+
+.nav {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.nav-btn {
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  padding: 12px 14px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.nav-btn:hover {
+  color: var(--cyan);
+}
+
+.active-indicator {
+  background: #061F1B;
+  color: var(--green);
+  border: 1px solid #155947;
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.clock {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 8px;
+}
+
+/* Body columns */
+.body {
+  display: flex;
+  flex: 1;
+  padding: 16px;
+  gap: 16px;
+  overflow: hidden;
+}
+
+/* Left rail */
+.left {
+  width: 310px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel {
+  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0A1A26, stop:1 #091620);
+  background: linear-gradient(180deg, #0A1A26 0%, #091620 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel:hover {
+  border-color: var(--border-bright);
+  background: linear-gradient(180deg, #0E2030 0%, #0E1F2E 100%);
+}
+
+.section-title {
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding-bottom: 4px;
+}
+
+.service-card {
+  background: linear-gradient(180deg, #0B1B28 0%, #091620 100%);
+  border: 1px solid #102C37;
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.service-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+}
+
+.service-name {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.service-detail {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: bold;
+}
+
+.telemetry-card {
+  background: linear-gradient(180deg, #0B1B28 0%, #091620 100%);
+  border: 1px solid #102C37;
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.telemetry-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.telemetry-title {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.telemetry-value {
+  color: var(--green);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.telemetry-bar {
+  height: 3px;
+  border-radius: 2px;
+  margin-top: 6px;
+  background: #10252E;
+  overflow: hidden;
+}
+
+.telemetry-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--green), var(--cyan));
+  border-radius: 2px;
+}
+
+.system-info {
+  color: var(--muted);
+  background: linear-gradient(180deg, #0B1B28 0%, #091620 100%);
+  border: 1px solid #102C37;
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+.system-info span {
+  color: var(--text);
+}
+
+/* Center */
+.center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.core-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.core-title {
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.core-status {
+  color: var(--green);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.core-3d {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  height: 320px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.core-3d::before {
+  content: "N O V A";
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 48px;
+  font-weight: 900;
+  color: rgba(0, 217, 245, 0.12);
+  letter-spacing: 16px;
+  z-index: 1;
+}
+
+.core-3d-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+}
+
+.core-caption {
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 8px;
+  margin-bottom: 4px;
+}
+
+.core-subtitle {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 2px;
+}
+
+.quick-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.quick-action {
+  flex: 1;
+  background: linear-gradient(180deg, #0B1B28 0%, #091620 100%);
+  color: var(--cyan);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+}
+
+.quick-action:hover {
+  background: #0C2530;
+  border-color: var(--cyan);
+  color: var(--text);
+}
+
+.command-bar {
+  background: linear-gradient(180deg, #061018 0%, #041016 100%);
+  border: 1px solid var(--cyan);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.command-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 8px 14px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  outline: none;
+}
+
+.send-btn {
+  background: var(--cyan);
+  color: #000000;
+  border: none;
+  border-radius: 8px;
+  min-width: 44px;
+  min-height: 40px;
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.send-btn:hover {
+  background: #1DE6FF;
+}
+
+.command-hint {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  margin-top: 4px;
+  margin-left: 4px;
+}
+
+/* Right */
+.right {
+  width: 380px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.activity-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.activity-tab {
+  flex: 1;
+  background: #07161D;
+  color: var(--muted2);
+  border: 1px solid #102C37;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.activity-tab:hover {
+  color: var(--cyan);
+  border-color: var(--cyan);
+}
+
+.chat-scroll {
+  flex: 1;
+  background: transparent;
+  border: none;
+  overflow-y: auto;
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-bubble {
+  max-width: 85%;
+  padding: 11px 16px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  line-height: 1.5;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.nova-bubble {
+  align-self: flex-start;
+  background: linear-gradient(180deg, #0A2430 0%, #071A22 100%);
+  border: 1px solid #15424F;
+  border-bottom-left-radius: 4px;
+}
+
+.user-bubble {
+  align-self: flex-end;
+  background: linear-gradient(180deg, #0A2A20 0%, #08221C 100%);
+  border: 1px solid #1C5748;
+  border-bottom-right-radius: 4px;
+}
+
+.bubble-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.bubble-name {
+  color: var(--green);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.bubble-time {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+}
+
+.connection {
+  color: var(--green);
+  background: linear-gradient(180deg, #0B2A1F 0%, #061A15 100%);
+  border: 1px solid #154738;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+/* Status chips */
+.chip {
+  padding: 4px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 9px;
+  font-weight: 700;
+  font-family: var(--font-ui);
+  border: 1px solid transparent;
+  display: inline-block;
+  margin-bottom: 4px;
+}
+
+.chip-success { background: #003326; color: var(--green); border-color: var(--green); }
+.chip-warning { background: #2A1B00; color: var(--amber); border-color: var(--amber); }
+.chip-error { background: #330A14; color: var(--red); border-color: var(--red); }
+.chip-info { background: #0A1B33; color: var(--blue); border-color: var(--blue); }
+
+/* Footer */
+.footer {
+  background: var(--sidebar);
+  border-top: 1px solid var(--border);
+  padding: 8px 16px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--muted2);
+  flex-shrink: 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #050B10; border-radius: 5px; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--cyan), #00B8C9);
+  border-radius: 5px;
+  min-height: 40px;
+}
+::-webkit-scrollbar-thumb:hover { background: #1DE6FF; }
+
+/* Legend / tokens demo */
+.tokens {
+  margin-top: auto;
+  border: 1px dashed var(--border-dim);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  background: rgba(27, 55, 70, 0.2);
+}
+.tokens h4 {
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+.token-row {
+  display: flex;
+  gap: 16px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  margin-bottom: 4px;
+}
+.token-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid var(--border-dim);
+  flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <div class="brand">
+      <div class="logo">N O V A</div>
+      <div class="identity">
+        <div class="identity-title">PERSONAL INTELLIGENCE SYSTEM</div>
+        <div class="identity-sub">THINK  •  ANALYZE  •  ASSIST  •  EVOLVE</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <button class="nav-btn">HOME</button>
+      <button class="nav-btn">SYSTEM</button>
+      <button class="nav-btn">TOOLS</button>
+      <button class="nav-btn">SETTINGS</button>
+    </nav>
+    <div class="active-indicator">● NOVA ACTIVE<br>READY FOR COMMAND</div>
+    <div class="clock">--:--:--</div>
+  </header>
+
+  <div class="body">
+    <!-- Left rail -->
+    <aside class="left">
+      <div class="panel">
+        <div class="section-title">System Status</div>
+        <div class="service-card">
+          <div class="service-dot" style="background: var(--green); box-shadow: 0 0 8px var(--green);"></div>
+          <span class="service-name">OLLAMA</span>
+          <span class="service-detail" style="color: var(--green);">ONLINE • MODEL READY</span>
+        </div>
+        <div class="service-card">
+          <div class="service-dot" style="background: var(--amber); box-shadow: 0 0 8px var(--amber);"></div>
+          <span class="service-name">WHISPER</span>
+          <span class="service-detail" style="color: var(--amber);">STANDBY</span>
+        </div>
+        <div class="service-card">
+          <div class="service-dot" style="background: var(--green); box-shadow: 0 0 8px var(--green);"></div>
+          <span class="service-name">PIPER</span>
+          <span class="service-detail" style="color: var(--green);">READY</span>
+        </div>
+        <div class="service-card">
+          <div class="service-dot" style="background: var(--red); box-shadow: 0 0 8px var(--red);"></div>
+          <span class="service-name">SEARXNG</span>
+          <span class="service-detail" style="color: var(--red);">OFFLINE</span>
+        </div>
+        <div class="service-card">
+          <div class="service-dot" style="background: var(--cyan); box-shadow: 0 0 8px var(--cyan);"></div>
+          <span class="service-name">GPU</span>
+          <span class="service-detail" style="color: var(--cyan);">RTX 4090 · 24GB</span>
+        </div>
+
+        <div class="section-title">Telemetry</div>
+        <div class="telemetry-card">
+          <div class="telemetry-row">
+            <span class="telemetry-title">CPU</span>
+            <span class="telemetry-value">34%</span>
+          </div>
+          <div class="telemetry-bar"><div class="telemetry-fill" style="width: 34%;"></div></div>
+        </div>
+        <div class="telemetry-card">
+          <div class="telemetry-row">
+            <span class="telemetry-title">RAM</span>
+            <span class="telemetry-value">62%</span>
+          </div>
+          <div class="telemetry-bar"><div class="telemetry-fill" style="width: 62%;"></div></div>
+        </div>
+        <div class="telemetry-card">
+          <div class="telemetry-row">
+            <span class="telemetry-title">GPU</span>
+            <span class="telemetry-value">12%</span>
+          </div>
+          <div class="telemetry-bar"><div class="telemetry-fill" style="width: 12%;"></div></div>
+        </div>
+        <div class="telemetry-card">
+          <div class="telemetry-row">
+            <span class="telemetry-title">DISK</span>
+            <span class="telemetry-value">41%</span>
+          </div>
+          <div class="telemetry-bar"><div class="telemetry-fill" style="width: 41%;"></div></div>
+        </div>
+
+        <div class="section-title">System Information</div>
+        <div class="system-info">
+          UPTIME       <span>3d 14h</span><br>
+          PLATFORM     <span>Windows 11</span><br>
+          CPU          <span>Intel i9-14900K</span><br>
+          MEMORY       <span>64 GB DDR5</span><br>
+          STORAGE      <span>2 TB NVMe</span><br>
+          NETWORK      <span>1.2 MB/s ↓ · 340 KB/s ↑</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Center -->
+    <main class="center">
+      <div class="core-header">
+        <div class="core-title">Neural Core</div>
+        <div class="core-status">IDLE</div>
+      </div>
+
+      <div class="core-3d">
+        <div class="core-3d-content">
+          <div class="core-caption">N O V A</div>
+          <div class="core-subtitle">LISTENING  •  THINKING  •  ASSISTING  •  EVOLVING</div>
+        </div>
+      </div>
+
+      <div class="quick-actions">
+        <button class="quick-action">◉ VOICE<br><span style="font-size:7px;color:var(--muted);font-weight:400;">ACTIVATE · F2</span></button>
+        <button class="quick-action">◎ SEARCH<br><span style="font-size:7px;color:var(--muted);font-weight:400;">WEB · F3</span></button>
+        <button class="quick-action">▥ ANALYZE<br><span style="font-size:7px;color:var(--muted);font-weight:400;">DATA · F4</span></button>
+        <button class="quick-action">⚙ AUTOMATE<br><span style="font-size:7px;color:var(--muted);font-weight:400;">SYSTEM · F5</span></button>
+      </div>
+
+      <div class="command-bar">
+        <input type="text" class="command-input" placeholder="Talk to Nova...">
+        <button class="send-btn">➤</button>
+      </div>
+      <div class="command-hint">Press Enter to send  •  Say "Hi Nova" for voice activation</div>
+    </main>
+
+    <!-- Right -->
+    <aside class="right">
+      <div class="activity-tabs">
+        <button class="activity-tab">ALL</button>
+        <button class="activity-tab">CHAT</button>
+        <button class="activity-tab">SYSTEM</button>
+        <button class="activity-tab">TOOLS</button>
+      </div>
+
+      <div class="chat-scroll">
+        <div class="chat-bubble nova-bubble">
+          <div class="bubble-header">
+            <span class="bubble-name">Nova</span>
+            <span class="bubble-time">04:43</span>
+          </div>
+          <div class="bubble-text">Nova online. Systems initialized and ready.</div>
+        </div>
+        <div class="chat-bubble user-bubble">
+          <div class="bubble-header">
+            <span class="bubble-name">You</span>
+            <span class="bubble-time">04:44</span>
+          </div>
+          <div class="bubble-text">Show me the market overview for NIFTY 50</div>
+        </div>
+        <div class="chat-bubble nova-bubble">
+          <div class="bubble-header">
+            <span class="bubble-name">Nova</span>
+            <span class="bubble-time">04:44</span>
+          </div>
+          <div class="bubble-text">Fetching NIFTY 50 snapshot from the cached report...</div>
+        </div>
+      </div>
+
+      <div class="connection">● CONNECTED<br>MODEL qwen3.5:4b</div>
+    </aside>
+  </div>
+
+  <footer class="footer">
+    analysis-only · measured vs. interpreted kept separate · not a buy/sell signal · no broker/orders
+  </footer>
+
+  <div class="tokens">
+    <h4>Design Tokens (from styles/design_tokens.py)</h4>
+    <div class="token-row"><div class="token-swatch" style="background: var(--bg);"></div>BG #050B10</div>
+    <div class="token-row"><div class="token-swatch" style="background: var(--surface);"></div>Surface #091620</div>
+    <div class="token-row"><div class="token-swatch" style="background: var(--sidebar);"></div>Sidebar #061019</div>
+    <div class="token-row"><div class="token-swatch" style="background: var(--border);"></div>Border #183746</div>
+    <div class="token-row"><div class="token-swatch" style="background: var(--cyan);"></div>Cyan #00D9F5</div>
+    <div class="token-row"><div class="token-swatch" style="background: var(--green);"></div>Green #00E6A0</div>
+    <div class="token-row"><div class="token-swatch" style="background: var(--red);"></div>Red #FF4058</div>
+    <div class="token-row"><div class="token-swatch" style="background: var(--amber);"></div>Amber #FFBD4A</div>
+    <div class="token-row"><div class="token-swatch" style="background: var(--purple);"></div>Purple #B49AFF</div>
+    <div class="token-row"><div class="token-swatch" style="background: var(--text);"></div>Text #F2F6FA</div>
+    <div class="token-row"><div class="token-swatch" style="background: var(--muted);"></div>Muted #617A91</div>
+  </div>
+</div>
+</body>
+</html>
