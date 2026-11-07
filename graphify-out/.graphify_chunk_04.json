@@ -1,0 +1,25 @@
+{
+  "nodes": [
+    {"id": "screenshots_sprint_after_flows_png", "label": "Nova Desk sprint after flows screenshot", "file_type": "image", "source_file": "C:\\Users\\Anirudh\\nova\\screenshots\\sprint_after_flows.png", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "screenshots_sprint_after_fno_png", "label": "Nova Desk sprint after F&O screenshot", "file_type": "image", "source_file": "C:\\Users\\Anirudh\\nova\\screenshots\\sprint_after_fno.png", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "screenshots_sprint_after_overview_png", "label": "Nova Desk sprint after overview screenshot", "file_type": "image", "source_file": "C:\\Users\\Anirudh\\nova\\screenshots\\sprint_after_overview.png", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "screenshots_sprint_before_fno_png", "label": "Nova Desk sprint before F&O screenshot", "file_type": "image", "source_file": "C:\\Users\\Anirudh\\nova\\screenshots\\sprint_before_fno.png", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "screenshots_sprint_before_overview_png", "label": "Nova Desk sprint before overview screenshot", "file_type": "image", "source_file": "C:\\Users\\Anirudh\\nova\\screenshots\\sprint_before_overview.png", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}
+  ],
+  "edges": [
+    {"source": "screenshots_sprint_after_flows_png", "target": "screenshots_sprint_after_overview_png", "relation": "semantically_similar_to", "confidence": "INFERRED", "confidence_score": 0.80, "source_file": "C:\\Users\\Anirudh\\nova\\screenshots\\sprint_after_flows.png", "source_location": null, "weight": 0.80},
+    {"source": "screenshots_sprint_after_fno_png", "target": "screenshots_sprint_after_overview_png", "relation": "semantically_similar_to", "confidence": "INFERRED", "confidence_score": 0.80, "source_file": "C:\\Users\\Anirudh\\nova\\screenshots\\sprint_after_fno.png", "source_location": null, "weight": 0.80},
+    {"source": "screenshots_sprint_before_fno_png", "target": "screenshots_sprint_before_overview_png", "relation": "semantically_similar_to", "confidence": "INFERRED", "confidence_score": 0.80, "source_file": "C:\\Users\\Anirudh\\nova\\screenshots\\sprint_before_fno.png", "source_location": null, "weight": 0.80},
+    {"source": "screenshots_sprint_after_overview_png", "target": "screenshots_sprint_before_overview_png", "relation": "semantically_similar_to", "confidence": "INFERRED", "confidence_score": 0.85, "source_file": "C:\\Users\\Anirudh\\nova\\screenshots\\sprint_after_overview.png", "source_location": null, "weight": 0.85}
+  ],
+  "hyperedges": [],
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "coverage": {
+    "C:\\Users\\Anirudh\\nova\\screenshots\\sprint_after_flows.png": 0,
+    "C:\\Users\\Anirudh\\nova\\screenshots\\sprint_after_fno.png": 0,
+    "C:\\Users\\Anirudh\\nova\\screenshots\\sprint_after_overview.png": 0,
+    "C:\\Users\\Anirudh\\nova\\screenshots\\sprint_before_fno.png": 0,
+    "C:\\Users\\Anirudh\\nova\\screenshots\\sprint_before_overview.png": 0
+  }
+}

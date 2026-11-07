@@ -1,0 +1,22 @@
+{
+  "nodes": [
+    {"id": "screenshots_redesign_flows_1366_png", "label": "Nova Desk redesign flows screenshot (1366px)", "file_type": "image", "source_file": "C:\\Users\\Anirudh\\nova\\screenshots\\redesign_flows_1366.png", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "screenshots_redesign_flows_1920_png", "label": "Nova Desk redesign flows screenshot (1920px)", "file_type": "image", "source_file": "C:\\Users\\Anirudh\\nova\\screenshots\\redesign_flows_1920.png", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "screenshots_redesign_stock_1366_png", "label": "Nova Desk redesign stock screenshot (1366px)", "file_type": "image", "source_file": "C:\\Users\\Anirudh\\nova\\screenshots\\redesign_stock_1366.png", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "screenshots_redesign_stock_1920_png", "label": "Nova Desk redesign stock screenshot (1920px)", "file_type": "image", "source_file": "C:\\Users\\Anirudh\\nova\\screenshots\\redesign_stock_1920.png", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}
+  ],
+  "edges": [
+    {"source": "screenshots_redesign_flows_1366_png", "target": "screenshots_redesign_flows_1920_png", "relation": "semantically_similar_to", "confidence": "INFERRED", "confidence_score": 0.95, "source_file": "C:\\Users\\Anirudh\\nova\\screenshots\\redesign_flows_1366.png", "source_location": null, "weight": 0.95},
+    {"source": "screenshots_redesign_stock_1366_png", "target": "screenshots_redesign_stock_1920_png", "relation": "semantically_similar_to", "confidence": "INFERRED", "confidence_score": 0.95, "source_file": "C:\\Users\\Anirudh\\nova\\screenshots\\redesign_stock_1366.png", "source_location": null, "weight": 0.95},
+    {"source": "screenshots_redesign_flows_1366_png", "target": "screenshots_redesign_stock_1366_png", "relation": "semantically_similar_to", "confidence": "INFERRED", "confidence_score": 0.75, "source_file": "C:\\Users\\Anirudh\\nova\\screenshots\\redesign_flows_1366.png", "source_location": null, "weight": 0.75}
+  ],
+  "hyperedges": [],
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "coverage": {
+    "C:\\Users\\Anirudh\\nova\\screenshots\\redesign_flows_1366.png": 0,
+    "C:\\Users\\Anirudh\\nova\\screenshots\\redesign_flows_1920.png": 0,
+    "C:\\Users\\Anirudh\\nova\\screenshots\\redesign_stock_1366.png": 0,
+    "C:\\Users\\Anirudh\\nova\\screenshots\\redesign_stock_1920.png": 0
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "nova-api",
+      "runtimeExecutable": "C:/Users/Anirudh/nova/venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "web_main.py"
+      ],
+      "port": 8501
+    },
+    {
+      "name": "nova-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "web/frontend",
+        "run",
+        "dev"
+      ],
+      "port": 5173
+    },
+    {
+      "name": "nova-api-alt",
+      "runtimeExecutable": "C:/Users/Anirudh/nova/venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "web_main.py",
+        "--port",
+        "8503",
+        "--no-browser"
+      ],
+      "port": 8503,
+      "autoPort": false
+    },
+    {
+      "name": "nova-api-verify",
+      "runtimeExecutable": "C:/Users/Anirudh/nova/venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "web_main.py",
+        "--port",
+        "8511",
+        "--no-browser"
+      ],
+      "port": 8511,
+      "autoPort": false
+    },
+    {
+      "name": "nova-draft",
+      "runtimeExecutable": "C:/Users/Anirudh/nova/venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8620",
+        "--directory",
+        "web/draft"
+      ],
+      "port": 8620,
+      "autoPort": false
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "nodes": [
+    {"id": "web_draft_index_html", "label": "web/draft/index.html", "file_type": "code", "source_file": "C:\\Users\\Anirudh\\nova\\web\\draft\\index.html", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "web_draft_nova_3d_html", "label": "web/draft/nova-3d.html", "file_type": "code", "source_file": "C:\\Users\\Anirudh\\nova\\web\\draft\\nova-3d.html", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "web_draft_nova_desk_html", "label": "web/draft/nova-desk.html", "file_type": "code", "source_file": "C:\\Users\\Anirudh\\nova\\web\\draft\\nova-desk.html", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "kilocode_ui_ux_pro_max_skill", "label": "UI/UX Pro Max skill (kilocode)", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.kilocode\\skills\\ui-ux-pro-max\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "kilocode_ui_styling_skill", "label": "UI styling skill (kilocode)", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.kilocode\\skills\\ui-styling\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "kilocode_design_skill", "label": "Design skill (kilocode)", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.kilocode\\skills\\design\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "kilocode_design_system_skill", "label": "Design system skill (kilocode)", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.kilocode\\skills\\design-system\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "kilocode_banner_design_skill", "label": "Banner design skill (kilocode)", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.kilocode\\skills\\banner-design\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "kilocode_brand_skill", "label": "Brand skill (kilocode)", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.kilocode\\skills\\brand\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "kilocode_slides_skill", "label": "Slides skill (kilocode)", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.kilocode\\skills\\slides\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "claude_ui_styling_skill", "label": "UI styling skill (claude)", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.claude\\skills\\ui-styling\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "claude_design_skill", "label": "Design skill (claude)", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.claude\\skills\\design\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "claude_design_system_skill", "label": "Design system skill (claude)", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.claude\\skills\\design-system\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "claude_banner_design_skill", "label": "Banner design skill (claude)", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.claude\\skills\\banner-design\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "claude_brand_skill", "label": "Brand skill (claude)", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.claude\\skills\\brand\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "agents_ui_styling_skill", "label": "UI styling skill (agents)", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.agents\\skills\\ui-styling\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "agents_design_skill", "label": "Design skill (agents)", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.agents\\skills\\design\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "agents_design_system_skill", "label": "Design system skill (agents)", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.agents\\skills\\design-system\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "agents_banner_design_skill", "label": "Banner design skill (agents)", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.agents\\skills\\banner-design\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "ui_styling_license", "label": "UI styling LICENSE", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.agents\\skills\\ui-styling\\LICENSE.txt", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}
+  ],
+  "edges": [],
+  "hyperedges": [],
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "coverage": {}
+}

@@ -1,0 +1,15 @@
+{
+  "chunk_num": 42,
+  "total_chunks": 44,
+  "deep_mode": false,
+  "files": [
+    "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md",
+    "C:\\Users\\Anirudh\\nova\\docs\\DEPENDENCIES.md",
+    "C:\\Users\\Anirudh\\nova\\docs\\MASTER_PROMPT_LIVE_UI.md",
+    "C:\\Users\\Anirudh\\nova\\docs\\MODEL_HANDOFF.md",
+    "C:\\Users\\Anirudh\\nova\\docs\\UI_UX_GUIDE.md",
+    "C:\\Users\\Anirudh\\nova\\docs\\VALIDATION.md",
+    "C:\\Users\\Anirudh\\nova\\docs\\WORKFLOW.md"
+  ],
+  "reason": "dir_group:C:\\Users\\Anirudh\\nova\\docs"
+}

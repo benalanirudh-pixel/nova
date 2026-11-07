@@ -1,0 +1,46 @@
+{
+  "nodes": [
+    {"id": "changes_nova_desk", "label": "Nova Desk", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "changes_equity_screen", "label": "Equity screen", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "changes_fno_desk", "label": "F&O desk", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "changes_flows_screen", "label": "Flows screen", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "changes_screener_screen", "label": "Screener screen", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "changes_sectors_screen", "label": "Sectors screen", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "changes_note_screen", "label": "Note screen", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "changes_audit_screen", "label": "Audit screen", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "changes_desk_analytics_ts", "label": "desk/analytics.ts", "file_type": "code", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "changes_web_api_routes_desk_py", "label": "web/api/routes/desk.py", "file_type": "code", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "changes_start_nova_py", "label": "start_nova.py", "file_type": "code", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "changes_web_main_py", "label": "web_main.py", "file_type": "code", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "changes_lightweight_charts", "label": "lightweight-charts", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "changes_tanstack", "label": "@tanstack", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "changes_api_scan", "label": "/api/scan", "file_type": "code", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "changes_api_audit", "label": "/api/audit", "file_type": "code", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "changes_api_flows_history", "label": "/api/flows/history", "file_type": "code", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "changes_old_web_ui", "label": "old web UI", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}
+  ],
+  "edges": [
+    {"source": "changes_nova_desk", "target": "changes_equity_screen", "relation": "conceptually_related_to", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "weight": 1.0},
+    {"source": "changes_nova_desk", "target": "changes_fno_desk", "relation": "conceptually_related_to", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "weight": 1.0},
+    {"source": "changes_nova_desk", "target": "changes_flows_screen", "relation": "conceptually_related_to", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "weight": 1.0},
+    {"source": "changes_nova_desk", "target": "changes_screener_screen", "relation": "conceptually_related_to", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "weight": 1.0},
+    {"source": "changes_nova_desk", "target": "changes_sectors_screen", "relation": "conceptually_related_to", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "weight": 1.0},
+    {"source": "changes_nova_desk", "target": "changes_note_screen", "relation": "conceptually_related_to", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "weight": 1.0},
+    {"source": "changes_nova_desk", "target": "changes_audit_screen", "relation": "conceptually_related_to", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "weight": 1.0},
+    {"source": "changes_desk_analytics_ts", "target": "changes_nova_desk", "relation": "shares_data_with", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "weight": 1.0},
+    {"source": "changes_web_api_routes_desk_py", "target": "changes_api_scan", "relation": "implements", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "weight": 1.0},
+    {"source": "changes_web_api_routes_desk_py", "target": "changes_api_audit", "relation": "implements", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "weight": 1.0},
+    {"source": "changes_web_api_routes_desk_py", "target": "changes_api_flows_history", "relation": "implements", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "weight": 1.0},
+    {"source": "changes_start_nova_py", "target": "changes_nova_desk", "relation": "implements", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "weight": 1.0},
+    {"source": "changes_web_main_py", "target": "changes_nova_desk", "relation": "implements", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "weight": 1.0},
+    {"source": "changes_nova_desk", "target": "changes_lightweight_charts", "relation": "conceptually_related_to", "confidence": "INFERRED", "confidence_score": 0.85, "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "weight": 0.85},
+    {"source": "changes_nova_desk", "target": "changes_tanstack", "relation": "conceptually_related_to", "confidence": "INFERRED", "confidence_score": 0.85, "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "weight": 0.85},
+    {"source": "changes_old_web_ui", "target": "changes_nova_desk", "relation": "conceptually_related_to", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md", "source_location": null, "weight": 1.0}
+  ],
+  "hyperedges": [
+    {"id": "changes_nova_desk_screens", "label": "Nova Desk screens (F1-F7)", "nodes": ["changes_equity_screen", "changes_fno_desk", "changes_flows_screen", "changes_screener_screen", "changes_sectors_screen", "changes_note_screen", "changes_audit_screen"], "relation": "form", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\CHANGES.md"}
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "coverage": {"C:\\Users\\Anirudh\\nova\\CHANGES.md": 2002}
+}

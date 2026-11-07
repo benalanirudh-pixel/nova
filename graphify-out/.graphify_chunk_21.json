@@ -1,0 +1,53 @@
+{
+  "nodes": [
+    {"id": "docs_architecture_md", "label": "docs/ARCHITECTURE.md", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "arch_three_entry_points", "label": "Three entry points", "file_type": "rationale", "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "arch_nova_assistant", "label": "Nova Assistant", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "arch_market_lab", "label": "Market Lab", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "arch_nova_terminal", "label": "Nova Terminal", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "arch_analysis_engines", "label": "Analysis engines", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "arch_nova_desk_live_path", "label": "Nova Desk live path", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "arch_data_sources", "label": "Data sources", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "arch_report_pipeline", "label": "Report pipeline", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "arch_design_system", "label": "Design system", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "arch_safety_invariants", "label": "Safety invariants", "file_type": "rationale", "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "agents_md", "label": "AGENTS.md", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\AGENTS.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "agents_project_identity", "label": "Nova project identity", "file_type": "rationale", "source_file": "C:\\Users\\Anirudh\\nova\\AGENTS.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "agents_agent_rules", "label": "Agent rules", "file_type": "rationale", "source_file": "C:\\Users\\Anirudh\\nova\\AGENTS.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "agents_common_commands", "label": "Common commands", "file_type": "code", "source_file": "C:\\Users\\Anirudh\\nova\\AGENTS.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "agents_external_services", "label": "External services", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\AGENTS.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "agents_market_data_sources", "label": "Market data sources", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\AGENTS.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "readme_md", "label": "README.md", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\README.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "readme_nova_desk_terminal", "label": "Nova Desk terminal", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\README.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "readme_guardrails", "label": "README guardrails", "file_type": "rationale", "source_file": "C:\\Users\\Anirudh\\nova\\README.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "readme_tech_stack", "label": "Nova tech stack", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\README.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}
+  ],
+  "edges": [
+    {"id": "arch_nova_assistant", "target": "arch_three_entry_points", "relation": "conceptually_related_to", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "weight": 1.0},
+    {"id": "arch_market_lab", "target": "arch_three_entry_points", "relation": "conceptually_related_to", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "weight": 1.0},
+    {"id": "arch_nova_terminal", "target": "arch_three_entry_points", "relation": "conceptually_related_to", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "weight": 1.0},
+    {"id": "arch_analysis_engines", "target": "arch_market_lab", "relation": "shares_data_with", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "weight": 1.0},
+    {"id": "arch_nova_desk_live_path", "target": "arch_nova_assistant", "relation": "semantically_similar_to", "confidence": "INFERRED", "confidence_score": 0.80, "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "weight": 0.80},
+    {"id": "arch_data_sources", "target": "arch_report_pipeline", "relation": "conceptually_related_to", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "weight": 1.0},
+    {"id": "arch_design_system", "target": "arch_nova_desk_live_path", "relation": "implements", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "weight": 1.0},
+    {"id": "arch_safety_invariants", "target": "arch_analysis_engines", "relation": "rationale_for", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md", "source_location": null, "weight": 1.0},
+    {"id": "agents_project_identity", "target": "arch_nova_assistant", "relation": "semantically_similar_to", "confidence": "INFERRED", "confidence_score": 0.90, "source_file": "C:\\Users\\Anirudh\\nova\\AGENTS.md", "source_location": null, "weight": 0.90},
+    {"id": "agents_project_identity", "target": "arch_market_lab", "relation": "semantically_similar_to", "confidence": "INFERRED", "confidence_score": 0.90, "source_file": "C:\\Users\\Anirudh\\nova\\AGENTS.md", "source_location": null, "weight": 0.90},
+    {"id": "agents_agent_rules", "target": "arch_safety_invariants", "relation": "semantically_similar_to", "confidence": "INFERRED", "confidence_score": 0.95, "source_file": "C:\\Users\\Anirudh\\nova\\AGENTS.md", "source_location": null, "weight": 0.95},
+    {"id": "agents_common_commands", "target": "agents_md", "relation": "implements", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\AGENTS.md", "source_location": null, "weight": 1.0},
+    {"id": "agents_external_services", "target": "agents_market_data_sources", "relation": "conceptually_related_to", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\AGENTS.md", "source_location": null, "weight": 1.0},
+    {"id": "readme_nova_desk_terminal", "target": "arch_nova_desk_live_path", "relation": "semantically_similar_to", "confidence": "INFERRED", "confidence_score": 0.95, "source_file": "C:\\Users\\Anirudh\\nova\\README.md", "source_location": null, "weight": 0.95},
+    {"id": "readme_guardrails", "target": "arch_safety_invariants", "relation": "semantically_similar_to", "confidence": "INFERRED", "confidence_score": 0.95, "source_file": "C:\\Users\\Anirudh\\nova\\README.md", "source_location": null, "weight": 0.95},
+    {"id": "readme_tech_stack", "target": "arch_data_sources", "relation": "semantically_similar_to", "confidence": "INFERRED", "confidence_score": 0.85, "source_file": "C:\\Users\\Anirudh\\nova\\README.md", "source_location": null, "weight": 0.85}
+  ],
+  "hyperedges": [
+    {"id": "arch_core_surfaces", "label": "Nova core surfaces", "nodes": ["arch_nova_assistant", "arch_market_lab", "arch_nova_terminal"], "relation": "form", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md"}
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "coverage": {
+    "C:\\Users\\Anirudh\\nova\\docs\\ARCHITECTURE.md": 177,
+    "C:\\Users\\Anirudh\\nova\\AGENTS.md": 138,
+    "C:\\Users\\Anirudh\\nova\\README.md": 131
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "nodes": [
+    {"id": "validation_md", "label": "VALIDATION.md", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\docs\\VALIDATION.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "nova_project_brain", "label": "NOVA_PROJECT_BRAIN.md", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\NOVA_PROJECT_BRAIN.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "nova_project_purpose", "label": "Nova project purpose", "file_type": "rationale", "source_file": "C:\\Users\\Anirudh\\nova\\NOVA_PROJECT_BRAIN.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "nova_assistant_surface", "label": "Nova Assistant surface", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\NOVA_PROJECT_BRAIN.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "nova_market_lab_surface", "label": "Nova Market Lab surface", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\NOVA_PROJECT_BRAIN.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "analysis_only_boundary", "label": "Analysis-only boundary", "file_type": "rationale", "source_file": "C:\\Users\\Anirudh\\nova\\NOVA_PROJECT_BRAIN.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "cache_first_flow", "label": "Cache-first data flow", "file_type": "concept", "source_file": "C:\\Users\\Anirudh\\nova\\NOVA_PROJECT_BRAIN.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "ui_ux_pro_max_skill", "label": "UI/UX Pro Max skill", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.agents\\skills\\ui-ux-pro-max\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "ui_ux_accessibility", "label": "Accessibility rules", "file_type": "rationale", "source_file": "C:\\Users\\Anirudh\\nova\\.agents\\skills\\ui-ux-pro-max\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "ui_ux_charts_data", "label": "Charts & data rules", "file_type": "rationale", "source_file": "C:\\Users\\Anirudh\\nova\\.agents\\skills\\ui-ux-pro-max\\SKILL.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "ui_ux_guide", "label": "Nova Terminal UI/UX Design Guide", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\docs\\UI_UX_GUIDE.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "ui_ux_data_density", "label": "Data density principle", "file_type": "rationale", "source_file": "C:\\Users\\Anirudh\\nova\\docs\\UI_UX_GUIDE.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "ui_ux_analysis_only_guardrail", "label": "Analysis-only guardrail", "file_type": "rationale", "source_file": "C:\\Users\\Anirudh\\nova\\docs\\UI_UX_GUIDE.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "ui_ux_honest_data", "label": "Honest data principle", "file_type": "rationale", "source_file": "C:\\Users\\Anirudh\\nova\\docs\\UI_UX_GUIDE.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "tailwind_customization", "label": "Tailwind CSS Customization", "file_type": "document", "source_file": "C:\\Users\\Anirudh\\nova\\.claude\\skills\\ui-styling\\references\\tailwind-customization.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "tailwind_theme_directive", "label": "@theme directive", "file_type": "code", "source_file": "C:\\Users\\Anirudh\\nova\\.claude\\skills\\ui-styling\\references\\tailwind-customization.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null},
+    {"id": "validation_agent_rules", "label": "Agent rules", "file_type": "rationale", "source_file": "C:\\Users\\Anirudh\\nova\\docs\\VALIDATION.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}
+  ],
+  "edges": [
+    {"source": "nova_project_purpose", "target": "nova_assistant_surface", "relation": "conceptually_related_to", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\NOVA_PROJECT_BRAIN.md", "source_location": null, "weight": 1.0},
+    {"source": "nova_project_purpose", "target": "nova_market_lab_surface", "relation": "conceptually_related_to", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\NOVA_PROJECT_BRAIN.md", "source_location": null, "weight": 1.0},
+    {"source": "nova_assistant_surface", "target": "analysis_only_boundary", "relation": "rationale_for", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\NOVA_PROJECT_BRAIN.md", "source_location": null, "weight": 1.0},
+    {"source": "nova_market_lab_surface", "target": "analysis_only_boundary", "relation": "rationale_for", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\NOVA_PROJECT_BRAIN.md", "source_location": null, "weight": 1.0},
+    {"source": "nova_project_purpose", "target": "cache_first_flow", "relation": "rationale_for", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\NOVA_PROJECT_BRAIN.md", "source_location": null, "weight": 1.0},
+    {"source": "ui_ux_guide", "target": "ui_ux_data_density", "relation": "implements", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\docs\\UI_UX_GUIDE.md", "source_location": null, "weight": 1.0},
+    {"source": "ui_ux_guide", "target": "ui_ux_analysis_only_guardrail", "relation": "implements", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\docs\\UI_UX_GUIDE.md", "source_location": null, "weight": 1.0},
+    {"source": "ui_ux_guide", "target": "ui_ux_honest_data", "relation": "implements", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\docs\\UI_UX_GUIDE.md", "source_location": null, "weight": 1.0},
+    {"source": "ui_ux_pro_max_skill", "target": "ui_ux_accessibility", "relation": "implements", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\.agents\\skills\\ui-ux-pro-max\\SKILL.md", "source_location": null, "weight": 1.0},
+    {"source": "ui_ux_pro_max_skill", "target": "ui_ux_charts_data", "relation": "implements", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\.agents\\skills\\ui-ux-pro-max\\SKILL.md", "source_location": null, "weight": 1.0},
+    {"source": "validation_md", "target": "validation_agent_rules", "relation": "implements", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\docs\\VALIDATION.md", "source_location": null, "weight": 1.0},
+    {"source": "tailwind_customization", "target": "tailwind_theme_directive", "relation": "implements", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\.claude\\skills\\ui-styling\\references\\tailwind-customization.md", "source_location": null, "weight": 1.0},
+    {"source": "ui_ux_guide", "target": "analysis_only_boundary", "relation": "semantically_similar_to", "confidence": "INFERRED", "confidence_score": 0.90, "source_file": "C:\\Users\\Anirudh\\nova\\docs\\UI_UX_GUIDE.md", "source_location": null, "weight": 0.90},
+    {"source": "ui_ux_guide", "target": "cache_first_flow", "relation": "semantically_similar_to", "confidence": "INFERRED", "confidence_score": 0.75, "source_file": "C:\\Users\\Anirudh\\nova\\docs\\UI_UX_GUIDE.md", "source_location": null, "weight": 0.75}
+  ],
+  "hyperedges": [
+    {"id": "validation_core_principles", "label": "Nova core principles", "nodes": ["analysis_only_boundary", "cache_first_flow", "ui_ux_honest_data", "ui_ux_analysis_only_guardrail"], "relation": "form", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "C:\\Users\\Anirudh\\nova\\docs\\VALIDATION.md"}
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "coverage": {
+    "C:\\Users\\Anirudh\\nova\\docs\\VALIDATION.md": 671,
+    "C:\\Users\\Anirudh\\nova\\NOVA_PROJECT_BRAIN.md": 1189,
+    "C:\\Users\\Anirudh\\nova\\.agents\\skills\\ui-ux-pro-max\\SKILL.md": 739,
+    "C:\\Users\\Anirudh\\nova\\.claude\\skills\\ui-ux-pro-max\\SKILL.md": 739,
+    "C:\\Users\\Anirudh\\nova\\docs\\UI_UX_GUIDE.md": 526,
+    "C:\\Users\\Anirudh\\nova\\.claude\\skills\\ui-styling\\references\\tailwind-customization.md": 483
+  }
+}

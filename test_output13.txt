@@ -1,0 +1,564 @@
+﻿.\venv\Scripts\pythonw.exe : test_decile_spread_is_computed_not_none 
+(test_backtest_harness.TestRunBacktestDeciles.test_decile_spread_is_computed_not_none) ... ok
+At line:4 char:1
++ .\venv\Scripts\pythonw.exe -m unittest discover -s tests -v 2>&1 | Ou ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_decile_spr...ot_none) ... ok:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+test_explicit_symbols_branch_still_works 
+(test_backtest_harness.TestRunBacktestDeciles.test_explicit_symbols_branch_still_works) ... ok
+test_non_numeric_string_is_none (test_backtest_harness.TestSafeFloat.test_non_numeric_string_is_none) ... ok
+test_none_and_nan (test_backtest_harness.TestSafeFloat.test_none_and_nan) ... ok
+test_numeric_string_coerces (test_backtest_harness.TestSafeFloat.test_numeric_string_coerces) ... ok
+test_missing_trend_field_is_none (test_backtest_harness.TestScoreSymbol.test_missing_trend_field_is_none) ... ok
+test_score_fields_present_and_typed (test_backtest_harness.TestScoreSymbol.test_score_fields_present_and_typed) ... ok
+test_trend_is_a_string_not_coerced_none 
+(test_backtest_harness.TestScoreSymbol.test_trend_is_a_string_not_coerced_none) ... ok
+test_above_average_volume_is_positive 
+(test_backtest_harness.TestStrengthComponent.test_above_average_volume_is_positive) ... ok
+test_missing_volume_is_neutral (test_backtest_harness.TestStrengthComponent.test_missing_volume_is_neutral) ... ok
+test_known_classifications (test_backtest_harness.TestTrendComponent.test_known_classifications) ... ok
+test_missing_trend_is_neutral (test_backtest_harness.TestTrendComponent.test_missing_trend_is_neutral) ... ok
+test_unknown_classification_is_neutral 
+(test_backtest_harness.TestTrendComponent.test_unknown_classification_is_neutral) ... ok
+test_known_fraction (test_backtest_harness.TestUpDayFraction.test_known_fraction) ... ok
+test_monotonic_fall_is_zero (test_backtest_harness.TestUpDayFraction.test_monotonic_fall_is_zero) ... ok
+test_monotonic_rise_is_one (test_backtest_harness.TestUpDayFraction.test_monotonic_rise_is_one) ... ok
+test_result_stays_within_zero_one (test_backtest_harness.TestUpDayFraction.test_result_stays_within_zero_one) ... ok
+test_single_bar_is_zero (test_backtest_harness.TestUpDayFraction.test_single_bar_is_zero) ... ok
+test_availability_matrix_merges_report_flags 
+(test_cached_market_analysis.TestBuildFromReport.test_availability_matrix_merges_report_flags) ... ok
+test_breadth_from_report (test_cached_market_analysis.TestBuildFromReport.test_breadth_from_report) ... ok
+test_derivatives_rendered_as_scalars_not_raw_dicts 
+(test_cached_market_analysis.TestBuildFromReport.test_derivatives_rendered_as_scalars_not_raw_dicts) ... ok
+test_event_risk (test_cached_market_analysis.TestBuildFromReport.test_event_risk) ... ok
+test_factor_ranked_hidden_when_not_available 
+(test_cached_market_analysis.TestBuildFromReport.test_factor_ranked_hidden_when_not_available) ... ok
+test_full_dataframe_rankings_are_honestly_unavailable 
+(test_cached_market_analysis.TestBuildFromReport.test_full_dataframe_rankings_are_honestly_unavailable) ... ok
+test_guardrails_and_decision_boundary 
+(test_cached_market_analysis.TestBuildFromReport.test_guardrails_and_decision_boundary) ... ok
+test_header_and_cache_source (test_cached_market_analysis.TestBuildFromReport.test_header_and_cache_source) ... ok
+test_institutional_flow_and_signal_honesty 
+(test_cached_market_analysis.TestBuildFromReport.test_institutional_flow_and_signal_honesty) ... ok
+test_invalid_report_returns_error_text 
+(test_cached_market_analysis.TestBuildFromReport.test_invalid_report_returns_error_text) ... ok
+test_minimal_report_does_not_crash 
+(test_cached_market_analysis.TestBuildFromReport.test_minimal_report_does_not_crash) ... ok
+test_missing_layers_only_models_without_risk 
+(test_cached_market_analysis.TestBuildFromReport.test_missing_layers_only_models_without_risk) ... ok
+test_nifty_and_banknifty_returns (test_cached_market_analysis.TestBuildFromReport.test_nifty_and_banknifty_returns) 
+... ok
+test_risk_missing_listed_when_unavailable 
+(test_cached_market_analysis.TestBuildFromReport.test_risk_missing_listed_when_unavailable) ... ok
+test_top_technical_and_factor_ranked 
+(test_cached_market_analysis.TestBuildFromReport.test_top_technical_and_factor_ranked) ... ok
+test_vix_rendered_as_scalars (test_cached_market_analysis.TestBuildFromReport.test_vix_rendered_as_scalars) ... ok
+test_full_ranking_sections_present 
+(test_cached_market_analysis.TestBuildFromScanner.test_full_ranking_sections_present) ... ok
+test_scanner_merges_report_when_present 
+(test_cached_market_analysis.TestBuildFromScanner.test_scanner_merges_report_when_present) ... ok
+test_scanner_only_source_when_no_report 
+(test_cached_market_analysis.TestBuildFromScanner.test_scanner_only_source_when_no_report) ... ok
+test_empty_scanner_result_is_reported 
+(test_cached_market_analysis.TestCacheFirstDispatch.test_empty_scanner_result_is_reported) ... ok
+test_falls_back_to_scanner_when_no_report 
+(test_cached_market_analysis.TestCacheFirstDispatch.test_falls_back_to_scanner_when_no_report) ... ok
+test_uses_report_and_never_scans_when_report_exists 
+(test_cached_market_analysis.TestCacheFirstDispatch.test_uses_report_and_never_scans_when_report_exists) ... ok
+test_missing_and_bad_input_is_none (test_cached_market_analysis.TestReportReturn.test_missing_and_bad_input_is_none) 
+... ok
+test_report_short_keys (test_cached_market_analysis.TestReportReturn.test_report_short_keys) ... ok
+test_scanner_style_keys (test_cached_market_analysis.TestReportReturn.test_scanner_style_keys) ... ok
+test_auto_builds_map_on_miss (test_dhan_feed.TestCacheGate.test_auto_builds_map_on_miss) ... ok
+test_get_history_fetches_on_miss (test_dhan_feed.TestCacheGate.test_get_history_fetches_on_miss) ... ok
+test_get_history_uses_fresh_cache_without_http 
+(test_dhan_feed.TestCacheGate.test_get_history_uses_fresh_cache_without_http) ... ok
+test_miss_returns_none (test_dhan_feed.TestCacheGate.test_miss_returns_none) ... ok
+test_roundtrip_and_fresh (test_dhan_feed.TestCacheGate.test_roundtrip_and_fresh) ... ok
+test_stale_returns_none (test_dhan_feed.TestCacheGate.test_stale_returns_none) ... ok
+test_unconfigured_raises (test_dhan_feed.TestCacheGate.test_unconfigured_raises) ... ok
+test_unmapped_symbol_raises (test_dhan_feed.TestCacheGate.test_unmapped_symbol_raises) ... ok
+test_configured_via_config_token (test_dhan_feed.TestConfig.test_configured_via_config_token) ... ok
+test_configured_via_env (test_dhan_feed.TestConfig.test_configured_via_env) ... ok
+test_not_configured_without_token (test_dhan_feed.TestConfig.test_not_configured_without_token) ... ok
+test_resolve_security_id (test_dhan_feed.TestConfig.test_resolve_security_id) ... ok
+test_build_parses_nse_equity (test_dhan_feed.TestInstrumentMaster.test_build_parses_nse_equity) ... ok
+test_config_overrides_cached_map (test_dhan_feed.TestInstrumentMaster.test_config_overrides_cached_map) ... ok
+test_filters_non_nse_and_non_equity (test_dhan_feed.TestInstrumentMaster.test_filters_non_nse_and_non_equity) ... ok
+test_resolve_falls_back_to_cached_map (test_dhan_feed.TestInstrumentMaster.test_resolve_falls_back_to_cached_map) ... 
+ok
+test_stale_cache_not_reused (test_dhan_feed.TestInstrumentMaster.test_stale_cache_not_reused) ... ok
+test_zero_rows_raises (test_dhan_feed.TestInstrumentMaster.test_zero_rows_raises) ... ok
+test_dhan_error_code_raises (test_dhan_feed.TestPost.test_dhan_error_code_raises) ... ok
+test_network_exception_propagates (test_dhan_feed.TestPost.test_network_exception_propagates) ... ok
+test_success_returns_json (test_dhan_feed.TestPost.test_success_returns_json) ... ok
+test_index_quote_config_override (test_dhan_feed.TestQuotes.test_index_quote_config_override) ... ok
+test_index_quote_missing_data_available_false 
+(test_dhan_feed.TestQuotes.test_index_quote_missing_data_available_false) ... ok
+test_index_quote_parses (test_dhan_feed.TestQuotes.test_index_quote_parses) ... ok
+test_index_quote_unconfigured (test_dhan_feed.TestQuotes.test_index_quote_unconfigured) ... ok
+test_ltp_parses (test_dhan_feed.TestQuotes.test_ltp_parses) ... ok
+test_get_report_index_snapshot_maps_keys 
+(test_dhan_feed.TestReportIndexSnapshot.test_get_report_index_snapshot_maps_keys) ... ok
+test_get_report_index_snapshot_quote_failure_is_empty 
+(test_dhan_feed.TestReportIndexSnapshot.test_get_report_index_snapshot_quote_failure_is_empty) ... ok
+test_get_report_index_snapshot_unconfigured 
+(test_dhan_feed.TestReportIndexSnapshot.test_get_report_index_snapshot_unconfigured) ... ok
+test_index_entry_no_netchange_still_available 
+(test_dhan_feed.TestReportIndexSnapshot.test_index_entry_no_netchange_still_available) ... ok
+test_index_entry_to_snapshot_derives_change 
+(test_dhan_feed.TestReportIndexSnapshot.test_index_entry_to_snapshot_derives_change) ... ok
+test_index_entry_unavailable (test_dhan_feed.TestReportIndexSnapshot.test_index_entry_unavailable) ... ok
+test_empty_rows_raises (test_dhan_feed.TestToDataFrame.test_empty_rows_raises) ... ok
+test_mismatched_lengths_raises (test_dhan_feed.TestToDataFrame.test_mismatched_lengths_raises) ... ok
+test_missing_keys_raises (test_dhan_feed.TestToDataFrame.test_missing_keys_raises) ... ok
+test_parse_arrays (test_dhan_feed.TestToDataFrame.test_parse_arrays) ... ok
+test_dhan_failure_falls_back_to_nse (test_dhan_feed.TestWiring.test_dhan_failure_falls_back_to_nse) ... ok
+test_prefers_dhan_when_configured (test_dhan_feed.TestWiring.test_prefers_dhan_when_configured) ... ok
+test_skips_dhan_when_not_configured (test_dhan_feed.TestWiring.test_skips_dhan_when_not_configured) ... ok
+test_fresh_complete_empty_calendar_is_low_all_clear 
+(test_engine_math.TestEventRiskMath.test_fresh_complete_empty_calendar_is_low_all_clear) ... ok
+test_guardrails_always_disabled (test_engine_math.TestEventRiskMath.test_guardrails_always_disabled) ... ok
+test_incomplete_calendar_is_unknown (test_engine_math.TestEventRiskMath.test_incomplete_calendar_is_unknown) ... ok
+test_naive_timestamp_is_rejected (test_engine_math.TestEventRiskMath.test_naive_timestamp_is_rejected) ... ok
+test_past_and_beyond_horizon_events_are_ignored 
+(test_engine_math.TestEventRiskMath.test_past_and_beyond_horizon_events_are_ignored) ... ok
+test_score_escalates_with_proximity (test_engine_math.TestEventRiskMath.test_score_escalates_with_proximity) ... ok
+test_stale_source_is_unknown (test_engine_math.TestEventRiskMath.test_stale_source_is_unknown) ... ok
+test_unverified_event_is_rejected (test_engine_math.TestEventRiskMath.test_unverified_event_is_rejected) ... ok
+test_budget_too_small_warns_but_succeeds 
+(test_engine_math.TestRiskEngineMath.test_budget_too_small_warns_but_succeeds) ... ok
+test_invalid_inputs_are_rejected (test_engine_math.TestRiskEngineMath.test_invalid_inputs_are_rejected) ... ok
+test_position_sizing_known_values (test_engine_math.TestRiskEngineMath.test_position_sizing_known_values) ... ok
+test_atr_wilder_constant_range (test_engine_math.TestTechnicalEngineMath.test_atr_wilder_constant_range) ... ok
+test_ema_constant_series (test_engine_math.TestTechnicalEngineMath.test_ema_constant_series) ... ok
+test_macd_constant_series_is_zero (test_engine_math.TestTechnicalEngineMath.test_macd_constant_series_is_zero) ... ok
+test_relative_volume_constant_is_one (test_engine_math.TestTechnicalEngineMath.test_relative_volume_constant_is_one) 
+... ok
+test_roc_known_percent (test_engine_math.TestTechnicalEngineMath.test_roc_known_percent) ... ok
+test_rsi_mixed_series_stays_bounded (test_engine_math.TestTechnicalEngineMath.test_rsi_mixed_series_stays_bounded) ... 
+ok
+test_rsi_only_gains_is_100 (test_engine_math.TestTechnicalEngineMath.test_rsi_only_gains_is_100) ... ok
+test_rsi_only_losses_is_0 (test_engine_math.TestTechnicalEngineMath.test_rsi_only_losses_is_0) ... ok
+test_sma_known_window (test_engine_math.TestTechnicalEngineMath.test_sma_known_window) ... ok
+test_true_range_engines_agree (test_engine_math.TestTechnicalEngineMath.test_true_range_engines_agree) ... ok
+test_true_range_gap_up (test_engine_math.TestTechnicalEngineMath.test_true_range_gap_up) ... ok
+test_vwap_flat_prices (test_engine_math.TestTechnicalEngineMath.test_vwap_flat_prices) ... ok
+test_atr_rolling_mean_known_values (test_engine_math.TestVolatilityEngineMath.test_atr_rolling_mean_known_values) ... 
+ok
+test_direction_classification_rules (test_engine_math.TestVolatilityEngineMath.test_direction_classification_rules) 
+... ok
+test_percentile_ascending_series_is_100 
+(test_engine_math.TestVolatilityEngineMath.test_percentile_ascending_series_is_100) ... ok
+test_percentile_lowest_value_is_four_percent 
+(test_engine_math.TestVolatilityEngineMath.test_percentile_lowest_value_is_four_percent) ... ok
+test_percentile_requires_twenty_points 
+(test_engine_math.TestVolatilityEngineMath.test_percentile_requires_twenty_points) ... ok
+test_realized_vol_constant_growth_is_near_zero 
+(test_engine_math.TestVolatilityEngineMath.test_realized_vol_constant_growth_is_near_zero) ... ok
+test_realized_vol_constant_prices_is_zero 
+(test_engine_math.TestVolatilityEngineMath.test_realized_vol_constant_prices_is_zero) ... ok
+test_regime_thresholds_absolute_fallback 
+(test_engine_math.TestVolatilityEngineMath.test_regime_thresholds_absolute_fallback) ... ok
+test_regime_thresholds_percentile_path 
+(test_engine_math.TestVolatilityEngineMath.test_regime_thresholds_percentile_path) ... ok
+test_apply_watchlist_dedupes_caps_and_polls_first_symbol 
+(test_gui_smoke.MarketLabSmokeTestCase.test_apply_watchlist_dedupes_caps_and_polls_first_symbol) ... ok
+test_construction_is_offline_and_spawns_no_workers 
+(test_gui_smoke.MarketLabSmokeTestCase.test_construction_is_offline_and_spawns_no_workers) ... ok
+test_format_watchlist_line_renders_dashes_for_missing_numbers 
+(test_gui_smoke.MarketLabSmokeTestCase.test_format_watchlist_line_renders_dashes_for_missing_numbers) ... ok
+test_page_indices_match_the_nav_labels (test_gui_smoke.MarketLabSmokeTestCase.test_page_indices_match_the_nav_labels) 
+... ok
+test_panels_and_inputs_exist (test_gui_smoke.MarketLabSmokeTestCase.test_panels_and_inputs_exist) ... ok
+test_poll_watchlist_symbol_round_robins_and_skips_when_empty 
+(test_gui_smoke.MarketLabSmokeTestCase.test_poll_watchlist_symbol_round_robins_and_skips_when_empty) ... ok
+test_render_backtest_fills_view_and_keeps_guardrails 
+(test_gui_smoke.MarketLabSmokeTestCase.test_render_backtest_fills_view_and_keeps_guardrails) ... ok
+test_render_backtest_handles_empty_and_invalid_results 
+(test_gui_smoke.MarketLabSmokeTestCase.test_render_backtest_handles_empty_and_invalid_results) ... ok
+test_render_watchlist_clears_view_when_nothing_pinned 
+(test_gui_smoke.MarketLabSmokeTestCase.test_render_watchlist_clears_view_when_nothing_pinned) ... ok
+test_run_backtest_task_blank_input_wires_the_sample_path 
+(test_gui_smoke.MarketLabSmokeTestCase.test_run_backtest_task_blank_input_wires_the_sample_path) ... ok
+test_run_backtest_task_skips_when_a_worker_is_running 
+(test_gui_smoke.MarketLabSmokeTestCase.test_run_backtest_task_skips_when_a_worker_is_running) ... ok
+test_run_backtest_task_symbol_input_wires_the_symbols_path 
+(test_gui_smoke.MarketLabSmokeTestCase.test_run_backtest_task_symbol_input_wires_the_symbols_path) ... ok
+test_task_failed_backtest_surfaces_the_error_in_the_view 
+(test_gui_smoke.MarketLabSmokeTestCase.test_task_failed_backtest_surfaces_the_error_in_the_view) ... ok
+test_task_finished_restores_controls_and_clears_the_worker 
+(test_gui_smoke.MarketLabSmokeTestCase.test_task_finished_restores_controls_and_clears_the_worker) ... ok
+test_task_succeeded_backtest_renders_and_switches_page 
+(test_gui_smoke.MarketLabSmokeTestCase.test_task_succeeded_backtest_renders_and_switches_page) ... ok
+test_watchlist_not_available_result_is_rendered_not_dropped 
+(test_gui_smoke.MarketLabSmokeTestCase.test_watchlist_not_available_result_is_rendered_not_dropped) ... ok
+test_watchlist_result_is_stored_and_rendered 
+(test_gui_smoke.MarketLabSmokeTestCase.test_watchlist_result_is_stored_and_rendered) ... ok
+test_close_event_accepts_when_idle (test_gui_smoke.TestCleanShutdown.test_close_event_accepts_when_idle) ... ok
+test_close_event_stops_running_worker_and_accepts 
+(test_gui_smoke.TestCleanShutdown.test_close_event_stops_running_worker_and_accepts) ... ok
+test_start_task_is_blocked_during_shutdown 
+(test_gui_smoke.TestCleanShutdown.test_start_task_is_blocked_during_shutdown) ... ok
+test_display_report_populates_event_panel 
+(test_gui_smoke.TestEventRiskPanel.test_display_report_populates_event_panel) ... ok
+test_high_risk_banner_is_red (test_gui_smoke.TestEventRiskPanel.test_high_risk_banner_is_red) ... ok
+test_missing_context_marks_not_available (test_gui_smoke.TestEventRiskPanel.test_missing_context_marks_not_available) 
+... ok
+test_stale_source_surfaces_in_meta (test_gui_smoke.TestEventRiskPanel.test_stale_source_surfaces_in_meta) ... ok
+test_widgets_exist (test_gui_smoke.TestEventRiskPanel.test_widgets_exist) ... ok
+test_countdown_uses_now_not_frozen_hours (test_gui_smoke.TestFormatEventRisk.test_countdown_uses_now_not_frozen_hours) 
+... ok
+test_event_without_any_time_still_lists_name 
+(test_gui_smoke.TestFormatEventRisk.test_event_without_any_time_still_lists_name) ... ok
+test_event_without_datetime_but_with_report_hours 
+(test_gui_smoke.TestFormatEventRisk.test_event_without_datetime_but_with_report_hours) ... ok
+test_none_and_empty_are_not_available (test_gui_smoke.TestFormatEventRisk.test_none_and_empty_are_not_available) ... ok
+test_renders_overall_events_and_guardrail 
+(test_gui_smoke.TestFormatEventRisk.test_renders_overall_events_and_guardrail) ... ok
+test_source_freshness_lines (test_gui_smoke.TestFormatEventRisk.test_source_freshness_lines) ... ok
+test_risk_color_levels (test_gui_smoke.TestFormatEventRiskColors.test_risk_color_levels) ... ok
+test_icons_render (test_gui_smoke.TestPyQtGraphAndIcons.test_icons_render) ... ok
+test_pg_candle_chart_builds (test_gui_smoke.TestPyQtGraphAndIcons.test_pg_candle_chart_builds) ... ok
+test_pg_candle_chart_empty_is_safe (test_gui_smoke.TestPyQtGraphAndIcons.test_pg_candle_chart_empty_is_safe) ... ok
+test_pg_panels_are_stacked_and_share_time_axis 
+(test_gui_smoke.TestPyQtGraphAndIcons.test_pg_panels_are_stacked_and_share_time_axis) ... ok
+test_pg_skips_nonfinite_and_future (test_gui_smoke.TestPyQtGraphAndIcons.test_pg_skips_nonfinite_and_future) ... ok
+test_kpi_strip_populates (test_gui_smoke.TestRedesign.test_kpi_strip_populates) ... ok
+test_missing_kpi_shows_dash (test_gui_smoke.TestRedesign.test_missing_kpi_shows_dash) ... ok
+test_remaining_sections_render_tables (test_gui_smoke.TestRedesign.test_remaining_sections_render_tables) ... ok
+test_section01_macro_cards_regime (test_gui_smoke.TestRedesign.test_section01_macro_cards_regime) ... ok
+test_section02_breadth_stack_bar (test_gui_smoke.TestRedesign.test_section02_breadth_stack_bar) ... ok
+test_analyze_button_is_premium_and_toggles 
+(test_gui_smoke.TestStockAnalysisPage.test_analyze_button_is_premium_and_toggles) ... ok
+test_copy_report_action_exists (test_gui_smoke.TestStockAnalysisPage.test_copy_report_action_exists) ... ok
+test_empty_state_before_analysis (test_gui_smoke.TestStockAnalysisPage.test_empty_state_before_analysis) ... ok
+test_no_data_result_is_honest (test_gui_smoke.TestStockAnalysisPage.test_no_data_result_is_honest) ... ok
+test_render_stock_result_populates_panels 
+(test_gui_smoke.TestStockAnalysisPage.test_render_stock_result_populates_panels) ... ok
+test_report_is_structured_two_column (test_gui_smoke.TestStockAnalysisPage.test_report_is_structured_two_column) ... ok
+test_dashboard_renders_candles_and_range_selector 
+(test_gui_smoke.TestTerminalLayout.test_dashboard_renders_candles_and_range_selector) ... ok
+test_dashboard_renders_real_price (test_gui_smoke.TestTerminalLayout.test_dashboard_renders_real_price) ... ok
+test_grid_background_paints_without_error 
+(test_gui_smoke.TestTerminalLayout.test_grid_background_paints_without_error) ... ok
+test_guardrails_footer_visible_and_false (test_gui_smoke.TestTerminalLayout.test_guardrails_footer_visible_and_false) 
+... ok
+test_header_chips_present (test_gui_smoke.TestTerminalLayout.test_header_chips_present) ... ok
+test_market_breadth_missing_data_is_na (test_gui_smoke.TestTerminalLayout.test_market_breadth_missing_data_is_na) ... 
+ok
+test_market_breadth_visual_panel (test_gui_smoke.TestTerminalLayout.test_market_breadth_visual_panel) ... ok
+test_sections_collapse_and_expand (test_gui_smoke.TestTerminalLayout.test_sections_collapse_and_expand) ... ok
+test_ten_sections_in_order (test_gui_smoke.TestTerminalLayout.test_ten_sections_in_order) ... ok
+test_unavailable_renders_na_not_fabricated 
+(test_gui_smoke.TestTerminalLayout.test_unavailable_renders_na_not_fabricated) ... ok
+test_window_uses_grid_background (test_gui_smoke.TestTerminalLayout.test_window_uses_grid_background) ... ok
+test_full_primary_window (test_institutional_flow_coverage.TestPrimaryCoverageSummary.test_full_primary_window) ... ok
+test_negative_inputs_clamp (test_institutional_flow_coverage.TestPrimaryCoverageSummary.test_negative_inputs_clamp) 
+... ok
+test_no_primary_yet (test_institutional_flow_coverage.TestPrimaryCoverageSummary.test_no_primary_yet) ... ok
+test_over_count_clamps_ratio_to_one 
+(test_institutional_flow_coverage.TestPrimaryCoverageSummary.test_over_count_clamps_ratio_to_one) ... ok
+test_partial_coverage_estimate 
+(test_institutional_flow_coverage.TestPrimaryCoverageSummary.test_partial_coverage_estimate) ... ok
+test_zero_target_is_unknown (test_institutional_flow_coverage.TestPrimaryCoverageSummary.test_zero_target_is_unknown) 
+... ok
+test_age_hours_naive_treated_as_utc (test_market_brief.TestBriefHelpers.test_age_hours_naive_treated_as_utc) ... ok
+test_age_hours_none_for_bad_input (test_market_brief.TestBriefHelpers.test_age_hours_none_for_bad_input) ... ok
+test_age_hours_recent (test_market_brief.TestBriefHelpers.test_age_hours_recent) ... ok
+test_crore_signed_and_na (test_market_brief.TestBriefHelpers.test_crore_signed_and_na) ... ok
+test_data_gap_listed (test_market_brief.TestBuildMarketBrief.test_data_gap_listed) ... ok
+test_events_limited_to_three (test_market_brief.TestBuildMarketBrief.test_events_limited_to_three) ... ok
+test_factor_ranking_only_when_available 
+(test_market_brief.TestBuildMarketBrief.test_factor_ranking_only_when_available) ... ok
+test_flow_numbers_and_signal_honesty (test_market_brief.TestBuildMarketBrief.test_flow_numbers_and_signal_honesty) ... 
+ok
+test_fresh_report_has_no_warning (test_market_brief.TestBuildMarketBrief.test_fresh_report_has_no_warning) ... ok
+test_header_and_sections (test_market_brief.TestBuildMarketBrief.test_header_and_sections) ... ok
+test_invalid_report (test_market_brief.TestBuildMarketBrief.test_invalid_report) ... ok
+test_missing_sections_are_omitted_gracefully 
+(test_market_brief.TestBuildMarketBrief.test_missing_sections_are_omitted_gracefully) ... ok
+test_missing_values_render_na_not_zero (test_market_brief.TestBuildMarketBrief.test_missing_values_render_na_not_zero) 
+... ok
+test_stale_report_warns (test_market_brief.TestBuildMarketBrief.test_stale_report_warns) ... ok
+test_stocks_analyzed_and_mode (test_market_brief.TestBuildMarketBrief.test_stocks_analyzed_and_mode) ... ok
+test_vix_not_available (test_market_brief.TestBuildMarketBrief.test_vix_not_available) ... ok
+test_broad_prompt_unchanged (test_market_lab_brain.TestAnalyzeBranchesPrompt.test_broad_prompt_unchanged) ... ok
+test_data_error_returns_message (test_market_lab_brain.TestAnalyzeBranchesPrompt.test_data_error_returns_message) ... 
+ok
+test_single_stock_prompt (test_market_lab_brain.TestAnalyzeBranchesPrompt.test_single_stock_prompt) ... ok
+test_empty_model_response_is_error (test_market_lab_brain.TestAnalyzeStockReport.test_empty_model_response_is_error) 
+... ok
+test_mode_changes_prompt (test_market_lab_brain.TestAnalyzeStockReport.test_mode_changes_prompt) ... ok
+test_model_not_found_404 (test_market_lab_brain.TestAnalyzeStockReport.test_model_not_found_404) ... ok
+test_returns_focused_report_with_disclaimer 
+(test_market_lab_brain.TestAnalyzeStockReport.test_returns_focused_report_with_disclaimer) ... ok
+test_broad_payload_has_no_focus (test_market_lab_brain.TestBuildPayload.test_broad_payload_has_no_focus) ... ok
+test_focus_and_factors_added (test_market_lab_brain.TestBuildPayload.test_focus_and_factors_added) ... ok
+test_benchmarks_and_broad_words_are_not_stocks 
+(test_market_lab_brain.TestExtractFocusSymbol.test_benchmarks_and_broad_words_are_not_stocks) ... ok
+test_fallback_without_master_uses_uppercase_token 
+(test_market_lab_brain.TestExtractFocusSymbol.test_fallback_without_master_uses_uppercase_token) ... ok
+test_named_stock_lowercase (test_market_lab_brain.TestExtractFocusSymbol.test_named_stock_lowercase) ... ok
+test_named_stock_uppercase (test_market_lab_brain.TestExtractFocusSymbol.test_named_stock_uppercase) ... ok
+test_no_named_stock_with_master (test_market_lab_brain.TestExtractFocusSymbol.test_no_named_stock_with_master) ... ok
+test_includes_live_snapshot_and_factor_membership 
+(test_market_lab_brain.TestFocusPayload.test_includes_live_snapshot_and_factor_membership) ... ok
+test_json_safe (test_market_lab_brain.TestFocusPayload.test_json_safe) ... ok
+test_live_unavailable_is_honest (test_market_lab_brain.TestFocusPayload.test_live_unavailable_is_honest) ... ok
+test_symbol_not_in_extremes (test_market_lab_brain.TestFocusPayload.test_symbol_not_in_extremes) ... ok
+test_watchlist_engine_exception_is_caught 
+(test_market_lab_brain.TestFocusPayload.test_watchlist_engine_exception_is_caught) ... ok
+test_dhan_index_overrides_unconfigured_is_empty 
+(test_market_lab_data.TestApplyDhanOverride.test_dhan_index_overrides_unconfigured_is_empty) ... ok
+test_keeps_original_on_override_error 
+(test_market_lab_data.TestApplyDhanOverride.test_keeps_original_on_override_error) ... ok
+test_keeps_original_when_dhan_unavailable 
+(test_market_lab_data.TestApplyDhanOverride.test_keeps_original_when_dhan_unavailable) ... ok
+test_keeps_original_when_overrides_empty 
+(test_market_lab_data.TestApplyDhanOverride.test_keeps_original_when_overrides_empty) ... ok
+test_overrides_when_dhan_available (test_market_lab_data.TestApplyDhanOverride.test_overrides_when_dhan_available) ... 
+ok
+test_bank_only_override_leaves_vix 
+(test_market_lab_data.TestApplyDhanVolatilityOverrides.test_bank_only_override_leaves_vix) ... ok
+test_both_unavailable_returns_original_object 
+(test_market_lab_data.TestApplyDhanVolatilityOverrides.test_both_unavailable_returns_original_object) ... ok
+test_missing_engine_leg_is_created 
+(test_market_lab_data.TestApplyDhanVolatilityOverrides.test_missing_engine_leg_is_created) ... ok
+test_no_overrides_returns_original_object 
+(test_market_lab_data.TestApplyDhanVolatilityOverrides.test_no_overrides_returns_original_object) ... ok
+test_non_dict_volatility_unchanged 
+(test_market_lab_data.TestApplyDhanVolatilityOverrides.test_non_dict_volatility_unchanged) ... ok
+test_override_error_returns_original 
+(test_market_lab_data.TestApplyDhanVolatilityOverrides.test_override_error_returns_original) ... ok
+test_overrides_bank_and_vix_preserving_engine_fields 
+(test_market_lab_data.TestApplyDhanVolatilityOverrides.test_overrides_bank_and_vix_preserving_engine_fields) ... ok
+test_empty_and_error_return_empty (test_market_lab_data.TestBuildIndexCandles.test_empty_and_error_return_empty) ... ok
+test_parses_ohlcv_with_index_dates (test_market_lab_data.TestBuildIndexCandles.test_parses_ohlcv_with_index_dates) ... 
+ok
+test_empty_frame (test_market_lab_data.TestExtractCloseSeries.test_empty_frame) ... ok
+test_extracts_close_with_dates (test_market_lab_data.TestExtractCloseSeries.test_extracts_close_with_dates) ... ok
+test_limit_takes_last_n (test_market_lab_data.TestExtractCloseSeries.test_limit_takes_last_n) ... ok
+test_missing_close_column (test_market_lab_data.TestExtractCloseSeries.test_missing_close_column) ... ok
+test_dependencies_match_requirements_exactly 
+(test_packaging.TestPackaging.test_dependencies_match_requirements_exactly) ... ok
+test_pyproject_metadata_present (test_packaging.TestPackaging.test_pyproject_metadata_present) ... ok
+test_requires_python_covers_runtime (test_packaging.TestPackaging.test_requires_python_covers_runtime) ... ok
+test_analysis_falls_back_to_scanner_when_no_report 
+(test_pipeline_integration.TestCacheFirstTools.test_analysis_falls_back_to_scanner_when_no_report) ... ok
+test_analysis_is_cache_first_and_never_scans 
+(test_pipeline_integration.TestCacheFirstTools.test_analysis_is_cache_first_and_never_scans) ... ok
+test_brief_reads_temp_cache (test_pipeline_integration.TestCacheFirstTools.test_brief_reads_temp_cache) ... ok
+test_brief_reports_missing_when_no_report 
+(test_pipeline_integration.TestCacheFirstTools.test_brief_reports_missing_when_no_report) ... ok
+test_breadth_matches (test_pipeline_integration.TestConsumersAgree.test_breadth_matches) ... ok
+test_flow_regime_matches (test_pipeline_integration.TestConsumersAgree.test_flow_regime_matches) ... ok
+test_india_vix_matches (test_pipeline_integration.TestConsumersAgree.test_india_vix_matches) ... ok
+test_regime_matches (test_pipeline_integration.TestConsumersAgree.test_regime_matches) ... ok
+test_signal_eligibility_honesty_matches 
+(test_pipeline_integration.TestConsumersAgree.test_signal_eligibility_honesty_matches) ... ok
+test_top_symbols_match (test_pipeline_integration.TestConsumersAgree.test_top_symbols_match) ... ok
+test_empty_cache_loads_nothing (test_pipeline_integration.TestSaveLoadRoundTrip.test_empty_cache_loads_nothing) ... ok
+test_guardrails_survive_the_round_trip 
+(test_pipeline_integration.TestSaveLoadRoundTrip.test_guardrails_survive_the_round_trip) ... ok
+test_newest_saved_report_is_loaded 
+(test_pipeline_integration.TestSaveLoadRoundTrip.test_newest_saved_report_is_loaded) ... ok
+test_report_matches_market_lab_filename_pattern 
+(test_pipeline_integration.TestSaveLoadRoundTrip.test_report_matches_market_lab_filename_pattern) ... ok
+test_save_then_load_returns_equivalent_report 
+(test_pipeline_integration.TestSaveLoadRoundTrip.test_save_then_load_returns_equivalent_report) ... ok
+test_tools_loader_sees_saved_report 
+(test_pipeline_integration.TestSaveLoadRoundTrip.test_tools_loader_sees_saved_report) ... ok
+test_brief_and_analysis_handle_minimal_report 
+(test_pipeline_integration.TestStalenessAcrossPipeline.test_brief_and_analysis_handle_minimal_report) ... ok
+test_stale_report_flagged_in_brief 
+(test_pipeline_integration.TestStalenessAcrossPipeline.test_stale_report_flagged_in_brief) ... ok
+test_stale_report_timestamp_visible_in_analysis 
+(test_pipeline_integration.TestStalenessAcrossPipeline.test_stale_report_timestamp_visible_in_analysis) ... ok
+test_bias_detected (test_report_parser.TestParseReport.test_bias_detected) ... ok
+test_bias_insufficient_evidence_wins (test_report_parser.TestParseReport.test_bias_insufficient_evidence_wins) ... ok
+test_collect_bullets_strips_markers (test_report_parser.TestParseReport.test_collect_bullets_strips_markers) ... ok
+test_disclaimer_and_mode_lines_skipped (test_report_parser.TestParseReport.test_disclaimer_and_mode_lines_skipped) ... 
+ok
+test_empty_text (test_report_parser.TestParseReport.test_empty_text) ... ok
+test_levels_extracted (test_report_parser.TestParseReport.test_levels_extracted) ... ok
+test_plain_text_report_falls_back_to_single_section 
+(test_report_parser.TestParseReport.test_plain_text_report_falls_back_to_single_section) ... ok
+test_raw_is_preserved (test_report_parser.TestParseReport.test_raw_is_preserved) ... ok
+test_sections_matching (test_report_parser.TestParseReport.test_sections_matching) ... ok
+test_splits_numbered_headings (test_report_parser.TestParseReport.test_splits_numbered_headings) ... ok
+test_available_on_valid_frame (test_research_factor_engine.TestResearchFactorEngine.test_available_on_valid_frame) ... 
+ok
+test_extreme_winner_ranks_first (test_research_factor_engine.TestResearchFactorEngine.test_extreme_winner_ranks_first) 
+... ok
+test_guardrails_and_warnings (test_research_factor_engine.TestResearchFactorEngine.test_guardrails_and_warnings) ... ok
+test_low_volatility_is_sign_flipped 
+(test_research_factor_engine.TestResearchFactorEngine.test_low_volatility_is_sign_flipped) ... ok
+test_missing_column_is_unavailable 
+(test_research_factor_engine.TestResearchFactorEngine.test_missing_column_is_unavailable) ... ok
+test_nan_heavy_row_is_excluded (test_research_factor_engine.TestResearchFactorEngine.test_nan_heavy_row_is_excluded) 
+... ok
+test_none_and_empty_inputs (test_research_factor_engine.TestResearchFactorEngine.test_none_and_empty_inputs) ... ok
+test_small_universe_is_unavailable 
+(test_research_factor_engine.TestResearchFactorEngine.test_small_universe_is_unavailable) ... ok
+test_negative_at_boundary_score_negative_two 
+(test_sector_engine.TestDetermineSectorRegime.test_negative_at_boundary_score_negative_two) ... ok
+test_neutral (test_sector_engine.TestDetermineSectorRegime.test_neutral) ... ok
+test_no_evidence_is_insufficient (test_sector_engine.TestDetermineSectorRegime.test_no_evidence_is_insufficient) ... ok
+test_positive (test_sector_engine.TestDetermineSectorRegime.test_positive) ... ok
+test_positive_at_boundary_score_two (test_sector_engine.TestDetermineSectorRegime.test_positive_at_boundary_score_two) 
+... ok
+test_single_evidence_still_classifies 
+(test_sector_engine.TestDetermineSectorRegime.test_single_evidence_still_classifies) ... ok
+test_strong (test_sector_engine.TestDetermineSectorRegime.test_strong) ... ok
+test_strong_at_boundary_score_five (test_sector_engine.TestDetermineSectorRegime.test_strong_at_boundary_score_five) 
+... ok
+test_weak (test_sector_engine.TestDetermineSectorRegime.test_weak) ... ok
+test_weak_at_boundary_score_negative_five 
+(test_sector_engine.TestDetermineSectorRegime.test_weak_at_boundary_score_negative_five) ... ok
+test_all_invalid_is_none (test_sector_engine.TestPctMean.test_all_invalid_is_none) ... ok
+test_mean_of_numeric_series (test_sector_engine.TestPctMean.test_mean_of_numeric_series) ... ok
+test_non_numeric_coerced_then_dropped (test_sector_engine.TestPctMean.test_non_numeric_coerced_then_dropped) ... ok
+test_junk_is_none (test_sector_engine.TestSafeFloat.test_junk_is_none) ... ok
+test_non_finite_is_none (test_sector_engine.TestSafeFloat.test_non_finite_is_none) ... ok
+test_none_and_nan_are_none (test_sector_engine.TestSafeFloat.test_none_and_nan_are_none) ... ok
+test_numbers_coerce (test_sector_engine.TestSafeFloat.test_numbers_coerce) ... ok
+test_normal_ratio (test_sector_engine.TestSafeRatio.test_normal_ratio) ... ok
+test_zero_and_negative_denominator_are_none 
+(test_sector_engine.TestSafeRatio.test_zero_and_negative_denominator_are_none) ... ok
+test_all_services_probed (test_start_nova.TestCheckAll.test_all_services_probed) ... ok
+test_down_service_marked_not_ok (test_start_nova.TestCheckAll.test_down_service_marked_not_ok) ... ok
+test_down_returns_false_and_never_raises (test_start_nova.TestCheckService.test_down_returns_false_and_never_raises) 
+... ok
+test_timeout_is_reported_not_raised (test_start_nova.TestCheckService.test_timeout_is_reported_not_raised) ... ok
+test_up_returns_true_and_status (test_start_nova.TestCheckService.test_up_returns_true_and_status) ... ok
+test_check_only_exit_code (test_start_nova.TestMain.test_check_only_exit_code) ... ok
+test_check_returns_1_when_a_service_is_down (test_start_nova.TestMain.test_check_returns_1_when_a_service_is_down) ... 
+ok
+test_launch_called_for_app_arg_and_no_prompt (test_start_nova.TestMain.test_launch_called_for_app_arg_and_no_prompt) 
+... ok
+test_report_returns_true_only_when_all_up (test_start_nova.TestPrintReport.test_report_returns_true_only_when_all_up) 
+... ok
+test_data_quality_marks_unavailable (test_stock_adapter.TestKpiAndQuality.test_data_quality_marks_unavailable) ... ok
+test_data_quality_partial_indicators (test_stock_adapter.TestKpiAndQuality.test_data_quality_partial_indicators) ... ok
+test_kpi_tiles (test_stock_adapter.TestKpiAndQuality.test_kpi_tiles) ... ok
+test_kpi_tiles_empty (test_stock_adapter.TestKpiAndQuality.test_kpi_tiles_empty) ... ok
+test_market_context_secondary (test_stock_adapter.TestKpiAndQuality.test_market_context_secondary) ... ok
+test_observations_empty_without_price (test_stock_adapter.TestObservations.test_observations_empty_without_price) ... 
+ok
+test_observations_grounded_in_present_fields 
+(test_stock_adapter.TestObservations.test_observations_grounded_in_present_fields) ... ok
+test_observations_insufficient_history (test_stock_adapter.TestObservations.test_observations_insufficient_history) 
+... ok
+test_sector_returns_string (test_stock_adapter.TestObservations.test_sector_returns_string) ... ok
+test_computes_real_rsi_macd_from_candles (test_stock_adapter.TestOscillators.test_computes_real_rsi_macd_from_candles) 
+... ok
+test_none_history_is_safe (test_stock_adapter.TestOscillators.test_none_history_is_safe) ... ok
+test_short_history_returns_empty (test_stock_adapter.TestOscillators.test_short_history_returns_empty) ... ok
+test_resolves_known (test_stock_adapter.TestResolveSymbol.test_resolves_known) ... ok
+test_unknown_returns_none (test_stock_adapter.TestResolveSymbol.test_unknown_returns_none) ... ok
+test_builds_candles_with_mas (test_stock_adapter.TestStockCandles.test_builds_candles_with_mas) ... ok
+test_empty_history (test_stock_adapter.TestStockCandles.test_empty_history) ... ok
+test_alignment_maps_oscillators (test_stock_adapter.TestValidateCandles.test_alignment_maps_oscillators) ... ok
+test_bad_and_missing_dates_dropped (test_stock_adapter.TestValidateCandles.test_bad_and_missing_dates_dropped) ... ok
+test_bad_ohlc_dropped (test_stock_adapter.TestValidateCandles.test_bad_ohlc_dropped) ... ok
+test_future_rows_dropped (test_stock_adapter.TestValidateCandles.test_future_rows_dropped) ... ok
+test_sorted_and_deduped_with_alignment (test_stock_adapter.TestValidateCandles.test_sorted_and_deduped_with_alignment) 
+... ok
+test_to_epoch (test_stock_adapter.TestValidateCandles.test_to_epoch) ... ok
+test_load_theme_resolves_outside_cwd (test_theme.TestThemeFile.test_load_theme_resolves_outside_cwd) ... ok
+test_missing_theme_file_returns_empty_string (test_theme.TestThemeFile.test_missing_theme_file_returns_empty_string) 
+... ok
+test_theme_carries_shell_selectors (test_theme.TestThemeFile.test_theme_carries_shell_selectors) ... ok
+test_theme_file_exists_at_project_root (test_theme.TestThemeFile.test_theme_file_exists_at_project_root) ... ok
+test_theme_has_balanced_braces (test_theme.TestThemeFile.test_theme_has_balanced_braces) ... ok
+test_theme_loads_non_empty (test_theme.TestThemeFile.test_theme_loads_non_empty) ... ok
+test_theme_tokens_match_python_palette (test_theme.TestThemeFile.test_theme_tokens_match_python_palette) ... ok
+test_brain_reuses_tools_schema (test_tool_contract.TestBrainCoupling.test_brain_reuses_tools_schema) ... ok
+test_brain_schema_names_all_dispatchable 
+(test_tool_contract.TestBrainCoupling.test_brain_schema_names_all_dispatchable) ... ok
+test_every_schema_entry_resolves_to_a_tool 
+(test_tool_contract.TestRegistrySchemaConsistency.test_every_schema_entry_resolves_to_a_tool) ... ok
+test_every_tool_is_advertised (test_tool_contract.TestRegistrySchemaConsistency.test_every_tool_is_advertised) ... ok
+test_expected_tools_present (test_tool_contract.TestRegistrySchemaConsistency.test_expected_tools_present) ... ok
+test_no_duplicate_schema_names (test_tool_contract.TestRegistrySchemaConsistency.test_no_duplicate_schema_names) ... ok
+test_schema_entries_are_well_formed 
+(test_tool_contract.TestRegistrySchemaConsistency.test_schema_entries_are_well_formed) ... ok
+test_bad_arguments_are_reported_not_raised (test_tool_contract.TestRunTool.test_bad_arguments_are_reported_not_raised) 
+... ok
+test_brief_dispatches_through_run_tool (test_tool_contract.TestRunTool.test_brief_dispatches_through_run_tool) ... ok
+test_get_time_executes_and_returns_string (test_tool_contract.TestRunTool.test_get_time_executes_and_returns_string) 
+... ok
+test_json_args_with_wrong_keys_hit_bad_arguments 
+(test_tool_contract.TestRunTool.test_json_args_with_wrong_keys_hit_bad_arguments) ... ok
+test_json_string_args_are_parsed (test_tool_contract.TestRunTool.test_json_string_args_are_parsed) ... ok
+test_malformed_json_string_becomes_empty_args 
+(test_tool_contract.TestRunTool.test_malformed_json_string_becomes_empty_args) ... ok
+test_non_dict_args_become_empty (test_tool_contract.TestRunTool.test_non_dict_args_become_empty) ... ok
+test_unknown_tool_returns_text (test_tool_contract.TestRunTool.test_unknown_tool_returns_text) ... ok
+test_real_and_na (test_view_model.TestBreadth.test_real_and_na) ... ok
+test_age_from_generated (test_view_model.TestDataAge.test_age_from_generated) ... ok
+test_missing_generated_is_na (test_view_model.TestDataAge.test_missing_generated_is_na) ... ok
+test_real_fields (test_view_model.TestDerivatives.test_real_fields) ... ok
+test_earnings_unavailable (test_view_model.TestEarningsAndGuardrails.test_earnings_unavailable) ... ok
+test_guardrails (test_view_model.TestEarningsAndGuardrails.test_guardrails) ... ok
+test_not_available_status (test_view_model.TestFactorBlock.test_not_available_status) ... ok
+test_per_factor_z_unavailable_when_null (test_view_model.TestFactorBlock.test_per_factor_z_unavailable_when_null) ... 
+ok
+test_quality_and_value_declared_unavailable 
+(test_view_model.TestFactorBlock.test_quality_and_value_declared_unavailable) ... ok
+test_real_and_coverage (test_view_model.TestFlow.test_real_and_coverage) ... ok
+test_thresholds (test_view_model.TestFreshness.test_thresholds) ... ok
+test_unknown (test_view_model.TestFreshness.test_unknown) ... ok
+test_bank_card_ohlc_derived_from_candle (test_view_model.TestIndexCard.test_bank_card_ohlc_derived_from_candle) ... ok
+test_banknifty_card_ohlc_is_na (test_view_model.TestIndexCard.test_banknifty_card_ohlc_is_na) ... ok
+test_card_includes_series (test_view_model.TestIndexCard.test_card_includes_series) ... ok
+test_nifty_card_real_and_derived (test_view_model.TestIndexCard.test_nifty_card_real_and_derived) ... ok
+test_nifty_card_marks_saved_history (test_view_model.TestIndexCards.test_nifty_card_marks_saved_history) ... ok
+test_nifty_card_uses_live_quote (test_view_model.TestIndexCards.test_nifty_card_uses_live_quote) ... ok
+test_vix_card_empty_is_na (test_view_model.TestIndexCards.test_vix_card_empty_is_na) ... ok
+test_vix_card_falls_back_to_series (test_view_model.TestIndexCards.test_vix_card_falls_back_to_series) ... ok
+test_vix_card_from_live_quote (test_view_model.TestIndexCards.test_vix_card_from_live_quote) ... ok
+test_vix_returns_computed_from_series (test_view_model.TestIndexCards.test_vix_returns_computed_from_series) ... ok
+test_only_atr_is_real_without_candles (test_view_model.TestIndicatorCards.test_only_atr_is_real_without_candles) ... ok
+test_rsi_macd_computed_from_candles (test_view_model.TestIndicatorCards.test_rsi_macd_computed_from_candles) ... ok
+test_short_history_stays_na (test_view_model.TestIndicatorCards.test_short_history_stays_na) ... ok
+test_num_rejects_bad (test_view_model.TestNum.test_num_rejects_bad) ... ok
+test_portfolio_metrics_na_context_real (test_view_model.TestRisk.test_portfolio_metrics_na_context_real) ... ok
+test_rows_and_order (test_view_model.TestSector.test_rows_and_order) ... ok
+test_unavailable_sector_is_empty (test_view_model.TestSector.test_unavailable_sector_is_empty) ... ok
+test_closed_after_hours (test_view_model.TestSession.test_closed_after_hours) ... ok
+test_open (test_view_model.TestSession.test_open) ... ok
+test_weekend (test_view_model.TestSession.test_weekend) ... ok
+test_top_stocks_and_na_lists (test_view_model.TestTechnical.test_top_stocks_and_na_lists) ... ok
+test_available_line_formats_numbers 
+(test_watchlist_engine.TestFormatWatchlistLine.test_available_line_formats_numbers) ... ok
+test_missing_numbers_render_as_dashes 
+(test_watchlist_engine.TestFormatWatchlistLine.test_missing_numbers_render_as_dashes) ... ok
+test_nan_reading_renders_as_dash (test_watchlist_engine.TestFormatWatchlistLine.test_nan_reading_renders_as_dash) ... 
+ok
+test_negative_change_is_signed (test_watchlist_engine.TestFormatWatchlistLine.test_negative_change_is_signed) ... ok
+test_non_numeric_price_renders_as_dash 
+(test_watchlist_engine.TestFormatWatchlistLine.test_non_numeric_price_renders_as_dash) ... ok
+test_not_available_shows_reason (test_watchlist_engine.TestFormatWatchlistLine.test_not_available_shows_reason) ... ok
+test_string_number_is_coerced (test_watchlist_engine.TestFormatWatchlistLine.test_string_number_is_coerced) ... ok
+test_symbol_falls_back_to_requested 
+(test_watchlist_engine.TestFormatWatchlistLine.test_symbol_falls_back_to_requested) ... ok
+test_waiting_when_no_entry (test_watchlist_engine.TestFormatWatchlistLine.test_waiting_when_no_entry) ... ok
+test_execution_disabled (test_watchlist_engine.TestGuardrails.test_execution_disabled) ... ok
+test_symbol_cap_is_sane (test_watchlist_engine.TestGuardrails.test_symbol_cap_is_sane) ... ok
+
+----------------------------------------------------------------------
+Ran 388 tests in 8.680s
+
+OK
+Backtesting 20 symbols …
+Backtesting 2 symbols …
+
+[BACKTEST ERROR after 1.50s]
+TypeError: missing 1 required positional argument: 'symbols'
+[CHART DATA] dropped rows in chart input: {'total': 60, 'not_dict': 0, 'bad_date': 60, 'future': 0, 'duplicate': 0, 'bad_ohlc': 0}
+[CHART DATA] dropped rows in chart input: {'total': 40, 'not_dict': 0, 'bad_date': 0, 'future': 0, 'duplicate': 8, 'bad_ohlc': 24}
+[CHART DATA] dropped rows in chart input: {'total': 4, 'not_dict': 0, 'bad_date': 0, 'future': 1, 'duplicate': 0, 'bad_ohlc': 0}
