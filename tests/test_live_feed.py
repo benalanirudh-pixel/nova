@@ -27,6 +27,8 @@ class LiveFeedBase(unittest.TestCase):
             mock.patch.object(live_feed.scheduler, "_broadcast", side_effect=self.sent.append),
             mock.patch.object(live_feed.dhan_feed, "is_configured", return_value=False),
             mock.patch.object(live_feed.nse_live, "get", return_value={"data": []}),  # no network in tests
+            mock.patch.object(live_feed, "fetch_yahoo_quote", return_value=None),  # no network in tests
+            mock.patch.object(live_feed, "fetch_stooq_quote", return_value=None),  # no network in tests
         ]
         for p in patches:
             p.start()

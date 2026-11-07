@@ -4,6 +4,7 @@ import { isNum } from "../lib/format";
 import { sd } from "./analytics";
 import { headline, useDesk, type FlowRow, type ScanRow, type SectorRow } from "./data";
 import { dayMonth, Empty, Flag, Kv, n, Pane, Pct, sg, Sgn, Table, type Col } from "./ui";
+import { useLiveQuote, useLiveWatch } from "../hooks/useLive";
 
 const fiiDate = (d: unknown) => String(d ?? "").split("-").slice(0, 2).map((x, i) => (i ? x : +x)).join(" ");
 
@@ -72,9 +73,16 @@ export function Screener() {
     const t = q.trim().toUpperCase();
     return stocks.filter((r) => PRESETS[preset][1](r) && (!sector || r.x === sector) && (!t || r.s.includes(t) || r.n.toUpperCase().includes(t)));
   }, [stocks, preset, sector, q]);
+  // Subscribe to live quotes for the first 25 displayed symbols (feed cap)
+  useLiveWatch(rows.slice(0, 25).map((r) => r.s));
+
+  const LiveLast = ({ sym, px }: { sym: string; px: number | null }) => { const t = useLiveQuote(sym); return <>{t && isNum(t.ltp) ? n(t.ltp) : n(px)}</>; };
+  const LiveChg = ({ sym, p }: { sym: string; p: number | null }) => { const t = useLiveQuote(sym); return <>{t && isNum(t.change_pct) ? <Pct v={t.change_pct} /> : <Pct v={p} />}</>; };
+
   const cols: Col<ScanRow>[] = [
-    { h: "Symbol", v: (r) => r.s, sort: (r) => r.s, text: true, bold: true }, { h: "Company", v: (r) => r.n.slice(0, 30), sort: (r) => r.n, text: true }, { h: "Sector", v: (r) => r.x.slice(0, 22), sort: (r) => r.x, text: true }, { h: "Last", v: (r) => n(r.p), sort: (r) => r.p },
-    { h: "1D", v: (r) => <Pct v={r.r1} />, sort: (r) => r.r1, heat: { max: 8, of: (r) => r.r1 } }, { h: "5D", v: (r) => <Pct v={r.r5} />, sort: (r) => r.r5, heat: { max: 15, of: (r) => r.r5 } }, { h: "20D", v: (r) => <Pct v={r.r20} d={1} />, sort: (r) => r.r20, heat: { max: 30, of: (r) => r.r20 } }, { h: "60D", v: (r) => <Pct v={r.r60} d={1} />, sort: (r) => r.r60, heat: { max: 50, of: (r) => r.r60 } },
+    { h: "Symbol", v: (r) => r.s, sort: (r) => r.s, text: true, bold: true }, { h: "Company", v: (r) => r.n.slice(0, 30), sort: (r) => r.n, text: true }, { h: "Sector", v: (r) => r.x.slice(0, 22), sort: (r) => r.x, text: true },
+    { h: "Last", v: (r) => <LiveLast sym={r.s} px={r.p} />, sort: (r) => r.p },
+    { h: "1D", v: (r) => <LiveChg sym={r.s} p={r.r1} />, sort: (r) => r.r1, heat: { max: 8, of: (r) => r.r1 } }, { h: "5D", v: (r) => <Pct v={r.r5} />, sort: (r) => r.r5, heat: { max: 15, of: (r) => r.r5 } }, { h: "20D", v: (r) => <Pct v={r.r20} d={1} />, sort: (r) => r.r20, heat: { max: 30, of: (r) => r.r20 } }, { h: "60D", v: (r) => <Pct v={r.r60} d={1} />, sort: (r) => r.r60, heat: { max: 50, of: (r) => r.r60 } },
     { h: "RS 20D", v: (r) => sg(r.rs20, 1), sort: (r) => r.rs20 }, { h: "vs 200D", v: (r) => <Pct v={r.e200} d={1} />, sort: (r) => r.e200 }, { h: "RSI", v: (r) => n(r.rsi, 0), sort: (r) => r.rsi }, { h: "ATR%", v: (r) => n(r.atr), sort: (r) => r.atr }, { h: "Rel vol", v: (r) => `${n(r.rv, 1)}x`, sort: (r) => r.rv }, { h: "Value Cr", v: (r) => n(r.val, 0), sort: (r) => r.val }, { h: "Trend", v: (r) => r.t, text: true }, { h: "Score", v: (r) => n(r.sc, 0), sort: (r) => r.sc },
   ];
   if (!scan) return <div className="pane full"><Empty>Loading scan.</Empty></div>;
