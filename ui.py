@@ -6,6 +6,8 @@ import json
 import urllib.request
 import subprocess
 import platform
+import importlib.util
+from pathlib import Path
 
 import psutil
 
@@ -34,7 +36,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.theme import apply_theme
+# ui.py shadows the ui/ package on import path, so load apply_theme
+# from ui/theme.py directly by file path instead of "from ui.theme import ..."
+_theme_path = Path(__file__).resolve().parent / "ui" / "theme.py"
+_theme_spec = importlib.util.spec_from_file_location("ui_theme", _theme_path)
+_theme_mod = importlib.util.module_from_spec(_theme_spec)
+_theme_spec.loader.exec_module(_theme_mod)
+apply_theme = _theme_mod.apply_theme
 
 from brain import (
     BrainError,

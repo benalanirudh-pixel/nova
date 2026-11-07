@@ -949,55 +949,6 @@ def history_to_dataframe(
     ]
 
     return dataframe
-    # --------------------------------------------------------
-    # Datetime index
-    # --------------------------------------------------------
-
-    dataframe["Date"] = pd.to_datetime(
-        dataframe["Date"],
-        errors="coerce",
-    )
-
-    dataframe = dataframe.dropna(
-        subset=[
-            "Date",
-            "Close",
-        ]
-    )
-
-    if dataframe.empty:
-
-        return pd.DataFrame()
-
-    dataframe = dataframe.set_index(
-        "Date"
-    )
-
-    # --------------------------------------------------------
-    # Ensure standard OHLCV columns
-    # --------------------------------------------------------
-
-    required = [
-        "Open",
-        "High",
-        "Low",
-        "Close",
-        "Volume",
-    ]
-
-    for column in required:
-
-        if column not in dataframe.columns:
-
-            dataframe[column] = None
-
-    dataframe = dataframe[
-        required
-    ]
-
-    dataframe = dataframe.sort_index()
-
-    return dataframe
 
 
 def get_stock_history_dataframe(
