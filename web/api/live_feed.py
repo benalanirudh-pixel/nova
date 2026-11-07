@@ -3,11 +3,17 @@
 Polls existing adapters during the NSE session and pushes changed quotes over
 the scheduler's SSE channel. Analysis only: no orders, no broker execution.
 Never triggers the full NSE equity scan.
+
+Free live sources (tried in order): NSE MCP (primary) -> Yahoo Finance -> Stooq.
+Yahoo/Stooq are rate-limited; don't poll thousands of symbols every few seconds.
 """
 import asyncio
+import csv
+import io
 import os
 import re
 import time
+import urllib.request
 from datetime import datetime, time as dtime
 from zoneinfo import ZoneInfo
 
@@ -98,6 +104,99 @@ def fetch_nse_indices(as_of: str) -> list[dict]:
             for k, sym in names.items() if q.get(k) and q[k]["price"] is not None]
 
 
+# ------------------------------------------------------------------
+# Yahoo Finance fallback (free, rate-limited)
+# ------------------------------------------------------------------
+
+def _yahoo_symbol(symbol: str) -> str:
+    return f"{symbol}.NS"
+
+
+def fetch_yahoo_quote(symbol: str, as_of: str) -> dict | None:
+    """Return a normalized tick dict for one symbol via Yahoo Finance, or None."""
+    try:
+        import yfinance as yf
+    except Exception:
+        return None
+    try:
+        t = yf.Ticker(_yahoo_symbol(symbol))
+        info = t.fast_info or {}
+        price = info.get("last_price") or info.get("lastPrice") or info.get("regular_market_price")
+        if price is None:
+            hist = t.history(period="1d", interval="1m", prepost=False, actions=False)
+            if hist is None or hist.empty:
+                return None
+            price = float(hist["Close"].iloc[-1])
+        prev = info.get("previous_close") or info.get("regular_market_previous_close")
+        change = None
+        change_pct = None
+        if prev and price is not None:
+            change = float(price) - float(prev)
+            change_pct = round(change / float(prev) * 100, 2)
+        return {"type": "tick", "symbol": symbol, "ltp": float(price), "change": change,
+                "change_pct": change_pct, "volume": None, "source": "Yahoo",
+                "as_of": as_of, "max_age_s": 60}
+    except Exception:
+        return None
+
+
+# ------------------------------------------------------------------
+# Stooq fallback (free CSV, delayed, rate-limited)
+# ------------------------------------------------------------------
+
+def fetch_stooq_quote(symbol: str, as_of: str) -> dict | None:
+    """Return a normalized tick dict for one symbol via Stooq, or None."""
+    url = f"https://stooq.com/q/l/?s={symbol.lower()}.ns&f=sd2t2chv&h&e=csv"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = resp.read().decode("utf-8", errors="replace")
+    except Exception:
+        return None
+    reader = csv.DictReader(io.StringIO(data))
+    for row in reader:
+        close = (row.get("Close") or "").strip()
+        if not close or close == "N/D":
+            continue
+        try:
+            price = float(close)
+        except ValueError:
+            continue
+        chg = (row.get("Chg") or "").strip()
+        change = None
+        change_pct = None
+        try:
+            change = float(chg)
+        except ValueError:
+            change = None
+        if change is not None and price:
+            change_pct = round(change / (price - change) * 100, 2) if (price - change) else None
+        vol = None
+        try:
+            vol = int((row.get("Volume") or "0").strip() or 0)
+        except ValueError:
+            vol = None
+        return {"type": "tick", "symbol": symbol, "ltp": price, "change": change,
+                "change_pct": change_pct, "volume": vol, "source": "Stooq",
+                "as_of": as_of, "max_age_s": 300}
+    return None
+
+
+def fetch_stock_quote_free(symbol: str, as_of: str) -> dict | None:
+    """Try NSE MCP first, then Yahoo, then Stooq. Returns a tick dict or None."""
+    q = nse_feed.get_normalized_stock_quote(symbol)
+    if q.get("price") is not None:
+        return {"type": "tick", "symbol": symbol, "ltp": q["price"], "change": q.get("change"),
+                "change_pct": q.get("change_percent"), "volume": q.get("volume"),
+                "source": q.get("source", "NSE MCP"), "as_of": as_of,
+                "max_age_s": 2 * STOCK_POLL_S}
+    tick = fetch_yahoo_quote(symbol, as_of)
+    if tick:
+        return tick
+    tick = fetch_stooq_quote(symbol, as_of)
+    return tick
+
+
 def fetch_indices(as_of: str) -> list[dict]:
     if not dhan_feed.is_configured():
         return fetch_nse_indices(as_of)
@@ -114,13 +213,9 @@ def fetch_indices(as_of: str) -> list[dict]:
 def fetch_stocks(symbols, as_of: str) -> list[dict]:
     ticks = []
     for sym in symbols:
-        q = nse_feed.get_normalized_stock_quote(sym)
-        if q.get("price") is None:
-            continue
-        ticks.append({"type": "tick", "symbol": sym, "ltp": q["price"], "change": q.get("change"),
-                      "change_pct": q.get("change_percent"), "volume": q.get("volume"),
-                      "source": q.get("source", "NSE MCP"), "as_of": as_of,
-                      "max_age_s": 2 * STOCK_POLL_S})
+        tick = fetch_stock_quote_free(sym, as_of)
+        if tick:
+            ticks.append(tick)
     return ticks
 
 
