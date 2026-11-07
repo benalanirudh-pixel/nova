@@ -1,4 +1,4 @@
-"""Nova Desk launcher (localhost only)."""
+"""Nova Desk launcher."""
 import argparse
 import shutil
 import subprocess
@@ -43,6 +43,7 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--dev", action="store_true", help="API only; run Vite separately")
     p.add_argument("--port", type=int, default=8501)
+    p.add_argument("--host", type=str, default="127.0.0.1", help="bind host (use 0.0.0.0 for web deployment)")
     p.add_argument("--build", action="store_true", help="build the frontend (npm run build) and exit")
     p.add_argument("--no-browser", action="store_true", help="don't open the dashboard in a browser")
     a = p.parse_args()
@@ -52,11 +53,11 @@ def main() -> None:
         print("Dev mode: in another shell run `cd web/frontend && npm run dev` (http://localhost:5173)")
     elif needs_build() and build_frontend() != 0 and not DIST_INDEX.exists():
         sys.exit(1)  # an older build still works; only stop when there is nothing to serve
-    url = f"http://localhost:{5173 if a.dev else a.port}/"
+    url = f"http://{'localhost' if a.host in ('127.0.0.1', '0.0.0.0', 'localhost') else a.host}:{5173 if a.dev else a.port}/"
     print(f"Nova Desk: {url}")
     if not a.no_browser:
         threading.Timer(1.5, webbrowser.open, args=(url,)).start()
-    uvicorn.run("web.api.main:create_app", factory=True, host="127.0.0.1", port=a.port)
+    uvicorn.run("web.api.main:create_app", factory=True, host=a.host, port=a.port)
 
 
 if __name__ == "__main__":
