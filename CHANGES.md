@@ -3,6 +3,12 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-10 - Supply-chain page removed
+
+- Removed at the user's request: `/chain` screen and F8, `/api/supply-chain`,
+  `analysis/data/supply_chain/links.json` and their tests. Commit `8272a18`
+  holds the full implementation if it is wanted again.
+
 ## 2026-11-10 - Stock analysis covers the whole scan
 
 - Monitor gains an "All" tab with every stock in the last complete scan

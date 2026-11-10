@@ -1,6 +1,6 @@
 # Nova Desk roadmap: better terminal, then a supply-chain page
 
-Status: Part 2 (supply-chain page) built for RELIANCE on 10 Nov 2026; Part 1 not started. Written 10 Nov 2026 after the bug sweep in
+Status: Part 2 (supply-chain page) was built for RELIANCE on 10 Nov 2026 and removed the same day at the user's request (commit 8272a18 has the code); Part 1 not started. Written 10 Nov 2026 after the bug sweep in
 `CHANGES.md` (holiday-aware feed, stock option chains, scheduler fixes).
 
 Ground rules stay the same: analysis only, no orders, no buy or sell calls,

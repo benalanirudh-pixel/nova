@@ -434,40 +434,6 @@ class TestSchedulerHoliday(unittest.TestCase):
         run.assert_called_once()
 
 
-class TestSupplyChain(unittest.TestCase):
-    def test_shipped_store_has_no_unsupported_links(self):
-        from web.api.routes import desk
-        links = desk.load_links()
-        self.assertIn("RELIANCE", links)
-        self.assertEqual(desk.validate_links(links), [])
-
-    def test_validator_rejects_uncited_filed_link(self):
-        from web.api.routes import desk
-        bad = {"X": {"links": [{"symbol": "Y", "relation": "customer", "confidence": "filed"},
-                               {"symbol": "X", "relation": "partner", "confidence": "rumour"}]}}
-        problems = desk.validate_links(bad)
-        self.assertTrue(any("evidence url" in p for p in problems))
-        self.assertTrue(any("bad counterparty" in p for p in problems))
-        self.assertTrue(any("relation" in p for p in problems))
-
-    def test_view_joins_scan_and_flags_uncovered(self):
-        from web.api.routes import desk
-        links = {"RELIANCE": {"checked_at": "2026-11-10", "links": [{"symbol": "ALOKINDS", "relation": "customer", "confidence": "inferred"}]}}
-        v = desk.chain_view("RELIANCE", links, {"ALOKINDS": {"n": "Alok Industries", "p": 20.0, "r1": 1.0, "r20": 2.0, "rs20": 0.5, "x": "Textiles"}})
-        self.assertTrue(v["covered"])
-        self.assertEqual(v["links"][0]["p"], 20.0)
-        self.assertTrue(v["links"][0]["in_scan"])
-        self.assertFalse(desk.chain_view("TCS", links, {})["covered"])
-
-    def test_route(self):
-        from starlette.testclient import TestClient
-        c = TestClient(create_app())
-        self.assertEqual(c.get("/api/supply-chain/bad%20sym").status_code, 400)
-        body = c.get("/api/supply-chain/RELIANCE").json()
-        self.assertTrue(body["covered"])
-        self.assertFalse(body["guardrails"]["buy_sell_authorization"])
-
-
 class TestStockCache(unittest.TestCase):
     def test_second_request_is_served_from_cache(self):
         from starlette.testclient import TestClient
