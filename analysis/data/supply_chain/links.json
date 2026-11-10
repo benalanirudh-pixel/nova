@@ -1,0 +1,91 @@
+{
+  "_about": "Hand-checked supply-chain links per NSE symbol. relation is the counterparty's role: supplier sells to the company, customer buys from it. filed = exchange or regulatory filing, stated = named in a company or broker document, inferred = industry structure only, never shown as fact. Every filed or stated link needs evidence.url.",
+  "RELIANCE": {
+    "checked_at": "2026-11-10",
+    "links": [
+      {
+        "symbol": "ALOKINDS",
+        "relation": "customer",
+        "product": "Polyester feedstock and products",
+        "confidence": "filed",
+        "note": "Joint venture. Shareholder-approved limit of Rs 5,000 Cr for RIL's sale of products and feedstock to Alok.",
+        "evidence": {
+          "title": "RIL related party transactions disclosure to stock exchanges, 14 Oct 2024",
+          "url": "https://rilstaticasset.akamaized.net/sites/default/files/2024-10/RIL_SE_14102024.pdf",
+          "date": "2024-10-14"
+        }
+      },
+      {
+        "symbol": "ALOKINDS",
+        "relation": "supplier",
+        "product": "Products and job-work services",
+        "confidence": "filed",
+        "note": "Alok lists RIL as having joint control, with a Rs 1,500 Cr limit for sale of products and job work to RIL.",
+        "evidence": {
+          "title": "Alok Industries related party disclosure, Reg 23(9), FY 2024-25",
+          "url": "https://www.alokind.com/assets/pdf/investor-relations/financial-results/related-partytransactions/2024-25/Reg_23_9_Related_Party_Website.pdf",
+          "date": "2025-03-31"
+        }
+      },
+      {
+        "symbol": "RIIL",
+        "relation": "supplier",
+        "product": "Infrastructure support services",
+        "confidence": "filed",
+        "note": "RIIL reported Rs 3,022.85 lakh of operating income from RIL for the half year to Mar 2020. Old figure; current amount not checked.",
+        "evidence": {
+          "title": "RIIL related party disclosure, half year ended 31 Mar 2020 (BSE)",
+          "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/5424308d-1ecc-4b60-a2e3-aa0e8128d8ca.pdf",
+          "date": "2020-03-31"
+        }
+      },
+      {
+        "symbol": "PRINCEPIPE",
+        "relation": "customer",
+        "product": "PVC resin",
+        "confidence": "stated",
+        "note": "Broker note cites Reliance's resin price protection, implying Reliance is a key PVC resin supplier. Share of purchases not disclosed.",
+        "evidence": {
+          "title": "HDFC Securities, Prince Pipes update, Sep 2025",
+          "url": "https://www.hdfcsec.com/hsl.docs/Prince%20Pipes%20-%20Update%20-%20Sep25%20-%20HSIE-202509191404133993832.pdf",
+          "date": "2025-09-19"
+        }
+      },
+      {
+        "symbol": "SUPREMEIND",
+        "relation": "customer",
+        "product": "Polymers (PVC, polyethylene, polypropylene)",
+        "confidence": "inferred",
+        "note": "Large plastics processor; Reliance is India's largest polymer producer. No document checked."
+      },
+      {
+        "symbol": "ASTRAL",
+        "relation": "customer",
+        "product": "PVC resin",
+        "confidence": "inferred",
+        "note": "Pipe maker using PVC resin, a Reliance product. No document checked."
+      },
+      {
+        "symbol": "INDIGO",
+        "relation": "customer",
+        "product": "Aviation turbine fuel",
+        "confidence": "inferred",
+        "note": "Reliance refines and markets ATF; airlines buy from several refiners. No document checked."
+      },
+      {
+        "symbol": "IOC",
+        "relation": "customer",
+        "product": "Refined fuels and LPG",
+        "confidence": "inferred",
+        "note": "Oil marketing companies buy product from private refiners. No document checked."
+      },
+      {
+        "symbol": "LT",
+        "relation": "supplier",
+        "product": "Engineering and construction for projects",
+        "confidence": "inferred",
+        "note": "India's largest EPC contractor for refining and petrochemical projects. No document checked."
+      }
+    ]
+  }
+}

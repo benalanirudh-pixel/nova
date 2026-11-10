@@ -163,3 +163,7 @@ th.so button { all: unset; cursor: pointer } th.so button:focus-visible { outlin
   .app > [role=note] .k { margin-left: 0 }
 }
 @media (min-width: 2100px) { .app { zoom: 1.28; height: calc(100dvh / 1.28) } }
+.grid-chain{display:grid;gap:1px;background:var(--line);min-height:0;min-width:0;height:100%;grid-template:"hd hd" auto "up down" minmax(0,1fr) "ft ft" auto / minmax(0,1fr) minmax(0,1fr)}
+.chain-col{display:flex;min-height:0;min-width:0}.chain-col>.pane{flex:1}
+.empty .chip{margin:0 4px}
+.grid-chain td.x{white-space:normal;min-width:90px}

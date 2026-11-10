@@ -3,6 +3,23 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-10 - Supply-chain page (RELIANCE first)
+
+- New screen `/chain?s=SYMBOL` (F8, "Supply chain"), linked from every stock
+  sheet: suppliers and customers with scan prices, 1D, 20D and RS 20D.
+- Data store `analysis/data/supply_chain/links.json`, hand-checked. Each link
+  has `relation` (supplier or customer, the counterparty's role),
+  `confidence` (`filed`, `stated`, `inferred`) and, unless inferred, an
+  `evidence` url, title and date. Inferred links sit in a separate section
+  tagged "Not from a document".
+- `GET /api/supply-chain/{symbol}` in `web/api/routes/desk.py`;
+  `validate_links()` rejects uncited filed or stated links, bad relations and
+  self-links, and a test runs it against the shipped store.
+- RELIANCE seeded with 4 cited links (Alok Industries both ways and RIIL from
+  related-party filings; Prince Pipes from a broker note) and 5 inferred ones.
+  Other symbols show "not covered yet". To add a company, add its entry to
+  `links.json` with sources and run `tests.test_web_api`.
+
 ## 2026-11-10 - Bug sweep: holidays, stock option chains, Screener cells
 
 - NSE holidays: new `nse_live.trading_holidays()` reads NSE's holiday-master

@@ -1678,3 +1678,12 @@ sprint (screenshot caught the brief loading).
 - Browser: `/fno?i=RELIANCE` and the RELIANCE sheet's option snapshot render
   with no NaN or undefined text; Screener renders 300 rows.
 
+## 2026-11-10 - Supply-chain page
+
+- `tests.test_web_api` - 43 tests OK, including the shipped links store
+  passing `validate_links()` and the `/api/supply-chain` route.
+- `npm run build` in `web/frontend` OK.
+- Browser: `/chain?s=RELIANCE` shows 2 suppliers and 2 customers cited (4
+  evidence links), 5 inferred rows tagged; `/chain?s=TCS` shows "not covered";
+  a row click opens that stock's sheet; no horizontal scroll at 375px.
+

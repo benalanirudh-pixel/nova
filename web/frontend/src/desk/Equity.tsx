@@ -220,6 +220,7 @@ function StockSheet({ sym, go }: { sym: string; go: (s: string) => void }) {
           {stock.error && <div className="pad"><Flag>History failed</Flag><p className="note-t">{stock.error}</p></div>}
           {(P?.highlights ?? []).length > 0 && <ul className="reads pad">{P!.highlights.slice(0, 4).map((h) => <li key={h.text}>{h.text}</li>)}</ul>}
           <StockOptions sym={sym} />
+          <div className="pad bt1 note-t"><Link to={`/chain?s=${encodeURIComponent(sym)}`}>Suppliers and customers of {sym}</Link></div>
         </>
       } />
   );

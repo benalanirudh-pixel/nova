@@ -1,12 +1,14 @@
 """Read-only data for the Nova Desk screener, sector tables and audit screen. Never starts a scan."""
 import csv
 import glob
+import json
 import os
 import re
 from collections import defaultdict
 from pathlib import Path
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 from analysis.data import symbol_master
 from market_lab import view_model as vm
@@ -141,3 +143,58 @@ def audit():
         "factor_rows": len(ranked), "factor_rows_empty": sum(1 for x in ranked if not any((x.get("factor_z") or {}).values())),
         "guardrails": vm.guardrails(r),
     }
+
+
+LINKS_FILE = Path(__file__).resolve().parents[3] / "analysis" / "data" / "supply_chain" / "links.json"
+RELATIONS = ("supplier", "customer")
+EVIDENCE_LEVELS = ("filed", "stated", "inferred")
+_SYMBOL = re.compile(r"^[A-Z0-9&-]{1,20}$")
+
+
+def load_links(path: Path = LINKS_FILE) -> dict:
+    with open(path, encoding="utf8") as f:
+        return {k: v for k, v in json.load(f).items() if not k.startswith("_")}
+
+
+def validate_links(links: dict) -> list[str]:
+    """Problems that would put an unsupported link on screen; empty means the store is usable."""
+    out = []
+    for company, entry in links.items():
+        for i, l in enumerate(entry.get("links", [])):
+            where = f"{company}[{i}] {l.get('symbol')}"
+            if not _SYMBOL.match(str(l.get("symbol", ""))) or l.get("symbol") == company:
+                out.append(f"{where}: bad counterparty symbol")
+            if l.get("relation") not in RELATIONS:
+                out.append(f"{where}: relation must be one of {RELATIONS}")
+            if l.get("confidence") not in EVIDENCE_LEVELS:
+                out.append(f"{where}: confidence must be one of {EVIDENCE_LEVELS}")
+            if l.get("confidence") in ("filed", "stated") and not str((l.get("evidence") or {}).get("url", "")).startswith("https://"):
+                out.append(f"{where}: {l.get('confidence')} link needs an https evidence url")
+    return out
+
+
+def chain_view(symbol: str, links: dict, stocks: dict) -> dict:
+    entry = links.get(symbol)
+    if not entry:
+        return {"symbol": symbol, "covered": False, "covered_symbols": sorted(links)}
+    rows = []
+    for l in entry["links"]:
+        r = stocks.get(l["symbol"]) or {}
+        rows.append({**l, "name": r.get("n") or l["symbol"], "sector": r.get("x"), "p": r.get("p"), "r1": r.get("r1"),
+                     "r20": r.get("r20"), "rs20": r.get("rs20"), "in_scan": bool(r)})
+    return {"symbol": symbol, "covered": True, "checked_at": entry.get("checked_at"), "company": stocks.get(symbol),
+            "links": rows, "covered_symbols": sorted(links)}
+
+
+@router.get("/supply-chain/{symbol}")
+def supply_chain(symbol: str):
+    key = symbol.strip().upper()
+    if not _SYMBOL.match(key):
+        return JSONResponse({"error": f"Invalid symbol: {symbol}"}, status_code=400)
+    try:
+        links = load_links()
+    except (OSError, ValueError) as e:
+        return JSONResponse({"error": f"Supply-chain store unreadable: {e}"}, status_code=502)
+    s = scan()  # fills the scan cache used for live-ish prices; empty when no complete scan exists
+    stocks = {r["s"]: r for r in _cache.get("stocks", [])} if s.get("available") else {}
+    return {**chain_view(key, links, stocks), "scan_as_of": s.get("as_of"), "guardrails": vm.guardrails({})}
