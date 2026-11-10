@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 
 import pandas as pd
@@ -74,8 +75,8 @@ _fno_cache: dict = {}
 @router.get("/fno/{instrument}")
 async def fno(instrument: str, expiry: str | None = None):
     key = instrument.strip().upper()
-    if key not in fno_desk.INSTRUMENTS:
-        return JSONResponse({"error": f"Unsupported instrument: {instrument}. Use NIFTY, BANKNIFTY or SENSEX."}, status_code=404)
+    if key not in fno_desk.INSTRUMENTS and not re.fullmatch(r"[A-Z0-9&-]{1,20}", key):
+        return JSONResponse({"error": f"Unsupported instrument: {instrument}. Use NIFTY, BANKNIFTY, SENSEX or an NSE stock."}, status_code=404)
     if expiry is not None and (len(expiry) > 20 or not all(ch.isalnum() or ch in " -" for ch in expiry)):
         return JSONResponse({"error": f"Invalid expiry: {expiry}"}, status_code=400)
     hit = _fno_cache.get((key, expiry))
@@ -83,6 +84,8 @@ async def fno(instrument: str, expiry: str | None = None):
         return hit[1]
     try:
         data = await asyncio.to_thread(fno_desk.build_fno, key, expiry)
+    except ValueError as e:
+        return JSONResponse({"error": f"{e}. Use NIFTY, BANKNIFTY, SENSEX or an NSE stock."}, status_code=404)
     except Exception as e:
         return JSONResponse({"error": f"F&O desk failed: {e}"}, status_code=502)
     data["guardrails"] = vm.guardrails({})

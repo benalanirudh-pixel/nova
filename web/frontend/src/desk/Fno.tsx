@@ -1,7 +1,9 @@
+import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useMarketData } from "../hooks/useMarketData";
 import { isNum } from "../lib/format";
 import type { FnoDesk } from "../lib/types";
-import { type FnoRow } from "./analytics";
+import { analyzeChain, type Fno, type FnoRow } from "./analytics";
 import { useDesk } from "./data";
 import { Empty, Flag, Kv, n, Pane, Pct, pc, sg, Sgn, Table, type Col } from "./ui";
 
@@ -9,12 +11,25 @@ const LIST = ["NIFTY", "BANKNIFTY", "SENSEX"];
 const blank = (v: number | null | undefined, d = 2) => ((v ?? 0) > 0 ? n(v, d) : "");
 
 export default function Fno() {
-  const { chains, models, analysis } = useDesk();
-  const [params, setParams] = useSearchParams();
-  const inst = LIST.includes((params.get("i") ?? "").toUpperCase()) ? params.get("i")!.toUpperCase() : "NIFTY";
-  const C = chains[inst], A = models[inst], M = C?.metrics, T = C?.technicals;
-  if (!C) return <div className="pane full"><Empty>Loading option chain.</Empty></div>;
-  if (!M || !T || !A) return <div className="pane full"><Empty>Option chain unavailable. {Object.values(C.errors ?? {})[0]}</Empty></div>;
+  const { chains, models } = useDesk();
+  const [params] = useSearchParams();
+  const inst = (params.get("i") ?? "NIFTY").toUpperCase();
+  return LIST.includes(inst) ? <FnoView inst={inst} C={chains[inst]} A={models[inst]} /> : <StockFno key={inst} sym={inst} />;
+}
+
+function StockFno({ sym }: { sym: string }) {
+  const f = useMarketData<FnoDesk>(`/fno/${encodeURIComponent(sym)}`);
+  const A = useMemo(() => analyzeChain(f.data), [f.data]);
+  if (f.error) return <div className="pane full"><Empty>No option chain for {sym}. {f.error}</Empty></div>;
+  return <FnoView inst={sym} C={f.data} A={A} />;
+}
+
+function FnoView({ inst, C, A }: { inst: string; C: FnoDesk | null; A: Fno | null }) {
+  const { chains, analysis } = useDesk();
+  const [, setParams] = useSearchParams();
+  const M = C?.metrics, T = C?.technicals;
+  if (!C) return <div className="pane full"><Empty>Loading option chain for {inst}.</Empty></div>;
+  if (!M || !T || !A) return <div className="pane full"><Empty>Option chain unavailable for {inst}. {Object.values(C.errors ?? {})[0]}</Empty></div>;
   const R = inst === "NIFTY" ? analysis?.derivatives?.nifty : inst === "BANKNIFTY" ? analysis?.derivatives?.bank_nifty : null;
   const rows = [...A.rows].reverse(), spot = C.spot!;
   const mv = Math.max(...rows.flatMap((r) => [Math.abs(r.call_change_oi ?? 0), Math.abs(r.put_change_oi ?? 0)]), 1), mo = Math.max(...rows.flatMap((r) => [r.call_oi ?? 0, r.put_oi ?? 0]), 1);
@@ -52,11 +67,11 @@ export default function Fno() {
         <div className="qh">
           <div><h1>{C.name}</h1><div className="sub">{C.source}, expiry {C.expiry}, {M.days_to_expiry} days</div></div>
           <div className="px">{n(spot)}</div>
-          <span className="seg" role="group" aria-label="Instrument">{LIST.map((i) => <button key={i} type="button" aria-pressed={i === inst} onClick={() => setParams({ i })}>{chains[i]?.name ?? i}</button>)}</span>
+          <span className="seg" role="group" aria-label="Instrument">{[...LIST, ...(LIST.includes(inst) ? [] : [inst])].map((i) => <button key={i} type="button" aria-pressed={i === inst} onClick={() => setParams({ i })}>{i === inst ? C.name : chains[i]?.name ?? i}</button>)}</span>
           <div className="q">{[["Forward", n(A.fwd, 0)], ["Basis", sg(A.basis, 1)], ["ATM IV", `${n(iv, 1)}%`], ["IV less RV", sg(iv - rv, 1)], ["Straddle", n(M.straddle, 0)], ["1σ to expiry", `±${n(A.sigmaMove, 0)}`], ["Max pain", n(M.max_pain, 0)]].map(([k, v]) => <div key={k}><u>{k}</u><b>{v}</b></div>)}</div>
         </div>
       </section>
-      <Pane area="cx" title="Index comparison" sub="Near-month chain per index"><Table cols={cross} rows={LIST.map((i) => chains[i]).filter((c): c is FnoDesk => !!c)} isOn={(c) => c === C} /></Pane>
+      <Pane area="cx" title="Index comparison" sub="Near-month chain per index"><Table cols={cross} rows={[...LIST.map((i) => chains[i]), ...(LIST.includes(inst) ? [] : [C])].filter((c): c is FnoDesk => !!c)} isOn={(c) => c === C} /></Pane>
       <Pane area="ch" title="Option chain with delta and net gamma" sub={`${rows.length} strikes. Delta from each strike’s IV`}><Table cols={chain} rows={rows} groups={[["Calls", 6], ["", 1], ["Puts", 6], ["", 2]]} isOn={(r) => r.strike === M.atm} /></Pane>
       <section className="pane" style={{ gridArea: "rg" }} aria-label="Positioning">
         <div className="body">

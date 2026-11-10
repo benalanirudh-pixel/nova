@@ -417,3 +417,18 @@ class TestSchedulerMisfire(unittest.TestCase):
         jobs = app.state.scheduler.get_jobs()
         self.assertEqual(len(jobs), len(scheduler.SLOTS))
         self.assertTrue(all(j.misfire_grace_time is None and j.coalesce for j in jobs))
+
+
+class TestSchedulerHoliday(unittest.TestCase):
+    def test_holiday_skips_scheduled_scan(self):
+        import asyncio
+        from web.api import scheduler
+        today = scheduler.datetime.now(scheduler.ZoneInfo(scheduler.IST)).date().isoformat()
+        with _mock.patch.object(scheduler.nse_live, "trading_holidays", return_value={today}), \
+             _mock.patch.object(scheduler, "do_refresh") as run:
+            asyncio.run(scheduler._scheduled_refresh())
+        run.assert_not_called()
+        with _mock.patch.object(scheduler.nse_live, "trading_holidays", side_effect=RuntimeError("down")), \
+             _mock.patch.object(scheduler, "do_refresh") as run:
+            asyncio.run(scheduler._scheduled_refresh())
+        run.assert_called_once()

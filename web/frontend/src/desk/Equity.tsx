@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useMarketData } from "../hooks/useMarketData";
 import { useLiveQuote, useLiveWatch } from "../hooks/useLive";
 import { isNum } from "../lib/format";
-import type { StockProfile } from "../lib/types";
+import type { FnoDesk, StockProfile } from "../lib/types";
 import { risk, withQuote, type Bar, type Risk } from "./analytics";
 import { headline, INDEX_NAMES, INDICES, useDesk } from "./data";
 import { big, Block, dayMonth, Empty, Flag, Kv, n, Pct, pc, sg, Table, type Col } from "./ui";
@@ -174,6 +174,22 @@ function IndexSheet({ sym }: { sym: string }) {
   );
 }
 
+function StockOptions({ sym }: { sym: string }) {
+  const f = useMarketData<FnoDesk>(`/fno/${encodeURIComponent(sym)}`);
+  const m = f.data?.metrics;
+  if (!f.data && !f.error) return <div className="pad bt1 note-t">Loading option chain.</div>;
+  if (!m) return <div className="pad bt1"><Flag>No option chain</Flag><p className="note-t">{f.error ?? f.data?.errors?.chain ?? "Not in the NSE F&O segment."}</p></div>;
+  return (
+    <>
+      <div className="ph bt"><h2>Option snapshot</h2><span className="s">Expiry {f.data!.expiry}</span></div>
+      <div className="pad">
+        <Kv rows={[["Priced range", `${n(m.breakeven_low, 0)} to ${n(m.breakeven_high, 0)}`], ["OI PCR", n(m.pcr_oi)], ["ATM IV", `${n(m.atm_iv, 1)}%`], ["Max pain", n(m.max_pain, 0)], ["Call wall", n(m.resistance[0]?.strike, 0)], ["Put wall", n(m.support[0]?.strike, 0)]]} />
+        <p className="note-t"><Link to={`/fno?i=${encodeURIComponent(sym)}`}>Open the full option chain</Link></p>
+      </div>
+    </>
+  );
+}
+
 function StockSheet({ sym, go }: { sym: string; go: (s: string) => void }) {
   const { bySymbol, tradeDate } = useDesk();
   const stock = useMarketData<StockData>(`/stock/${encodeURIComponent(sym)}`);
@@ -203,7 +219,7 @@ function StockSheet({ sym, go }: { sym: string; go: (s: string) => void }) {
         <>
           {stock.error && <div className="pad"><Flag>History failed</Flag><p className="note-t">{stock.error}</p></div>}
           {(P?.highlights ?? []).length > 0 && <ul className="reads pad">{P!.highlights.slice(0, 4).map((h) => <li key={h.text}>{h.text}</li>)}</ul>}
-          <div className="pad bt1"><Flag>No stock option data</Flag><p className="note-t">Nova’s option feed covers NIFTY, BANKNIFTY and SENSEX only.</p></div>
+          <StockOptions sym={sym} />
         </>
       } />
   );

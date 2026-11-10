@@ -6,6 +6,10 @@ import { headline, useDesk, type FlowRow, type ScanRow, type SectorRow } from ".
 import { dayMonth, Empty, Flag, Kv, n, Pane, Pct, sg, Sgn, Table, type Col } from "./ui";
 import { useLiveQuote, useLiveWatch } from "../hooks/useLive";
 
+// module scope: a component declared inside render remounts every cell on every tick
+const LiveLast = ({ sym, px }: { sym: string; px: number | null }) => { const t = useLiveQuote(sym); return <>{t && isNum(t.ltp) ? n(t.ltp) : n(px)}</>; };
+const LiveChg = ({ sym, p }: { sym: string; p: number | null }) => { const t = useLiveQuote(sym); return <>{t && isNum(t.change_pct) ? <Pct v={t.change_pct} /> : <Pct v={p} />}</>; };
+
 const fiiDate = (d: unknown) => String(d ?? "").split("-").slice(0, 2).map((x, i) => (i ? x : +x)).join(" ");
 
 export function Flows() {
@@ -75,9 +79,6 @@ export function Screener() {
   }, [stocks, preset, sector, q]);
   // Subscribe to live quotes for the first 25 displayed symbols (feed cap)
   useLiveWatch(rows.slice(0, 25).map((r) => r.s));
-
-  const LiveLast = ({ sym, px }: { sym: string; px: number | null }) => { const t = useLiveQuote(sym); return <>{t && isNum(t.ltp) ? n(t.ltp) : n(px)}</>; };
-  const LiveChg = ({ sym, p }: { sym: string; p: number | null }) => { const t = useLiveQuote(sym); return <>{t && isNum(t.change_pct) ? <Pct v={t.change_pct} /> : <Pct v={p} />}</>; };
 
   const cols: Col<ScanRow>[] = [
     { h: "Symbol", v: (r) => r.s, sort: (r) => r.s, text: true, bold: true }, { h: "Company", v: (r) => r.n.slice(0, 30), sort: (r) => r.n, text: true }, { h: "Sector", v: (r) => r.x.slice(0, 22), sort: (r) => r.x, text: true },

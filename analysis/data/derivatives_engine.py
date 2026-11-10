@@ -51,6 +51,7 @@ import argparse
 import gzip
 import json
 import math
+import re
 import sys
 import time
 import zlib
@@ -859,7 +860,8 @@ def fetch_option_chain_json(
         symbol
     )
 
-    if symbol not in SUPPORTED_SYMBOLS:
+    # indices use the "Indices" chain; any other valid NSE symbol is tried as a stock
+    if symbol not in SUPPORTED_SYMBOLS and not re.fullmatch(r"[A-Z0-9&-]{1,20}", symbol):
 
         raise ValueError(
             f"Unsupported instrument: "
@@ -962,7 +964,7 @@ def fetch_option_chain_json(
                 NSE_OPTION_CHAIN_V3_URL,
                 params={
                     "type":
-                        "Indices",
+                        "Indices" if symbol in SUPPORTED_SYMBOLS else "Equity",
 
                     "symbol":
                         symbol,

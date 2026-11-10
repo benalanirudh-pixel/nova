@@ -47,6 +47,13 @@ function Tape() {
   );
 }
 
+function SessionChip({ clock }: { clock: string }) {
+  const { overview } = useDesk();
+  const nse = overview?.live?.status?.state; // NSE's own status knows holidays; the IST clock does not
+  const open = nse ? /^open$/i.test(nse) : clock === "Open";
+  return <span title={overview?.live?.status?.message}><span className={`dot${open ? "" : " off"}`} />NSE {open ? "open" : "closed"}</span>;
+}
+
 function Foot({ text }: { text: string }) {
   const { overview, audit, errors } = useDesk();
   const { status } = useFeedStatus();
@@ -117,7 +124,7 @@ export default function App() {
                 <span><Search size={13} style={{ display: "inline", marginRight: 6, verticalAlign: -2 }} aria-hidden />Symbol, page or action</span><kbd>Ctrl K</kbd>
               </button>
               <div className="right">
-                <span><span className={`dot${clock.session === "Open" ? "" : " off"}`} />NSE {clock.session.toLowerCase()}</span>
+                <SessionChip clock={clock.session} />
                 <span className="m">{clock.clock}</span>
                 <span className="fa">Next scan {next}</span>
                 <button className="tbtn" type="button" title="Run the full NSE scan (R)" onClick={refresh}>Refresh</button>

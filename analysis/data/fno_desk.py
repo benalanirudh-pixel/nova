@@ -277,11 +277,19 @@ def desk_read(spot: float, m: Optional[dict], t: Optional[dict]) -> list[dict]:
 
 # ---------------------------------------------------------------- assembly
 
+def _stock_meta(symbol: str) -> dict:
+    """NSE equity, read from the cached master only; unknown symbols raise ValueError."""
+    from analysis.data import symbol_master
+    sec = symbol_master.get_security(symbol) if symbol_master.MASTER_FILE.exists() else None
+    if not sec:
+        raise ValueError(f"Unsupported instrument: {symbol}")
+    name = next((sec[k] for k in ("company_name", "name") if sec.get(k)), symbol)
+    return {"name": name, "exchange": "NSE", "yahoo": f"{symbol}.NS"}
+
+
 def build_fno(instrument: str, expiry: Optional[str] = None, today: Optional[date] = None) -> dict:
-    key = re.sub(r"[^A-Z]", "", instrument.upper())
-    if key not in INSTRUMENTS:
-        raise ValueError(f"Unsupported instrument: {instrument}")
-    meta = INSTRUMENTS[key]
+    key = re.sub(r"[^A-Z0-9&-]", "", instrument.upper())
+    meta = INSTRUMENTS.get(key) or _stock_meta(key)
     errors: dict = {}
 
     chain = metrics = tech = None

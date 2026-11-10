@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from analysis.data import nse_live
 from market_lab.market_lab_data import get_market_lab_data, save_json_report
 
 IST = "Asia/Kolkata"
@@ -65,6 +66,11 @@ def do_refresh() -> str:
 
 
 async def _scheduled_refresh() -> None:
+    try:
+        if datetime.now(ZoneInfo(IST)).date().isoformat() in await asyncio.to_thread(nse_live.trading_holidays):
+            return  # NSE is shut: a scan would only re-save the last session
+    except Exception:
+        pass  # holiday list unavailable: refresh as scheduled
     do_refresh()
 
 

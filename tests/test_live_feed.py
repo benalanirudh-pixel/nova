@@ -159,3 +159,23 @@ class TestLiveRoutes(LiveFeedBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHolidays(LiveFeedBase):
+    def test_parse_cm_segment_only(self):
+        payload = {"CM": [{"tradingDate": "10-Nov-2026"}], "FO": [{"tradingDate": "11-Nov-2026"}]}
+        self.assertEqual(live_feed.nse_live.parse_holidays(payload), {"2026-11-10"})
+
+    def test_holiday_reports_closed_without_polling(self):
+        holiday = MON_11AM.replace(day=10)  # Tuesday 10 Nov 2026, Diwali-Balipratipada
+        with mock.patch.object(live_feed.nse_live, "trading_holidays", return_value={"2026-11-10"}), \
+             mock.patch.object(live_feed, "fetch_indices") as fetch:
+            self.assertEqual(self.poll(now=holiday), 0)
+        fetch.assert_not_called()
+        self.assertEqual(live_feed._status["state"], "closed")
+        self.assertIn("holiday", live_feed._status["reason"])
+
+    def test_holiday_list_failure_falls_back_to_hours(self):
+        with mock.patch.object(live_feed.nse_live, "trading_holidays", side_effect=RuntimeError("blocked")):
+            self.poll()
+        self.assertNotIn("holiday", live_feed._status["reason"])

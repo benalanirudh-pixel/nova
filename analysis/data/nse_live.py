@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import threading
+from datetime import datetime
 from typing import Any, Optional
 
 from analysis.data import derivatives_engine as de
@@ -90,6 +91,16 @@ def market() -> dict:
     out["status"] = {"state": cm.get("marketStatus"), "message": cm.get("marketStatusMessage"), "trade_date": cm.get("tradeDate")}
     out["gift_nifty"] = parse_gift(status)
     return out
+
+
+def parse_holidays(payload: dict) -> set[str]:
+    """ISO dates of equity (CM segment) trading holidays from NSE's holiday-master."""
+    rows = (payload or {}).get("CM") or []
+    return {datetime.strptime(r["tradingDate"], "%d-%b-%Y").date().isoformat() for r in rows if r.get("tradingDate")}
+
+
+def trading_holidays() -> set[str]:
+    return parse_holidays(get("holiday-master", {"type": "trading"}))
 
 
 def parse_fii_dii(rows: Any) -> list[dict]:

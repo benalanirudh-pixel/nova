@@ -168,3 +168,22 @@ class TestRoute(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestStockChain(unittest.TestCase):
+    def test_stock_symbol_uses_equity_chain_and_ns_history(self):
+        from analysis.data import symbol_master
+        with mock.patch.object(symbol_master, "get_security", return_value={"symbol": "M&M", "company_name": "Mahindra & Mahindra Limited"}), \
+             mock.patch.object(symbol_master, "MASTER_FILE", mock.Mock(exists=lambda: True)), \
+             mock.patch.object(fd, "fetch_nse_chain", side_effect=RuntimeError("blocked")) as chain, \
+             mock.patch.object(fd, "fetch_spot_history", return_value=TestTechnicals().hist("2026-10-30")) as hist:
+            d = fd.build_fno("m&m")
+        chain.assert_called_once_with("M&M", None)
+        hist.assert_called_once_with("M&M.NS")
+        self.assertEqual(d["name"], "Mahindra & Mahindra Limited")
+
+    def test_unknown_stock_rejected_without_download(self):
+        from analysis.data import symbol_master
+        with mock.patch.object(symbol_master, "MASTER_FILE", mock.Mock(exists=lambda: False)):
+            with self.assertRaises(ValueError):
+                fd.build_fno("NOTASTOCK")

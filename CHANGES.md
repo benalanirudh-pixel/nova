@@ -3,6 +3,27 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-10 - Bug sweep: holidays, stock option chains, Screener cells
+
+- NSE holidays: new `nse_live.trading_holidays()` reads NSE's holiday-master
+  (CM segment). `live_feed` reports `closed / NSE trading holiday` instead of
+  "live" with the last session's prices, and the scheduler skips scans on
+  holidays. Found on 10 Nov (Diwali-Balipratipada), when the desk showed
+  "NSE open" and "Feed live".
+- Header session chip follows NSE's own market status, not the IST clock.
+- Stock option chains: `derivatives_engine.fetch_option_chain_json` asks the
+  v3 chain with `type=Equity` for non-index symbols, `fno_desk.build_fno`
+  accepts any symbol in the cached NSE master (history from `{SYMBOL}.NS`),
+  and `/api/fno/{symbol}` returns 404 for unknown symbols. The stock sheet
+  shows an option snapshot; `/fno?i=RELIANCE` opens the full desk.
+- NSE MCP (`indian-market-mcp` 0.1.0, 68 tools) checked: quotes, profile,
+  breadth and market status work; its NSE shareholding, board meeting,
+  announcement, results, futures and stock option tools return "temporarily
+  unavailable" or empty, so stock chains go through Nova's own NSE session.
+- Screener live cells were components declared inside render, so every tick
+  remounted every row; moved to module scope.
+- Roadmap and supply-chain page plan: `docs/plans/2026-11-10-nova-desk-roadmap.md`.
+
 ## 2026-11-10 - Scheduled refresh survives PC sleep, `nova` command
 
 - `web/api/scheduler.py`: cron slots use `misfire_grace_time=None, coalesce=True`.

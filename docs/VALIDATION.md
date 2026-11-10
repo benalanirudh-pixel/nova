@@ -1664,3 +1664,17 @@ sprint (screenshot caught the brief loading).
 - Running server on 8501 restarted: report 10 Nov 10:54 IST (2,005-stock
   scan), feed live, NSE ticks for NIFTY, BANKNIFTY and INDIAVIX updating.
 
+## 2026-11-10 - Bug sweep
+
+- Full offline suite: `.\venv\Scripts\python.exe -m unittest discover -s tests` OK
+  (see commit for the count), including new holiday, stock chain and
+  scheduler holiday tests.
+- `npx tsc --noEmit -p .` and `npm run build` in `web/frontend` OK.
+- Live server on a real NSE holiday (10 Nov): `/api/live/snapshot` status
+  `closed, NSE trading holiday`; header shows "NSE closed".
+- `/api/fno/RELIANCE` and `/api/fno/M%26M` return full chains; IRCTC and
+  SAREGAMA return technicals with a flagged "no expiry dates" chain error;
+  FINNIFTY returns 404.
+- Browser: `/fno?i=RELIANCE` and the RELIANCE sheet's option snapshot render
+  with no NaN or undefined text; Screener renders 300 rows.
+

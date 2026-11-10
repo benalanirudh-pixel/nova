@@ -39,18 +39,30 @@ _fails: dict[str, int] = {}            # source -> consecutive failures
 _next_at: dict[str, float] = {}        # source -> monotonic time of next poll
 _errors: dict[str, str] = {}           # source -> last error
 _status: dict = {"type": "feed_status", "state": "closed", "reason": "Not started", "as_of": None}
+_holidays: dict = {"day": None, "dates": set()}  # NSE trading holidays, fetched once per IST day
 
 
 def reset() -> None:
     for d in (_last, _watch, _fails, _next_at, _errors):
         d.clear()
     _status.update(state="closed", reason="Not started", as_of=None)
+    _holidays.update(day=None, dates=set())
 
 
-def in_session(now: datetime) -> bool:
-    # shortcut: weekday + hours only, no NSE holiday calendar; add one when the codebase has it.
+def in_session(now: datetime, holidays=frozenset()) -> bool:
     now = now.astimezone(IST)
-    return now.weekday() < 5 and SESSION_OPEN <= now.time() <= SESSION_CLOSE
+    return now.weekday() < 5 and now.date().isoformat() not in holidays and SESSION_OPEN <= now.time() <= SESSION_CLOSE
+
+
+async def _load_holidays(now: datetime) -> None:
+    day = now.astimezone(IST).date()
+    if _holidays["day"] == day:
+        return
+    try:
+        _holidays["dates"] = await asyncio.to_thread(nse_live.trading_holidays)
+    except Exception:
+        pass  # keep the last list; without one the feed falls back to weekday hours
+    _holidays["day"] = day
 
 
 def watch(symbols, mono: float | None = None) -> dict:
@@ -237,6 +249,10 @@ def _set_status(state: str, reason: str, as_of: str) -> None:
 async def poll_once(mono: float, now: datetime) -> int:
     """One loop iteration. Returns number of ticks broadcast."""
     as_of = now.astimezone(IST).isoformat()
+    await _load_holidays(now)
+    if now.astimezone(IST).date().isoformat() in _holidays["dates"]:
+        _set_status("closed", "NSE trading holiday", as_of)
+        return 0
     if not in_session(now):
         _set_status("closed", "Outside NSE session (09:15-15:30 IST, Mon-Fri)", as_of)
         return 0
