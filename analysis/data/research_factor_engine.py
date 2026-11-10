@@ -236,11 +236,12 @@ def build_research_factors(
                 else round(float(row["price"]), 4)
             ),
             "composite_z": float(row["_composite"]),
+            # factor scores live in factor_z, not in the scanner rows
             "factor_z": {
                 name: (
                     None
-                    if pd.isna(row.get(name))
-                    else round(float(row[name]), 4)
+                    if pd.isna(factor_z.at[row.name, name])
+                    else round(float(factor_z.at[row.name, name]), 4)
                 )
                 for name in FACTOR_DEFINITIONS
             },

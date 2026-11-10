@@ -38,3 +38,7 @@ Thumbs.db
 
 # Kilo CLI tool config (tool-specific, keep the repo model-agnostic)
 .kilo/
+
+# Scratch test and verification logs
+test_output*.txt
+verify_out.txt

@@ -3191,6 +3191,14 @@ def get_market_lab_data(
             "market_scan",
         )
 
+        # Sector tables are built from this scan; without this the sector
+        # file stayed at whatever date sector_engine.py was last run by hand.
+        try:
+            from analysis.data.sector_engine import scan_sectors
+            scan_sectors(scanner=(market_dataframe, scanner_summary or {}))
+        except Exception as exc:
+            print(f"[WARNING] Sector refresh failed; keeping the last sector file: {exc}")
+
         # ----------------------------------------------------
         # Use scanner's actual regime.
         # Do NOT call determine_market_regime() again.

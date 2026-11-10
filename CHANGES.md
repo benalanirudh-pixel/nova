@@ -3,6 +3,25 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-10 - Project sweep: sectors, factor scores, repo clutter
+
+- Sector file never refreshed: a full refresh scanned the market but never ran
+  the sector engine, so every report since 8 Oct read `sector_scan_20261008`.
+  `get_market_lab_data` now runs `sector_engine.scan_sectors` on the fresh
+  scan, and `scan_sectors(scanner=...)` reuses that scan instead of running a
+  second 2-3 minute one. Sector failures warn and keep the last file.
+- Research factor scores were always null: `_entry` read each factor from the
+  scanner row instead of `factor_z`. Fixed; the old test skipped None values
+  and now fails on them.
+- "PCR disagrees" flag renamed "PCR scopes differ": the chain figure covers
+  every strike, the report's covers 20 strikes either side of spot.
+- Untracked 15 `test_output*.txt` files and `verify_out.txt` that commit
+  `b7e5846` added; local copies kept and the names added to `.gitignore`.
+- Checked, not changed: pyflakes finds no undefined names (182 unused-import
+  style warnings left alone); F&O technical dates follow Yahoo's daily bars;
+  the event calendar stays "unavailable" until someone re-checks its sources
+  (last 10 Oct), by design.
+
 ## 2026-11-10 - Supply-chain page removed
 
 - Removed at the user's request: `/chain` screen and F8, `/api/supply-chain`,

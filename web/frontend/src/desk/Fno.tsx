@@ -90,7 +90,7 @@ function FnoView({ inst, C, A }: { inst: string; C: FnoDesk | null; A: Fno | nul
             <Kv rows={[["Gamma flip", A.flip ? n(A.flip, 0) : "none in window"], ["Net OI-gamma", `${sg(A.netPct, 1)}%`], ["Implied daily move", `±${n(A.dayMove, 0)}`], ["Annualized basis", pc(A.carry, 1)]]} />
             <div style={{ marginTop: 6 }}><Flag>Assumes dealers long calls, short puts</Flag></div>
           </div>
-          {R && <div className="pad" style={{ paddingTop: 0 }}><Flag>PCR disagrees</Flag><p className="note-t">{n(M.pcr_oi)} here, {n(R.oi_pcr)} in the saved report.</p></div>}
+          {R && <div className="pad" style={{ paddingTop: 0 }}><Flag>PCR scopes differ</Flag><p className="note-t">{n(M.pcr_oi)} over the whole chain here, {n(R.oi_pcr)} over the 20 strikes either side of spot in the saved report.</p></div>}
           {unusual.length > 0 && <><div className="bh pd"><h3>Unusual activity</h3><span>Saved report</span></div>
             <Table cols={[{ h: "Strike", v: (r) => `${r.option_type === "CALL" ? "C" : "P"} ${n(r.strike, 0)}`, text: true, bold: true }, { h: "OI chg", v: (r) => sg(r.change_oi, 0) }, { h: "Vol/OI", v: (r) => `${n(r.volume_oi_ratio, 1)}x` }, { h: "Prem", v: (r) => <Pct v={r.premium_change} d={0} /> }]} rows={unusual} /></>}
         </div>

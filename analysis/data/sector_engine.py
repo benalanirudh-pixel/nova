@@ -1934,6 +1934,7 @@ def analyze_macro_sector(
 def scan_sectors(
     update_classification: bool = True,
     force_classification: bool = False,
+    scanner: tuple[pd.DataFrame, dict] | None = None,
 ) -> tuple[
     pd.DataFrame,
     dict[str, Any],
@@ -1960,8 +1961,9 @@ def scan_sectors(
         "Loading Nova market scanner..."
     )
 
+    # a caller that just scanned passes its result, so the market is not scanned twice
     scanner_dataframe, scanner_summary = (
-        scan_market()
+        scanner if scanner is not None else scan_market()
     )
 
     if scanner_dataframe.empty:

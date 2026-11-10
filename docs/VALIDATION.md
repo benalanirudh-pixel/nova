@@ -1694,3 +1694,13 @@ sprint (screenshot caught the brief loading).
 - Browser: Monitor "All" tab lists 400 of 2,010, filter "mangal" returns 9;
   clicking MRPL shows the scan sheet while loading and the full sheet in 11 s.
 
+## 2026-11-10 - Project sweep
+
+- Full offline suite: 507 tests OK. `tsc` and `npm run build` OK.
+- `scan_sectors(scanner=...)` on the 10 Nov scan: 43 sectors in 0.4 s, 100%
+  classification coverage, new `sector_scan_20261110_*.csv`.
+- Cache-first report rebuild (`market_lab_data.py --json`): sector file
+  10 Nov, top research factor row has all five factor scores.
+- Desk Audit screen: open flags down from 5 to 3 (PCR scopes, flows
+  verification, event calendar); no console errors.
+

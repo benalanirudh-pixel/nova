@@ -74,10 +74,10 @@ class TestResearchFactorEngine(unittest.TestCase):
         for entry in all_entries(result):
             momentum = entry["factor_z"]["MOMENTUM_60D"]
             low_vol = entry["factor_z"]["LOW_VOLATILITY"]
-            if momentum is not None and low_vol is not None:
-                self.assertAlmostEqual(
-                    low_vol, -momentum, places=3
-                )
+            # ranked stocks always have these inputs; None here meant the scores were lost
+            self.assertIsNotNone(momentum)
+            self.assertIsNotNone(low_vol)
+            self.assertAlmostEqual(low_vol, -momentum, places=3)
 
     def test_extreme_winner_ranks_first(self):
         frame = make_frame()

@@ -140,3 +140,15 @@ class TestDetermineSectorRegime(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestScanReuse(unittest.TestCase):
+    def test_given_scan_is_used_instead_of_a_new_one(self):
+        from unittest import mock
+        from analysis.data import sector_engine
+        boom = RuntimeError("stop after the scanner step")
+        with mock.patch.object(sector_engine, "scan_market") as scan, \
+             mock.patch.object(sector_engine, "load_classification_cache", side_effect=boom):
+            with self.assertRaises(RuntimeError):
+                sector_engine.scan_sectors(scanner=(pd.DataFrame({"symbol": ["A"]}), {}))
+        scan.assert_not_called()

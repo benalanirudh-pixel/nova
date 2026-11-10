@@ -78,7 +78,7 @@ function useDeskValue() {
   const flags = useMemo(() => {
     const out: [string, string][] = [];
     const rep = analysis.data?.derivatives?.nifty?.oi_pcr, live = nifty.data?.metrics?.pcr_oi;
-    if (typeof rep === "number" && typeof live === "number" && Math.abs(rep - live) >= 0.05) out.push(["PCR disagrees", `Nifty OI PCR ${n(live)} on the chain, ${n(rep)} in the saved report.`]);
+    if (typeof rep === "number" && typeof live === "number" && Math.abs(rep - live) >= 0.05) out.push(["PCR scopes differ", `Nifty OI PCR ${n(live)} over the whole chain, ${n(rep)} over the 20 strikes either side of spot in the saved report.`]);
     const a = audit.data;
     if (a?.stocks_analyzed != null && a.stocks_analyzed < 1500) out.push(["Breadth partial", `The saved report covers ${a.stocks_analyzed} stocks. Screener uses the last complete scan, ${dayMonth(scan.data?.as_of)}.`]);
     const m = flows.data?.metrics;
