@@ -63,7 +63,7 @@ cd nova
 python -m venv venv
 .\venv\Scripts\pip.exe install -r requirements.txt
 .\venv\Scripts\python.exe market_lab\market_lab_data.py   # builds the market report (~2-3 min first run)
-.\venv\Scripts\python.exe web_main.py                     # opens Nova Desk at http://127.0.0.1:8501
+.\nova                                                    # opens Nova Desk at http://127.0.0.1:8501 (same as web_main.py)
 ```
 
 Next time, just run step 4.

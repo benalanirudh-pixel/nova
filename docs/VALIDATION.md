@@ -1656,3 +1656,11 @@ sprint (screenshot caught the brief loading).
 - Fresh server on port 8503: Equity, RELIANCE sheet, F&O and Flows loaded with
   no console errors; `/analysis` redirected to `/fno`.
 - Not checked: live ticks during market hours.
+
+## 2026-11-10 - Scheduler misfire fix
+
+- `tests.test_web_api tests.test_live_feed` - 51 tests OK, including a check
+  that every refresh slot has no misfire grace limit and coalesces.
+- Running server on 8501 restarted: report 10 Nov 10:54 IST (2,005-stock
+  scan), feed live, NSE ticks for NIFTY, BANKNIFTY and INDIAVIX updating.
+

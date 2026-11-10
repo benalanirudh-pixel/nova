@@ -404,3 +404,16 @@ class TestLauncherBuild(unittest.TestCase):
                 self.assertFalse(web_main.needs_build())
                 os.utime(source, (2_000_000_100, 2_000_000_100))
                 self.assertTrue(web_main.needs_build())
+
+
+class TestSchedulerMisfire(unittest.TestCase):
+    def test_late_slots_still_run_once(self):
+        from types import SimpleNamespace
+        from web.api import scheduler
+        app = SimpleNamespace(state=SimpleNamespace())
+        with _mock.patch.object(scheduler, "missed_refresh", return_value=False), \
+             _mock.patch("apscheduler.schedulers.asyncio.AsyncIOScheduler.start"):
+            scheduler.start_scheduler(app)
+        jobs = app.state.scheduler.get_jobs()
+        self.assertEqual(len(jobs), len(scheduler.SLOTS))
+        self.assertTrue(all(j.misfire_grace_time is None and j.coalesce for j in jobs))

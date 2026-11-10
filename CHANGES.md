@@ -3,6 +3,13 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-10 - Scheduled refresh survives PC sleep, `nova` command
+
+- `web/api/scheduler.py`: cron slots use `misfire_grace_time=None, coalesce=True`.
+  APScheduler's 1 s default silently skipped any slot that fired late, so a PC
+  that slept through 09:15 kept a 3-day-old report while the server ran.
+- Added `nova.cmd` at the repo root: `nova` opens Nova Desk (`web_main.py`).
+
 ## 2026-11-07 - UI polish pass on Nova Assistant (`ui.py` / `styles/nova_theme.qss`)
 
 Rewrote `styles/nova_theme.qss` with a modern glassmorphism trading-terminal

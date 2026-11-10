@@ -93,7 +93,9 @@ def missed_refresh(saved_at: str | None, now: datetime) -> bool:
 def start_scheduler(app) -> None:
     sched = AsyncIOScheduler(timezone=IST)
     for hour, minute in SLOTS:
-        sched.add_job(_scheduled_refresh, CronTrigger(day_of_week="mon-fri", hour=hour, minute=minute, timezone=IST))
+        # PC sleep makes the timer fire late; APScheduler's 1 s default grace would silently skip the slot
+        sched.add_job(_scheduled_refresh, CronTrigger(day_of_week="mon-fri", hour=hour, minute=minute, timezone=IST),
+                      misfire_grace_time=None, coalesce=True)
     sched.start()
     app.state.scheduler = sched
     # cron never re-runs a slot missed while the server was off; catch up once at startup

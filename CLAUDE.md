@@ -8,7 +8,7 @@ full agent rules; this file is the quick-start.
 
 | Command | Surface |
 |---------|---------|
-| `.\venv\Scripts\python.exe web_main.py` | **Nova Desk, the main terminal** (web, live data) |
+| `.\nova` or `.\venv\Scripts\python.exe web_main.py` | **Nova Desk, the main terminal** (web, live data) |
 | `.\venv\Scripts\python.exe main.py` | Nova Assistant (personal AI desktop) |
 | `.\venv\Scripts\python.exe market_lab_ui.py` | Market Lab (standalone) |
 | `.\venv\Scripts\python.exe terminal_main.py` | Nova Terminal (unified) |
