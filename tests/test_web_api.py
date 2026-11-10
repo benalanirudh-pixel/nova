@@ -466,3 +466,16 @@ class TestSupplyChain(unittest.TestCase):
         body = c.get("/api/supply-chain/RELIANCE").json()
         self.assertTrue(body["covered"])
         self.assertFalse(body["guardrails"]["buy_sell_authorization"])
+
+
+class TestStockCache(unittest.TestCase):
+    def test_second_request_is_served_from_cache(self):
+        from starlette.testclient import TestClient
+        from web.api.routes import stock
+        stock._stock_cache.clear()
+        self.addCleanup(stock._stock_cache.clear)
+        with _mock.patch.object(stock, "_build", return_value={"analysis": {"price": 1.0}}) as build:
+            c = TestClient(create_app())
+            self.assertEqual(c.get("/api/stock/abc").json()["analysis"]["price"], 1.0)
+            c.get("/api/stock/ABC")
+        build.assert_called_once_with("ABC")

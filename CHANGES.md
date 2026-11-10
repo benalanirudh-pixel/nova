@@ -3,6 +3,19 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-10 - Stock analysis covers the whole scan
+
+- Monitor gains an "All" tab with every stock in the last complete scan
+  (2,010 on 10 Nov), sorted by value traded, plus a filter box that searches
+  symbol and company across any tab. 400 rows render at once; the filter
+  reaches the rest.
+- While a stock's history loads, the sheet shows the scan figures and says it
+  is loading, instead of "Not enough daily history".
+- `/api/stock/{symbol}` caches each built sheet for 15 minutes, so revisits
+  skip the ~15 s history fetch.
+- About 2,300 symbols are listed on NSE; the scan keeps the ~2,010 with usable
+  price history, so the rest have no sheet.
+
 ## 2026-11-10 - Supply-chain page (RELIANCE first)
 
 - New screen `/chain?s=SYMBOL` (F8, "Supply chain"), linked from every stock

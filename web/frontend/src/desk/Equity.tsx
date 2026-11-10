@@ -9,6 +9,7 @@ import { headline, INDEX_NAMES, INDICES, useDesk } from "./data";
 import { big, Block, dayMonth, Empty, Flag, Kv, n, Pct, pc, sg, Table, type Col } from "./ui";
 
 const DEFAULT_WATCH = ["RELIANCE", "HDFCBANK", "ICICIBANK", "SBIN", "TCS", "INFY", "LT", "ITC", "BHARTIARTL", "AXISBANK", "MARUTI", "BAJFINANCE"];
+const MAX_LIST = 400; // rows rendered at once; the filter reaches the rest
 const MAX_MONITOR = 22; // the live feed polls 25 symbols at most; three go to the index feed's own names
 const tickSym = (s: string) => (s === "VIX" ? "INDIAVIX" : s);
 
@@ -28,6 +29,7 @@ const LiveChg = ({ r }: { r: MonitorRow }) => { const t = useLiveQuote(tickSym(r
 function Monitor({ sym, go }: { sym: string; go: (s: string) => void }) {
   const { overview, stocks, bySymbol, chains, brief } = useDesk();
   const [group, setGroup] = useState(0);
+  const [q, setQ] = useState("");
   const k = overview?.kpis, sx = chains.SENSEX;
   const groups = useMemo(() => {
     const stock = (s: string): MonitorRow => ({ sym: s, px: bySymbol[s]?.p, p: bySymbol[s]?.r1 });
@@ -40,11 +42,14 @@ function Monitor({ sym, go }: { sym: string; go: (s: string) => void }) {
     const movers = (a?: { symbol: string; ltp: unknown; change_pct: unknown }[]) => (a ?? []).map((m) => ({ sym: m.symbol, px: m.ltp, p: m.change_pct }));
     return [
       ["Watchlist", [...indices, ...[...DEFAULT_WATCH, ...active].slice(0, MAX_MONITOR).map(stock)]],
+      ["All", [...stocks].sort((a, b) => b.val - a.val).map((r) => stock(r.s))],
       ["Gainers", movers(brief?.movers.gainers)], ["Losers", movers(brief?.movers.losers)],
       ["Near high", (brief?.focus?.screens[0]?.rows ?? []).map((r) => ({ sym: r.symbol, px: r.price, p: r.return_1d }))],
     ] as [string, MonitorRow[]][];
   }, [k, sx, stocks, bySymbol, brief]);
-  const rows = groups[group][1];
+  const t = q.trim().toUpperCase();
+  const matched = t ? groups[group][1].filter((r) => r.sym.includes(t) || (bySymbol[r.sym]?.n ?? "").toUpperCase().includes(t)) : groups[group][1];
+  const rows = matched.slice(0, MAX_LIST);
   useLiveWatch(rows.filter((r) => !(INDICES as readonly string[]).includes(r.sym)).slice(0, 24).map((r) => r.sym));
 
   useEffect(() => {
@@ -67,6 +72,10 @@ function Monitor({ sym, go }: { sym: string; go: (s: string) => void }) {
     <section className="pane" style={{ gridArea: "wl" }} aria-label="Monitor">
       <div className="ph"><h2>Monitor</h2><span className="s">↑ ↓ moves. Click loads the sheet</span></div>
       <div className="sub-tabs">{groups.map(([t], i) => <button key={t} type="button" aria-pressed={group === i} onClick={() => setGroup(i)}>{t}</button>)}</div>
+      <div className="bar mon-find">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter symbol or company" aria-label="Filter the monitor list" />
+        <span className="cnt">{matched.length > rows.length ? `${rows.length} of ${matched.length.toLocaleString("en-IN")}` : matched.length}</span>
+      </div>
       <div className="body"><Table cols={cols} rows={rows} onRow={(r) => go(r.sym)} isOn={(r) => r.sym === sym} /></div>
     </section>
   );
@@ -85,7 +94,7 @@ function assess(q: Instrument, x: Risk, base: Risk | null, rel: boolean, stock: 
   return out;
 }
 
-function Sheet({ q, wide, read, sideExtra }: { q: Instrument; wide?: ReactNode; read?: (a: [string, string, string][]) => ReactNode; sideExtra?: ReactNode }) {
+function Sheet({ q, wide, read, sideExtra, loading, pending }: { q: Instrument; wide?: ReactNode; read?: (a: [string, string, string][]) => ReactNode; sideExtra?: ReactNode; loading?: boolean; pending?: ReactNode }) {
   const { niftyRisk, niftyBars, flags } = useDesk();
   const isNifty = q.sym === "NIFTY";
   const x = useMemo(() => risk(q.bars, q.px, isNifty ? null : niftyBars), [q.bars, q.px, isNifty, niftyBars]);
@@ -99,7 +108,9 @@ function Sheet({ q, wide, read, sideExtra }: { q: Instrument; wide?: ReactNode; 
       </div>
     </div>
   );
-  let cards: ReactNode = <Empty>Not enough daily history for this symbol yet.</Empty>;
+  let cards: ReactNode = loading
+    ? <><Empty>Loading daily history for {q.sym}. The first load takes about 15 seconds; repeat visits are instant.</Empty>{pending}</>
+    : <Empty>Not enough daily history for this symbol yet.</Empty>;
   if (x) {
     const ages = Math.min(q.bars.length - 1, 122);
     const rr = ([["1D", q.p, 1], ["5D", x.ret(5), 5], ["20D", x.ret(20), 20], ["60D", x.ret(60), 60], ["6M", x.ret(ages), ages]] as [string, number | null, number][])
@@ -213,7 +224,8 @@ function StockSheet({ sym, go }: { sym: string; go: (s: string) => void }) {
     </>
   );
   return (
-    <Sheet q={q} wide={wide}
+    <Sheet q={q} wide={wide} loading={!stock.data && !stock.error}
+      pending={scan && <div className="sheet"><Block wide title="Scan sheet" sub="Last complete scan, shown while history loads"><div className="pad"><Kv rows={[["Last", n(scan.p)], ["1D", pc(scan.r1)], ["5D", pc(scan.r5)], ["20D", pc(scan.r20, 1)], ["60D", pc(scan.r60, 1)], ["vs EMA 20", pc(scan.e20, 1)], ["vs EMA 200", pc(scan.e200, 1)], ["RSI", n(scan.rsi, 0)], ["RS 20D", sg(scan.rs20, 1)], ["ATR", `${n(scan.atr)}%`], ["Rel volume", `${n(scan.rv, 1)}x`], ["Value", `${n(scan.val, 1)} Cr`], ["Trend", scan.t], ["From 52W high", pc(scan.dh, 1)]]} /></div></Block></div>}
       read={(asm) => <div className="view"><div className="who">Nova read</div><h1>{asm.length ? `Trend ${asm[0][1].toLowerCase()}. Momentum ${(asm[1]?.[1] ?? "n/a").toLowerCase()}.` : stock.error ? "History unavailable." : "Building the sheet."}</h1></div>}
       sideExtra={
         <>

@@ -74,10 +74,21 @@ def _build(symbol: str) -> dict:
     }
 
 
+# history + indicators take ~15 s per symbol; a session-length cache makes revisits instant
+_STOCK_TTL = 900
+_stock_cache: dict[str, tuple[float, dict]] = {}
+
+
 @router.get("/stock/{symbol}")
 async def stock(symbol: str):
+    key = symbol.strip().upper()
+    hit = _stock_cache.get(key)
+    if hit and time.monotonic() - hit[0] < _STOCK_TTL:
+        return hit[1]
     try:
-        return _jsonable(await asyncio.to_thread(_build, symbol))
+        data = _jsonable(await asyncio.to_thread(_build, key))
+        _stock_cache[key] = (time.monotonic(), data)
+        return data
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=404)
     except Exception as e:

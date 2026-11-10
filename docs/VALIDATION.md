@@ -1687,3 +1687,10 @@ sprint (screenshot caught the brief loading).
   evidence links), 5 inferred rows tagged; `/chain?s=TCS` shows "not covered";
   a row click opens that stock's sheet; no horizontal scroll at 375px.
 
+## 2026-11-10 - Stock analysis covers the whole scan
+
+- 12 random scan symbols: `/api/stock/{s}` returned 126 daily candles each in
+  13-16 s; `tests.test_web_api` adds a cache test.
+- Browser: Monitor "All" tab lists 400 of 2,010, filter "mangal" returns 9;
+  clicking MRPL shows the scan sheet while loading and the full sheet in 11 s.
+
