@@ -1704,3 +1704,10 @@ sprint (screenshot caught the brief loading).
 - Desk Audit screen: open flags down from 5 to 3 (PCR scopes, flows
   verification, event calendar); no console errors.
 
+
+## 2026-11-13 - Pre-deploy audit
+
+- Full offline suite: 511 tests OK (4 new: https origin behind a proxy,
+  `NOVA_REFRESH_TOKEN`, report loader parse-once, bounded TTL cache).
+- Not run: a real deploy behind a TLS proxy; the fix was verified only
+  through the test client with `Origin: https://testserver`.

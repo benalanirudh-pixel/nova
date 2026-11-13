@@ -1,6 +1,5 @@
 import asyncio
 import re
-import time
 
 import pandas as pd
 
@@ -12,6 +11,7 @@ from analysis.data import fno_desk, institutional_flow_engine as flow_engine
 from market_lab import view_model as vm
 from web.api.routes.market import apply_live, live_market
 from web.api.report_loader import load_cached_report
+from web.api import ttl_cache
 
 router = APIRouter()
 
@@ -79,9 +79,8 @@ async def fno(instrument: str, expiry: str | None = None):
         return JSONResponse({"error": f"Unsupported instrument: {instrument}. Use NIFTY, BANKNIFTY, SENSEX or an NSE stock."}, status_code=404)
     if expiry is not None and (len(expiry) > 20 or not all(ch.isalnum() or ch in " -" for ch in expiry)):
         return JSONResponse({"error": f"Invalid expiry: {expiry}"}, status_code=400)
-    hit = _fno_cache.get((key, expiry))
-    if hit and time.monotonic() - hit[0] < _FNO_TTL:
-        return hit[1]
+    if hit := ttl_cache.get(_fno_cache, (key, expiry), _FNO_TTL):
+        return hit
     try:
         data = await asyncio.to_thread(fno_desk.build_fno, key, expiry)
     except ValueError as e:
@@ -89,5 +88,5 @@ async def fno(instrument: str, expiry: str | None = None):
     except Exception as e:
         return JSONResponse({"error": f"F&O desk failed: {e}"}, status_code=502)
     data["guardrails"] = vm.guardrails({})
-    _fno_cache[(key, expiry)] = (time.monotonic(), data)
+    ttl_cache.put(_fno_cache, (key, expiry), data, _FNO_TTL)
     return data

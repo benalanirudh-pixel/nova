@@ -3,6 +3,30 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-13 - Pre-deploy audit of the web API
+
+- `POST /api/refresh` and `/api/live/watch` compared the page's `Origin`
+  against `scheme://host` as uvicorn saw it. Behind a TLS proxy the page is
+  `https://` while uvicorn sees `http://`, so every refresh and live watch was
+  rejected with 403. The check now compares the host only.
+- Optional `NOVA_REFRESH_TOKEN` env: when set, `POST /api/refresh` needs an
+  `X-Nova-Token` header with the same value. A full NSE scan takes minutes, so
+  on a public host this stops strangers from triggering one. Unset keeps the
+  old local behaviour.
+- `report_loader.load_cached_report` parsed the newest ~180 KB report JSON and
+  stat'ed every saved report (338 files today) on every request. It now caches
+  the parsed report keyed on the report directory's mtime; a new save changes
+  that mtime.
+- Per-symbol caches in `/api/stock`, `/api/stock/{s}/profile` and `/api/fno`
+  never evicted, so any scraper could grow memory without limit. New
+  `web/api/ttl_cache.py` (300 entries per cache, expired entries dropped on
+  insert) backs all three. `/api/stock/{symbol}` now rejects junk symbols with
+  400 before any lookup, like the profile route already did.
+- Not changed, reported in the audit: `analysis/data/cache/market_lab` grows
+  four reports a day for ever; one `nse_live` lock serialises every NSE call;
+  three copies of the agent skill folders are tracked; `requirements.txt`
+  carries the desktop stack (torch, PySide6) a web deploy does not need.
+
 ## 2026-11-10 - Project sweep: sectors, factor scores, repo clutter
 
 - Sector file never refreshed: a full refresh scanned the market but never ran

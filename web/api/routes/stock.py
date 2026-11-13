@@ -5,9 +5,8 @@ import pandas as pd
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-import time
-
 from analysis.data import stock_profile, symbol_master
+from web.api import ttl_cache
 from market_lab import view_model as vm
 from analysis.data.nse_feed import get_stock_history_dataframe
 from analysis.data.technical_engine import analyze_stock, calculate_indicators
@@ -79,15 +78,20 @@ _STOCK_TTL = 900
 _stock_cache: dict[str, tuple[float, dict]] = {}
 
 
+def _bad_symbol(key: str) -> bool:
+    return not key.replace("-", "").replace("&", "").isalnum() or len(key) > 20
+
+
 @router.get("/stock/{symbol}")
 async def stock(symbol: str):
     key = symbol.strip().upper()
-    hit = _stock_cache.get(key)
-    if hit and time.monotonic() - hit[0] < _STOCK_TTL:
-        return hit[1]
+    if _bad_symbol(key):
+        return JSONResponse({"error": f"Invalid symbol: {symbol}"}, status_code=400)
+    if hit := ttl_cache.get(_stock_cache, key, _STOCK_TTL):
+        return hit
     try:
         data = _jsonable(await asyncio.to_thread(_build, key))
-        _stock_cache[key] = (time.monotonic(), data)
+        ttl_cache.put(_stock_cache, key, data, _STOCK_TTL)
         return data
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=404)
@@ -103,17 +107,16 @@ _profile_cache: dict[str, tuple[float, dict]] = {}
 @router.get("/stock/{symbol}/profile")
 async def stock_profile_route(symbol: str):
     key = symbol.strip().upper()
-    if not key.replace("-", "").replace("&", "").isalnum() or len(key) > 20:
+    if _bad_symbol(key):
         return JSONResponse({"error": f"Invalid symbol: {symbol}"}, status_code=400)
-    hit = _profile_cache.get(key)
-    if hit and time.monotonic() - hit[0] < _PROFILE_TTL:
-        return hit[1]
+    if hit := ttl_cache.get(_profile_cache, key, _PROFILE_TTL):
+        return hit
     try:
         data = _jsonable(await asyncio.to_thread(stock_profile.build_stock_profile, key))
     except Exception as e:
         return JSONResponse({"error": f"Profile failed: {e}"}, status_code=502)
     data["guardrails"] = vm.guardrails({})
-    _profile_cache[key] = (time.monotonic(), data)
+    ttl_cache.put(_profile_cache, key, data, _PROFILE_TTL)
     return data
 
 

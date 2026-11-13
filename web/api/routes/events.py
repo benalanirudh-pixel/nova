@@ -1,3 +1,5 @@
+import hmac
+import os
 from datetime import datetime
 
 from fastapi import APIRouter, Request
@@ -17,15 +19,26 @@ def _cross_origin(request: Request) -> bool:
     # Absent headers (curl/scripts) pass; a browser page on another site cannot.
     origin = request.headers.get("origin")
     site = request.headers.get("sec-fetch-site")
-    same = f"{request.url.scheme}://{request.headers.get('host')}"  # covers web_main.py --port
-    return (origin is not None and origin not in ALLOWED_ORIGINS and origin != same) or (
+    # host only, not scheme: behind a TLS proxy the page is https but uvicorn sees http
+    same_host = (origin or "").split("://", 1)[-1] == request.headers.get("host")
+    return (origin is not None and origin not in ALLOWED_ORIGINS and not same_host) or (
         site is not None and site not in {"same-origin", "none"})
+
+
+def _refresh_forbidden(request: Request) -> str | None:
+    if _cross_origin(request):
+        return "Cross-origin refresh rejected"
+    # a full NSE scan takes minutes; on a public host, NOVA_REFRESH_TOKEN keeps strangers from triggering it
+    token = os.getenv("NOVA_REFRESH_TOKEN")
+    if token and not hmac.compare_digest(request.headers.get("x-nova-token", ""), token):
+        return "Refresh token missing or wrong"
+    return None
 
 
 @router.post("/refresh")
 async def refresh(request: Request):
-    if _cross_origin(request):
-        return JSONResponse({"error": "Cross-origin refresh rejected"}, status_code=403)
+    if reason := _refresh_forbidden(request):
+        return JSONResponse({"error": reason}, status_code=403)
     status = scheduler.do_refresh()
     return {"status": status, "triggered_at": datetime.now().isoformat()}
 

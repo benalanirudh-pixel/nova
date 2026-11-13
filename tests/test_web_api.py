@@ -167,6 +167,20 @@ class TestRefreshEndpoint(unittest.TestCase):
                 "Origin": "http://localhost:5173", "Sec-Fetch-Site": "same-origin"})
         self.assertEqual(r.status_code, 200)
 
+    def test_https_page_behind_proxy_is_same_origin(self):
+        # the proxy terminates TLS, so the page's Origin is https while uvicorn sees http
+        from unittest import mock
+        with mock.patch("web.api.scheduler.get_market_lab_data"):
+            r = self.client.post("/api/refresh", headers={"Origin": "https://testserver", "Host": "testserver"})
+        self.assertEqual(r.status_code, 200)
+
+    def test_refresh_token_when_configured(self):
+        from unittest import mock
+        with mock.patch("web.api.scheduler.get_market_lab_data"), mock.patch.dict("os.environ", {"NOVA_REFRESH_TOKEN": "s3cret"}):
+            self.assertEqual(self.client.post("/api/refresh").status_code, 403)
+            self.assertEqual(self.client.post("/api/refresh", headers={"X-Nova-Token": "wrong"}).status_code, 403)
+            self.assertEqual(self.client.post("/api/refresh", headers={"X-Nova-Token": "s3cret"}).status_code, 200)
+
     def test_concurrent_refresh_blocked(self):
         from unittest import mock
         from web.api import scheduler
@@ -236,6 +250,24 @@ class TestReportLoader(unittest.TestCase):
         self.assertIsNone(r["nifty_candles"][0]["c"])
         self.assertIsNone(r["x"])
         json.dumps(r, allow_nan=False)  # the API encoder's rule
+
+    def test_newest_report_is_parsed_once_until_a_new_save(self):
+        import os, tempfile, time
+        from pathlib import Path
+        from unittest import mock
+        from web.api import report_loader
+        with tempfile.TemporaryDirectory() as d:
+            rd = Path(d) / "market_lab"
+            rd.mkdir()
+            (rd / "market_lab_20261104_010618.json").write_text('{"v": 1}')
+            with mock.patch.object(report_loader, "CACHE_DIR", d), mock.patch.object(report_loader.json, "load", wraps=report_loader.json.load) as load:
+                self.assertEqual(report_loader.load_cached_report()["report"]["v"], 1)
+                self.assertEqual(report_loader.load_cached_report()["report"]["v"], 1)
+                self.assertEqual(load.call_count, 1)
+                time.sleep(0.05)
+                (rd / "market_lab_20261104_020000.json").write_text('{"v": 2}')
+                os.utime(rd, None)  # new file bumps the directory mtime
+                self.assertEqual(report_loader.load_cached_report()["report"]["v"], 2)
 
 
 class TestFullIntegration(unittest.TestCase):
@@ -444,4 +476,19 @@ class TestStockCache(unittest.TestCase):
             c = TestClient(create_app())
             self.assertEqual(c.get("/api/stock/abc").json()["analysis"]["price"], 1.0)
             c.get("/api/stock/ABC")
+            self.assertEqual(c.get("/api/stock/A%24B").status_code, 400)  # junk symbol rejected before any lookup
         build.assert_called_once_with("ABC")
+
+    def test_cache_is_bounded_and_drops_expired(self):
+        from unittest import mock
+        from web.api import ttl_cache
+        c: dict = {}
+        with mock.patch.object(ttl_cache, "CAP", 3):
+            for i in range(5):
+                ttl_cache.put(c, i, i, ttl=60)
+            self.assertEqual(sorted(c), [2, 3, 4])
+            self.assertIsNone(ttl_cache.get(c, 0, ttl=60))
+            self.assertEqual(ttl_cache.get(c, 4, ttl=60), 4)
+            self.assertIsNone(ttl_cache.get(c, 4, ttl=0))  # expired reads as a miss
+            ttl_cache.put(c, "new", 1, ttl=0)  # ttl 0: everything already there has expired
+            self.assertEqual(list(c), ["new"])
