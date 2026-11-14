@@ -1,0 +1,19 @@
+# Nova Desk only (web_main.py): the FastAPI server, the analysis engines and
+# the Ollama brain. No PySide6, torch, speech or audio stack.
+# Pins mirror requirements.txt. Verify with a clean venv before a deploy image.
+APScheduler==3.11.3
+beautifulsoup4==4.15.0
+curl_cffi==0.16.3
+fastapi==0.162.0
+indian-market-mcp==0.1.0
+lxml==6.1.3
+mcp==1.30.0
+numpy==2.5.3
+ollama==0.6.3
+pandas==3.0.6
+python-dotenv==1.2.4
+requests==2.34.2
+sse-starlette==3.6.0
+tzdata==2026.6
+uvicorn==0.54.0
+yfinance==1.7.0

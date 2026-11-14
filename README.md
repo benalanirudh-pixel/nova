@@ -68,6 +68,27 @@ python -m venv venv
 
 Next time, just run step 4.
 
+**AI interpretation (Ask Nova).** The Market note and every stock sheet have an
+"Ask Nova" box answered by the Market Lab brain on local Ollama (`qwen3.5:4b`,
+`ollama pull qwen3.5:4b`). Answers are interpretations of the saved report and
+live quotes, never trade instructions.
+
+**Deploying Nova Desk on a server**
+
+```powershell
+pip install -r requirements-web.txt          # server-only set: no Qt, torch or audio stack
+python web_main.py --host 0.0.0.0 --port 8501 --no-browser
+```
+
+- Run exactly one process. The scheduler and the live feed keep state in
+  memory, so two workers would run two scans and two feeds.
+- Set `NOVA_REFRESH_TOKEN` to a long random string. `POST /api/refresh` (a
+  2-3 minute NSE scan) and `POST /api/interpret` (a local model run) then need an
+  `X-Nova-Token` header; the UI asks for it once and keeps it in the browser.
+- Put TLS in front with a reverse proxy; the app itself serves plain HTTP.
+- The first start runs a full scan when the saved report is older than the
+  last scheduled slot (09:15, 13:30, 15:15, 18:00 IST on weekdays).
+
 **Keyboard shortcuts**
 
 | Key | Action |
@@ -94,7 +115,7 @@ REST + SSE                      custom CSS tables — no charts, no component li
 
 **Engines:** technical, volatility, derivatives, institutional flow, sector, risk, event risk, research factor, market scanner.
 
-**Data sources:** Indian Market MCP (primary), Yahoo Finance fallback, optional Dhan read-only feed (5-second index ticks, candles; no order/trade/funds endpoints). Ollama (`qwen3.5:4b`) powers AI interpretation in the desktop apps — not required for Nova Desk.
+**Data sources:** Indian Market MCP (primary), Yahoo Finance fallback, optional Dhan read-only feed (5-second index ticks, candles; no order/trade/funds endpoints). Ollama (`qwen3.5:4b`) powers AI interpretation (Ask Nova and the desktop apps); optional.
 
 ---
 

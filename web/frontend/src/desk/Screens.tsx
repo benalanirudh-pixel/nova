@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { isNum } from "../lib/format";
 import { sd } from "./analytics";
+import Ask from "./Ask";
 import { headline, useDesk, type FlowRow, type ScanRow, type SectorRow } from "./data";
 import { dayMonth, Empty, Flag, Kv, n, Pane, Pct, sg, Sgn, Table, type Col } from "./ui";
 import { useLiveQuote, useLiveWatch } from "../hooks/useLive";
@@ -138,6 +139,7 @@ export function Note() {
       <Pane area="c" title="Market note" sub="Generated from the data on this screen">
         <div className="view bare"><div className="who">Nova read</div><h1>{headline(niftyRisk?.ret(5), overview?.breadth?.above_ema200_percent as number | undefined)}</h1></div>
         <ul className="reads pad">{brief.morning_call.map((c, i) => <li key={i}><em>{c.topic}</em>{c.text}</li>)}</ul>
+        <Ask />
       </Pane>
       <Pane area="g" title="Cross-asset" sub="Global close, commodities, FX">
         <Table cols={[{ h: "Instrument", v: (r) => r[0], text: true }, { h: "Last", v: (r) => r[1] }, { h: "Chg", v: (r) => <Pct v={r[2]} />, heat: { max: 3, of: (r) => r[2] } }]} rows={assets} />

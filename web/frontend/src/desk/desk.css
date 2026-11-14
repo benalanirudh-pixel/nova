@@ -164,3 +164,9 @@ th.so button { all: unset; cursor: pointer } th.so button:focus-visible { outlin
 }
 @media (min-width: 2100px) { .app { zoom: 1.28; height: calc(100dvh / 1.28) } }
 .mon-find{padding:5px 8px}.mon-find input{flex:1;min-width:0}
+
+/* Ask Nova */
+.ask { display: grid; gap: 6px }
+.ask textarea { width: 100%; resize: vertical; padding: 6px 8px; background: var(--raise); color: var(--ink); border: 1px solid var(--line2); font: 400 11.5px/1.4 Geist, sans-serif }
+.ask .tbtn { justify-self: start }
+.ask .ai { margin: 0; white-space: pre-wrap; font: 400 11.5px/1.5 Geist, sans-serif; color: var(--ink); max-height: 60vh; overflow: auto }

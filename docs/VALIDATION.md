@@ -1711,3 +1711,11 @@ sprint (screenshot caught the brief loading).
   `NOVA_REFRESH_TOKEN`, report loader parse-once, bounded TTL cache).
 - Not run: a real deploy behind a TLS proxy; the fix was verified only
   through the test client with `Origin: https://testserver`.
+
+## 2026-11-14 - Ask Nova, deploy hardening
+
+- Full offline suite: 516 tests OK (5 new: /api/interpret broad and stock
+  paths and guards, report pruning, SSE queue overflow). `npm run build` OK.
+- Browser: Ask Nova box renders on /note; a question reaches the Ollama brain
+  with the saved report (no data-engine wait).
+- Not run: a clean install from `requirements-web.txt`.

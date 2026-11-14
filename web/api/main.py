@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from web.api.routes.ai import router as ai_router
 from web.api.routes.analysis import router as analysis_router
 from web.api.routes.desk import router as desk_router
 from web.api import live_feed, scheduler
@@ -50,6 +51,7 @@ def create_app(dist: Path | None = None) -> FastAPI:
     app.include_router(desk_router, prefix="/api")
     app.include_router(stock_router, prefix="/api")
     app.include_router(events_router, prefix="/api")
+    app.include_router(ai_router, prefix="/api")
 
     if (dist / "index.html").is_file():
         if (dist / "assets").is_dir():

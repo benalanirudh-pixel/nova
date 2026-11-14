@@ -25,19 +25,21 @@ def _cross_origin(request: Request) -> bool:
         site is not None and site not in {"same-origin", "none"})
 
 
-def _refresh_forbidden(request: Request) -> str | None:
+def forbidden(request: Request, action: str = "refresh") -> str | None:
+    """Why a costly POST must be rejected, or None. Shared by /refresh and /interpret."""
     if _cross_origin(request):
-        return "Cross-origin refresh rejected"
-    # a full NSE scan takes minutes; on a public host, NOVA_REFRESH_TOKEN keeps strangers from triggering it
+        return f"Cross-origin {action} rejected"
+    # a full NSE scan takes minutes and an AI call costs money; on a public host,
+    # NOVA_REFRESH_TOKEN keeps strangers from triggering either
     token = os.getenv("NOVA_REFRESH_TOKEN")
     if token and not hmac.compare_digest(request.headers.get("x-nova-token", ""), token):
-        return "Refresh token missing or wrong"
+        return f"{action.capitalize()} token missing or wrong"
     return None
 
 
 @router.post("/refresh")
 async def refresh(request: Request):
-    if reason := _refresh_forbidden(request):
+    if reason := forbidden(request):
         return JSONResponse({"error": reason}, status_code=403)
     status = scheduler.do_refresh()
     return {"status": status, "triggered_at": datetime.now().isoformat()}

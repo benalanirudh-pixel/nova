@@ -147,7 +147,7 @@ class MarketLabPage(QWidget):
         self._status_lbl.setText("Generating…")
         self._status_lbl.setStyleSheet(f"color:{CYAN};")
         try:
-            text = analyze_market_lab(self._report)
+            text = analyze_market_lab(report=self._report)
         except Exception as exc:
             text = f"Error generating narrative: {exc}"
         self._narr_view.setPlainText(text or "No narrative generated.")

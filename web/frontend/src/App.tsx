@@ -15,7 +15,7 @@ import { n, pc } from "./desk/ui";
 import { SSEContext } from "./hooks/SSEContext";
 import { useFeedStatus, useLiveQuote } from "./hooks/useLive";
 import { useSSE } from "./hooks/useSSE";
-import { fetchJSON } from "./lib/api";
+import { authHeaders, fetchJSON } from "./lib/api";
 import { isNum } from "./lib/format";
 import { istSession, nextRefreshLabel } from "./lib/schedule";
 import { GUARDRAIL_TEXT } from "./lib/theme";
@@ -92,7 +92,7 @@ export default function App() {
   }, [last]);
 
   const refresh = useCallback(() =>
-    fetchJSON<{ status: string }>("/refresh", { method: "POST" })
+    fetchJSON<{ status: string }>("/refresh", { method: "POST", headers: authHeaders() })
       .then((d) => (d.status === "refreshing"
         ? toast.loading("Refreshing market data", { id: "refresh", description: "Full NSE scan, about 2-3 minutes. Live prices keep updating meanwhile." })
         : toast.info("A refresh is already running", { id: "refresh" })))

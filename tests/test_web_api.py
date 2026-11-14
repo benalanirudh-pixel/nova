@@ -466,6 +466,71 @@ class TestSchedulerHoliday(unittest.TestCase):
         run.assert_called_once()
 
 
+class TestInterpret(unittest.TestCase):
+    def setUp(self):
+        from starlette.testclient import TestClient
+        from web.api.routes import ai
+        ai._cache.clear()
+        self.addCleanup(ai._cache.clear)
+        self.client = TestClient(create_app())
+
+    def test_broad_question_goes_to_the_brain_once(self):
+        from web.api.routes import ai
+        with _mock.patch.object(ai.brain, "analyze_market_lab", return_value="NOVA MARKET LAB ANALYSIS\nfine") as m:
+            r = self.client.post("/api/interpret", json={"q": "where do flows disagree?"})
+            self.client.post("/api/interpret", json={"q": "where do flows disagree?"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["text"], "NOVA MARKET LAB ANALYSIS\nfine")
+        self.assertFalse(r.json()["guardrails"]["buy_sell_authorization"])
+        m.assert_called_once()
+        self.assertEqual(m.call_args.args, ("where do flows disagree?",))
+        self.assertIsInstance(m.call_args.kwargs["report"], dict)  # saved report passed in, data engine never called
+
+    def test_stock_question_uses_the_stock_dataset(self):
+        from web.api.routes import ai
+        built = {"analysis": {"symbol": "TCS", "price": 1.0}, "chart": {"candles": [{"time": "2026-11-13"}]}}
+        with _mock.patch.object(ai.stock_route, "_build", return_value=built), \
+             _mock.patch.object(ai.brain, "analyze_stock_report", return_value="NOVA STOCK ANALYSIS — TCS") as m:
+            r = self.client.post("/api/interpret", json={"q": "quick read", "symbol": "tcs"})
+        self.assertEqual(r.json()["text"], "NOVA STOCK ANALYSIS — TCS")
+        self.assertEqual(m.call_args.args[:3], ("TCS", built["analysis"], [{"t": "2026-11-13"}]))
+        self.assertEqual(m.call_args.kwargs["mode"], "quick")
+
+    def test_guarded_like_refresh(self):
+        self.assertEqual(self.client.post("/api/interpret", json={}, headers={"Origin": "https://evil.example"}).status_code, 403)
+        with _mock.patch.dict("os.environ", {"NOVA_REFRESH_TOKEN": "s3cret"}):
+            self.assertEqual(self.client.post("/api/interpret", json={}).status_code, 403)
+        self.assertEqual(self.client.post("/api/interpret", json={"symbol": "A$B"}).status_code, 400)
+
+
+class TestReportPruning(unittest.TestCase):
+    def test_keeps_newest_n(self):
+        import tempfile, time
+        from pathlib import Path
+        from web.api import scheduler
+        with tempfile.TemporaryDirectory() as d:
+            for i in range(5):
+                (Path(d) / f"market_lab_2026110{i}_000000.json").write_text("{}")
+                time.sleep(0.02)
+            self.assertEqual(scheduler.prune_reports(Path(d), keep=3), 2)
+            self.assertEqual(sorted(p.name[11:19] for p in Path(d).glob("*.json")), ["20261102", "20261103", "20261104"])
+
+    def test_broadcast_survives_a_full_queue(self):
+        import asyncio
+        from web.api import scheduler
+        async def run():
+            q = scheduler.subscribe()
+            try:
+                with _mock.patch.object(scheduler, "MAX_QUEUE", 1):
+                    q2 = scheduler.subscribe()
+                    scheduler._broadcast({"n": 1}); scheduler._broadcast({"n": 2})  # second one overflows q2
+                    self.assertEqual(q2.qsize(), 1)
+                    self.assertEqual(q.qsize(), 2)
+            finally:
+                scheduler.unsubscribe(q); scheduler.unsubscribe(q2)
+        asyncio.run(run())
+
+
 class TestStockCache(unittest.TestCase):
     def test_second_request_is_served_from_cache(self):
         from starlette.testclient import TestClient

@@ -1,6 +1,7 @@
 import asyncio
 import json
 from datetime import datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -17,8 +18,11 @@ _subscribers: list[asyncio.Queue] = []
 _tasks: set[asyncio.Task] = set()
 
 
+MAX_QUEUE = 200  # a stalled SSE client must not grow memory; it drops ticks and catches up on reconnect
+
+
 def subscribe() -> asyncio.Queue:
-    q: asyncio.Queue = asyncio.Queue()
+    q: asyncio.Queue = asyncio.Queue(maxsize=MAX_QUEUE)
     _subscribers.append(q)
     return q
 
@@ -30,12 +34,26 @@ def unsubscribe(q: asyncio.Queue) -> None:
 
 def _broadcast(event: dict) -> None:
     for q in list(_subscribers):
-        q.put_nowait(json.dumps(event))
+        try:
+            q.put_nowait(json.dumps(event))
+        except asyncio.QueueFull:
+            pass
+
+
+KEEP_REPORTS = 40  # ~2 weeks at 4 scans a day; older saved reports are deleted after each new save
+
+
+def prune_reports(report_dir: Path, keep: int = KEEP_REPORTS) -> int:
+    files = sorted(report_dir.glob("market_lab_*.json"), key=lambda p: p.stat().st_mtime)
+    for p in files[:-keep] if keep else files:
+        p.unlink(missing_ok=True)
+    return max(0, len(files) - keep)
 
 
 def _refresh_and_save() -> None:
     # the dashboard reads only saved reports, so a refresh that is not saved changes nothing
-    save_json_report(get_market_lab_data(force_refresh=True))
+    path = save_json_report(get_market_lab_data(force_refresh=True))
+    prune_reports(Path(path).parent)
 
 
 async def _run_refresh() -> None:

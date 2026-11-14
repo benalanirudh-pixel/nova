@@ -3,6 +3,29 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-14 - Ask Nova in the Desk, deploy hardening
+
+- Brains unchanged (Ollama `qwen3.5:4b`). `analyze_market_lab` gains an
+  optional `report=` argument: a caller holding a report passes it in and the
+  brain no longer calls `get_market_lab_data`, which blocked for minutes while
+  a scan was running. The terminal pages passed the report as `query` (it was
+  ignored); they now pass `report=`.
+- `POST /api/interpret` (`web/api/routes/ai.py`): `{"q", "symbol"?}` returns
+  the brain's text for the saved report or one stock. Guarded like `/refresh`
+  (same-origin + `NOVA_REFRESH_TOKEN`), cached per (symbol, question, report)
+  for 15 min, symbols validated, 503 when no report is saved.
+- Nova Desk: "Ask Nova" box on the Market note and on every stock sheet
+  (`desk/Ask.tsx`). `lib/api.ts` sends `X-Nova-Token` from browser storage and
+  prompts for it once on a 403.
+- Saved reports pruned to the newest 40 after each refresh
+  (`scheduler.prune_reports`). SSE queues capped at 200 events; a stalled client
+  drops ticks instead of growing memory. NSE live calls time out at 10 s
+  (`nse_live.TIMEOUT_S`) instead of 25 s under the shared lock.
+- `requirements-web.txt`: server-only dependency set. README gains a deploy
+  section (one process, token, TLS proxy).
+- Deleted untouched clutter: `market_lab_ui_backup.py`,
+  `apply_institutional_flow_patch.py`, four `*_inspection.txt`, `web/draft/`.
+
 ## 2026-11-13 - Pre-deploy audit of the web API
 
 - `POST /api/refresh` and `/api/live/watch` compared the page's `Origin`

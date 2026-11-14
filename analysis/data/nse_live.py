@@ -22,6 +22,8 @@ from typing import Any, Optional
 from analysis.data import derivatives_engine as de
 
 BASE = "https://www.nseindia.com/api/"
+# one lock serialises every NSE call; a stalled call must not freeze the whole desk for 2 x 25 s
+TIMEOUT_S = 10
 HEADLINE = {"NIFTY 50": "nifty", "NIFTY BANK": "banknifty", "INDIA VIX": "vix"}
 
 _lock = threading.Lock()
@@ -45,7 +47,7 @@ def get(endpoint: str, params: Optional[dict] = None) -> Any:
                 if _session is None:
                     _session = de.create_nse_session()
                     de.warm_nse_session(_session)
-                r = _session.get(BASE + endpoint, params=params, timeout=de.REQUEST_TIMEOUT,
+                r = _session.get(BASE + endpoint, params=params, timeout=TIMEOUT_S,
                                  headers={**de.HEADERS, "Referer": "https://www.nseindia.com/"})
                 r.raise_for_status()
                 return json.loads(r.content)

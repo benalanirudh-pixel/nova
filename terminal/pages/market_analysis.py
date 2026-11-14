@@ -1010,7 +1010,7 @@ class _NarrateWorker(QThread):
 
     def run(self):
         try:
-            text = analyze_market_lab(self._report)
+            text = analyze_market_lab(report=self._report)
             self.succeeded.emit(text or "")
         except Exception as exc:
             self.failed.emit(str(exc))

@@ -490,19 +490,22 @@ def _extract_response_content(response: Any) -> str:
 def analyze_market_lab(
     query: str = "",
     force_refresh: bool = False,
+    report: dict[str, Any] | None = None,
 ) -> str:
     """
     Retrieve the existing Market Lab report and ask Ollama to interpret it.
 
-    Cache-first behavior is preserved unless force_refresh=True.
+    Cache-first behavior is preserved unless force_refresh=True. A caller that
+    already holds a report passes it as `report` and skips the data engine.
     This function never executes or submits trades.
     """
 
     # Step 1: Retrieve the report from the existing data engine.
     try:
-        report = get_market_lab_data(
-            force_refresh=force_refresh,
-        )
+        if report is None:
+            report = get_market_lab_data(
+                force_refresh=force_refresh,
+            )
 
         if not isinstance(report, dict) or not report:
             return (

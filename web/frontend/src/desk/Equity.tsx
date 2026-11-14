@@ -5,6 +5,7 @@ import { useLiveQuote, useLiveWatch } from "../hooks/useLive";
 import { isNum } from "../lib/format";
 import type { FnoDesk, StockProfile } from "../lib/types";
 import { risk, withQuote, type Bar, type Risk } from "./analytics";
+import Ask from "./Ask";
 import { headline, INDEX_NAMES, INDICES, useDesk } from "./data";
 import { big, Block, dayMonth, Empty, Flag, Kv, n, Pct, pc, sg, Table, type Col } from "./ui";
 
@@ -221,6 +222,7 @@ function StockSheet({ sym, go }: { sym: string; go: (s: string) => void }) {
       {P.quarters && <Block wide title="Quarterly results" sub="₹ Cr"><Table cols={[{ h: "Quarter", v: (y) => y.period.slice(0, 7), text: true, bold: true }, { h: "Revenue", v: (y) => n(y.revenue_cr, 0) }, { h: "YoY", v: (y) => <Pct v={y.revenue_yoy} d={1} /> }, { h: "EBITDA", v: (y) => n(y.ebitda_cr, 0) }, { h: "Net inc", v: (y) => n(y.net_income_cr, 0) }, { h: "QoQ", v: (y) => <Pct v={y.net_income_qoq} d={1} /> }, { h: "Op mgn", v: (y) => `${n(y.operating_margin, 1)}%` }, { h: "EPS", v: (y) => n(y.eps) }]} rows={P.quarters} /></Block>}
       {P.peers && <Block wide title={P.peers.group || "Peers"} sub={`${P.peers.peer_count ?? P.peers.rows.length} listed peers`}><Table cols={[{ h: "Symbol", v: (y) => y.symbol, text: true, bold: true }, { h: "Last", v: (y) => n(y.price) }, { h: "20D", v: (y) => <Pct v={y.return_20d} d={1} /> }, { h: "60D", v: (y) => <Pct v={y.return_60d} d={1} /> }, { h: "RS 20D", v: (y) => sg(y.relative_strength_20d, 1) }, { h: "RSI", v: (y) => n(y.rsi_14, 0) }, { h: "Value Cr", v: (y) => n(y.traded_value_cr, 0) }]} rows={P.peers.rows} onRow={(y) => go(y.symbol)} isOn={(y) => y.symbol === sym} /></Block>}
       {P.news && P.news.length > 0 && <Block wide title="News"><Table cols={[{ h: "Headline", v: (y) => y.title, text: true }, { h: "Source", v: (y) => y.source ?? "", text: true }]} rows={P.news.slice(0, 6)} /></Block>}
+      <Ask symbol={sym} />
     </>
   );
   return (
