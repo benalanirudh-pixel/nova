@@ -774,7 +774,10 @@ def calculate_indicators(
 
 def analyze_stock(
     query: str,
+    data: pd.DataFrame | None = None,
 ) -> dict:
+    # `data`: daily history the caller already downloaded, so one page load
+    # fetches a symbol's history once instead of once per engine.
 
     security = resolve_symbol(
         query
@@ -789,11 +792,12 @@ def analyze_stock(
     symbol = security["symbol"]
 
     # 1 year is required for proper 200-day / 52-week analysis.
-    data = get_price_history(
-        symbol,
-        period="1y",
-        interval="1d",
-    )
+    if data is None:
+        data = get_price_history(
+            symbol,
+            period="1y",
+            interval="1d",
+        )
 
     indicators = calculate_indicators(
         data

@@ -64,6 +64,7 @@ terminal_main.py -> terminal/main_window.py (NovaTerminal)
 | `risk_engine.py`                | Risk-budget and position-risk calculations        |
 | `event_risk_engine.py`          | Event-risk from `event_calendar.json`             |
 | `research_factor_engine.py`     | Multi-factor scoring                              |
+| `quant_engine.py`               | Pure functions: 1Y risk profile, benchmark stats, liquidity/capacity, volume profile, scorecard percentiles, market internals, sector rotation, out-of-sample factor spreads |
 | `watchlist_engine.py`           | Per-symbol live snapshot                          |
 | `dhan_feed.py`                  | Optional Dhan market-data adapter (read-only)     |
 
@@ -95,6 +96,23 @@ Tick shape: `{type:"tick", symbol, ltp, change, change_pct, volume, source,
 as_of, max_age_s}`. Missing prices are skipped; failing sources back off up to
 300 s and surface in `feed_status`. The live loop never runs the full NSE scan.
 Env: `NOVA_LIVE_INDEX_S` (5), `NOVA_LIVE_STOCK_S` (15).
+
+## Quant path (Nova Desk)
+
+```
+GET /api/quant/internals   web/api/routes/quant.py
+  -> scan_frames()          one complete scan per market session from cache/scanner (a weekend
+                            re-scan of Friday counts once); sector map from cache/sector
+  -> quant_engine           market_internals, sector_rotation, factor_spreads (older scan ranks,
+                            newer scan prices), breadth_point per session
+GET /api/stock/{symbol}     one 1Y history download shared by technical_engine.analyze_stock(data=),
+                            the chart and quant_engine.risk_profile; Nifty closes cached 1 h;
+                            payload gains "quant": {risk, scorecard}
+```
+
+Conventions: simple daily returns, 252-day annualisation, risk-free rate 0, historical VaR.
+The scanner stores both 52-week distances as positive magnitudes; `prepare()` names them
+`below_high` / `above_low`.
 
 ## Data Sources
 

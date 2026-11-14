@@ -63,10 +63,12 @@ FACTOR_DEFINITIONS = {
         ),
     },
     "PROXIMITY_52W_HIGH": {
-        "source_column": "distance_52w_high",
-        "direction": 1,
+        "source_column": "_below_52w_high",
+        # the scanner stores the distance as a positive percent below the high, so smaller is closer
+        "direction": -1,
         "description": (
-            "Distance from 52-week high, cross-sectional z-score."
+            "Percent below the 52-week high, sign-flipped so stocks "
+            "nearer their high score higher."
         ),
     },
 }
@@ -176,6 +178,8 @@ def build_research_factors(
 
     frame = dataframe.copy()
     frame["_ema_alignment"] = frame.apply(_ema_alignment, axis=1)
+    # magnitude, whichever sign the source used: 0 = at the high
+    frame["_below_52w_high"] = pd.to_numeric(frame["distance_52w_high"], errors="coerce").abs()
 
     # ------------------------------------------------------------
     # FACTOR Z-SCORES

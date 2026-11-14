@@ -12,6 +12,7 @@ from web.api.routes.desk import router as desk_router
 from web.api import live_feed, scheduler
 from web.api.routes.events import router as events_router
 from web.api.routes.market import router as market_router
+from web.api.routes.quant import router as quant_router
 from web.api.routes.stock import router as stock_router
 from styles.design_tokens import BUY_SELL_AUTHORIZED, GUARDRAIL_TEXT
 
@@ -52,6 +53,7 @@ def create_app(dist: Path | None = None) -> FastAPI:
     app.include_router(stock_router, prefix="/api")
     app.include_router(events_router, prefix="/api")
     app.include_router(ai_router, prefix="/api")
+    app.include_router(quant_router, prefix="/api")
 
     if (dist / "index.html").is_file():
         if (dist / "assets").is_dir():

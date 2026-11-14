@@ -3,6 +3,50 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-14 - Quant engine: institutional analytics layer
+
+- New `analysis/data/quant_engine.py` (pure functions, no I/O, 16 tests on
+  synthetic data with known answers):
+  - `risk_profile`: one-year volatility and its percentile, downside deviation,
+    historical VaR 95/99 and CVaR, skew, kurtosis, drawdown depth, dates and
+    time under water, return/vol, Sortino, Calmar; against Nifty 50: beta (full
+    and 60D), correlation, R2, annualised alpha, tracking error, information
+    ratio, up/down capture; liquidity: traded value, Amihud price impact,
+    sessions to exit Rs 10/50/250 Cr at 10% participation; trend fit, Kaufman
+    efficiency, volume profile (POC, 70% value area), anchored VWAPs.
+  - `scorecard`: percentile rank against the whole scan and the sector on four
+    pillars (trend, momentum, 52W position, low volatility), named conflicts,
+    liquidity reported as capacity outside the composite. The label is a rank
+    ("Top quartile" .. "Bottom quartile"), never a view on direction.
+  - `market_internals`, `sector_rotation`, `factor_spreads`, `breadth_point`,
+    `internals_read`.
+- Conventions, stated in the payload: simple daily returns, 252-day
+  annualisation, risk-free rate 0 (no verified source), historical VaR.
+- `GET /api/quant/internals` and a `quant` block in `GET /api/stock/{symbol}`
+  (`web/api/routes/quant.py`). Cache-only; never starts a scan.
+- Factor returns are out of sample: ranks from an older saved scan, return to
+  the newest scan's price, moves outside -60%/+150% dropped as suspected
+  corporate actions. First live reading: the scanner's own `score` had a
+  negative rank IC over both saved windows (7 and 31 days). Two windows are two
+  observations, not a backtest; the screen says so.
+- Sector rotation is measured against the median stock, not Nifty: against a
+  cap-weighted index every equal-weight sector "lagged" and the map was empty.
+- Nova Desk: new **Internals** page (F4; later pages shift one key), price
+  chart on the stock sheet, scorecard, risk, benchmark, liquidity and structure
+  blocks. Charts are plain SVG (`desk/Chart.tsx`), colours validated for
+  colour-blind separation on both themes.
+- Bugs found on the way:
+  - `research_factor_engine` PROXIMITY_52W_HIGH was inverted. The scanner
+    stores `distance_52w_high` as a positive percent below the high, and the
+    factor treated bigger as better, so stocks furthest from their high scored
+    highest. Now sign-safe (`abs`) and flipped; test added.
+  - The Day theme did nothing on a dark-mode OS: the light palette sat inside a
+    `prefers-color-scheme: light` query. Now unconditional.
+  - `/api/stock/{symbol}` downloaded history twice (technical engine, then a
+    six-month copy for the chart). `analyze_stock(data=)` shares one one-year
+    download; unknown symbols no longer reach the network.
+  - Scan sheet showed "From 52W high" as a positive percent.
+
 ## 2026-11-14 - Ask Nova in the Desk, deploy hardening
 
 - Brains unchanged (Ollama `qwen3.5:4b`). `analyze_market_lab` gains an

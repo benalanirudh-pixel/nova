@@ -1719,3 +1719,18 @@ sprint (screenshot caught the brief loading).
 - Browser: Ask Nova box renders on /note; a question reaches the Ollama brain
   with the saved report (no data-engine wait).
 - Not run: a clean install from `requirements-web.txt`.
+
+## 2026-11-14 - Quant engine
+
+- Full offline suite: 535 tests OK (16 engine tests on synthetic data with
+  known answers: beta 1.5 for a 1.5x benchmark, VaR on a +/-1% series,
+  drawdown depth and duration, POC location, planted factor effect recovered
+  with IC > 0.95, split-like move dropped; 2 route tests on a temp scan cache;
+  1 for the inverted 52W factor). No test reaches the network.
+- Live, 13 Nov session, 2,010 stocks: internals in 1.4 s cold, 4 ms cached;
+  14 sessions of breadth history; factor windows 6 Nov and 13 Oct; rotation
+  9 leading / 10 improving / 6 weakening / 6 lagging.
+- Browser: /internals and stock sheets (RELIANCE, SUZLON) render in both
+  themes with no console errors; chart tooltip and Day toggle work.
+- Not verified: figures against an external vendor; EMA 200 on the chart
+  covers only the last ~48 sessions of a one-year download.

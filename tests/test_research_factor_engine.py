@@ -44,6 +44,22 @@ def make_frame(n=40, seed=7):
     )
 
 
+class TestProximityDirection(unittest.TestCase):
+    def test_stock_at_its_high_outscores_one_far_below(self):
+        # the scanner writes percent below the high as a positive number
+        frame = make_frame(n=60)
+        frame["distance_52w_high"] = 25.0
+        frame.loc[0, "distance_52w_high"] = 0.0    # at the high
+        frame.loc[1, "distance_52w_high"] = 90.0   # 90% below
+        frame.loc[2:, ["return_60d", "relative_strength_60d", "atr_percent"]] = [0.0, 0.0, 3.0]
+        for c in ("return_60d", "relative_strength_60d", "atr_percent", "ema_20", "ema_50", "ema_200", "price"):
+            frame.loc[0, c] = frame.loc[1, c]      # the two differ only in distance from the high
+        ranked = build_research_factors(frame, top_n=60)["top_ranked"]
+        z = {e["symbol"]: e["factor_z"]["PROXIMITY_52W_HIGH"] for e in ranked}
+        self.assertGreater(z["S000"], 0)
+        self.assertLess(z["S001"], 0)
+
+
 def all_entries(result):
     return result["top_ranked"] + result["bottom_ranked"]
 

@@ -181,3 +181,52 @@ export interface FnoDesk {
   errors: Record<string, string>;
   generated: string;
 }
+
+/* ---- Quant engine (analysis/data/quant_engine.py). Every figure is null when it could not be computed. ---- */
+type QN = number | null;
+export interface QuantRisk {
+  status: "AVAILABLE" | "NOT_AVAILABLE"; reason?: string; as_of?: string; sessions?: number; from?: string; conventions?: string;
+  returns_pct: { "1m": QN; "3m": QN; "6m": QN; "12m": QN; "12m_ex_1m": QN };
+  volatility: { vol_20d_pct: QN; vol_60d_pct: QN; vol_full_pct: QN; vol_20d_percentile: QN; downside_dev_pct: QN };
+  tail: { var_95_pct: QN; cvar_95_pct: QN; var_99_pct: QN; worst_day_pct: QN; worst_day_date: string; best_day_pct: QN; best_day_date: string; skew: QN; excess_kurtosis: QN };
+  drawdown: { max_pct: QN; peak_date: string; trough_date: string; current_pct: QN; sessions_underwater: number; longest_underwater: number };
+  ratios: { return_annual_pct: QN; sharpe_rf0: QN; sortino_rf0: QN; calmar: QN };
+  benchmark: {
+    name: string; status: "AVAILABLE" | "NOT_AVAILABLE"; reason?: string; sessions?: number; beta?: QN; beta_60d?: QN; correlation?: QN; r_squared?: QN;
+    alpha_annual_pct?: QN; tracking_error_pct?: QN; information_ratio?: QN; up_capture_pct?: QN; down_capture_pct?: QN; excess_return_pct?: QN;
+  };
+  liquidity: { adv_20d_cr: QN; adv_60d_cr: QN; median_60d_cr: QN; adv_20d_vs_60d: QN; amihud_bps_per_cr: QN; participation_pct: number; days_to_exit: { notional_cr: number; days: QN }[] };
+  trend_quality: { fit_60d: null | { sessions: number; slope_annual_pct: QN; r_squared: QN }; fit_120d: null | { sessions: number; slope_annual_pct: QN; r_squared: QN }; efficiency_20d: QN };
+  volume_profile: null | { sessions: number; poc: number; value_area_low: number; value_area_high: number; value_area_share_pct: number; bins: { price: number; share_pct: number }[] };
+  anchored_vwap: { anchor: string; date: string; vwap: number }[];
+}
+export interface QuantScorecard {
+  status: "AVAILABLE" | "NOT_AVAILABLE"; reason?: string; sector?: string | null; universe?: number; sector_peers?: number | null;
+  composite?: QN; stance?: string; pillars?: { pillar: string; universe_pct: QN; sector_pct: QN | undefined }[]; liquidity_pct?: QN;
+  conflicts?: string[]; method?: string; scan_as_of?: string | null;
+}
+export interface StockQuant { risk: QuantRisk; scorecard: QuantScorecard }
+
+export interface QBreadth {
+  stocks: number; advancing: number; declining: number; unchanged: number; ad_ratio: QN; up_value_share_pct: QN;
+  above_ema20_pct: QN; above_ema50_pct: QN; above_ema200_pct: QN; new_highs: number; new_lows: number; within_5pct_of_high_pct: QN;
+  rsi_over_70_pct: QN; rsi_under_30_pct: QN; median_1d_pct: QN; median_5d_pct: QN; median_20d_pct: QN; median_60d_pct: QN; dispersion_1d_pct: QN; dispersion_20d_pct: QN;
+}
+export interface RotationRow {
+  sector: string; stocks: number; quadrant: "Leading" | "Improving" | "Weakening" | "Lagging"; rs_60d: number; rs_20d: number; rs_momentum: number;
+  median_1d: QN; median_5d: QN; median_20d: QN; above_ema50_pct: QN; above_ema200_pct: QN; value_share_pct: QN; leader: string | null;
+}
+export interface FactorRow { factor: string; status: string; names: number; top_pct?: number; bottom_pct?: number; spread_pct?: number; ic?: QN; monotonic?: boolean; quintiles_pct?: number[] }
+export interface FactorWindow { base_date: string; to_date: string; calendar_days: number; names: number; dropped_corporate_action_suspects: number; universe_median_pct: QN; factors: FactorRow[] }
+export interface BreadthPoint { date: string; stocks: number; advancing: number; declining: number; above_ema20_pct: QN; above_ema50_pct: QN; above_ema200_pct: QN; new_highs: number; new_lows: number; median_20d_pct: QN; rsi_over_70_pct: QN; rsi_under_30_pct: QN }
+export interface QuantInternals {
+  available: boolean; reason?: string; as_of?: string; stocks?: number; engine?: string; sector_map?: boolean;
+  internals?: {
+    status: string; breadth: QBreadth; regime: { label: string; rule: string }; tiers: (QBreadth & { tier: string; value_cr: QN })[];
+    concentration: { total_value_cr: QN; top10_share_pct: QN; top50_share_pct: QN; hhi: QN; top10: { symbol: string; value_cr: QN; return_1d: QN }[] };
+  };
+  rotation?: { status: string; sectors: RotationRow[]; counts: Record<string, number>; method: string; universe_median_60d: QN; universe_median_20d: QN };
+  factor_windows?: FactorWindow[];
+  breadth_history?: BreadthPoint[];
+  read?: CallLine[];
+}

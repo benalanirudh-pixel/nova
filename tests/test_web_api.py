@@ -79,8 +79,10 @@ class TestStockEndpoint(unittest.TestCase):
 
     def test_invalid_symbol_returns_404(self):
         from unittest import mock
-        with mock.patch("web.api.routes.stock.analyze_stock", side_effect=ValueError("Stock not found")):
+        with mock.patch("web.api.routes.stock.resolve_symbol", return_value=None), \
+             mock.patch("web.api.routes.stock.get_price_history") as history:
             r = self.client.get("/api/stock/XYZNOTREAL123")
+        history.assert_not_called()  # an unknown symbol never reaches the network
         self.assertEqual(r.status_code, 404)
         self.assertIn("error", r.json())
 
@@ -89,9 +91,15 @@ class TestStockEndpoint(unittest.TestCase):
         from unittest import mock
         fake = {"symbol": "X", "price": np.float64(10.5), "above_ema": np.bool_(True),
                 "atr_14": float("nan"), "momentum_score": np.int64(70)}
-        with mock.patch("web.api.routes.stock.analyze_stock", return_value=fake), \
+        with mock.patch("web.api.routes.stock.resolve_symbol", return_value={"symbol": "X"}), \
+             mock.patch("web.api.routes.stock.get_price_history", return_value="history") as history, \
+             mock.patch("web.api.routes.stock.analyze_stock", return_value=fake) as analyze, \
+             mock.patch("web.api.routes.stock.stock_quant", side_effect=RuntimeError("engine down")), \
              mock.patch("web.api.routes.stock._chart", return_value={}):
             r = self.client.get("/api/stock/X")
+        history.assert_called_once()  # one download shared by the technical, chart and quant engines
+        self.assertEqual(analyze.call_args.kwargs["data"], "history")
+        self.assertEqual(r.json()["quant"]["risk"]["status"], "NOT_AVAILABLE")  # a quant failure never takes the sheet down
         self.assertEqual(r.status_code, 200)
         body = r.json()
         self.assertIs(body["analysis"]["above_ema"], True)
@@ -501,6 +509,63 @@ class TestInterpret(unittest.TestCase):
         with _mock.patch.dict("os.environ", {"NOVA_REFRESH_TOKEN": "s3cret"}):
             self.assertEqual(self.client.post("/api/interpret", json={}).status_code, 403)
         self.assertEqual(self.client.post("/api/interpret", json={"symbol": "A$B"}).status_code, 400)
+
+
+class TestQuantInternals(unittest.TestCase):
+    """/api/quant/internals on a temp cache: one scan per session, factor ranks from the older one."""
+
+    def _scan(self, root, stamp, session, drift):
+        import numpy as np
+        import pandas as pd
+        rng = np.random.default_rng(3)
+        n = 1600
+        price = rng.uniform(50, 2000, n)
+        r60 = rng.normal(0, 15, n)
+        pd.DataFrame({
+            "symbol": [f"S{i:04d}" for i in range(n)], "price": price * (1 + drift * r60 / 1000),
+            "return_1d": rng.normal(0, 2, n), "return_5d": rng.normal(0, 4, n), "return_20d": rng.normal(0, 8, n), "return_60d": r60,
+            "relative_strength_20d": rng.normal(0, 8, n), "relative_strength_60d": r60 - 3,
+            "ema_20": price, "ema_50": price * 0.98, "ema_200": price * 1.05, "rsi_14": rng.uniform(20, 80, n),
+            "atr_percent": rng.uniform(1, 6, n), "volume": rng.uniform(1e4, 1e7, n), "volume_average_20": rng.uniform(1e4, 1e7, n),
+            "relative_volume": rng.uniform(0.3, 3, n), "distance_52w_high": rng.uniform(0, 50, n), "distance_52w_low": rng.uniform(0, 80, n),
+            "score": rng.uniform(0, 100, n), "timestamp": f"{session}T00:00:00+05:30",
+        }).to_csv(root / "scanner" / f"market_scan_{stamp}.csv", index=False)
+
+    def test_sessions_factor_window_and_guardrail(self):
+        import tempfile
+        from pathlib import Path
+        from starlette.testclient import TestClient
+        from web.api.routes import quant
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "scanner").mkdir()
+            self._scan(root, "20261106_180000", "2026-11-06", 0)
+            self._scan(root, "20261113_180000", "2026-11-13", 1)
+            self._scan(root, "20261114_130000", "2026-11-13", 1)   # weekend re-scan of Friday: same session
+            (root / "scanner" / "market_scan_20261114_140000.csv").write_text("symbol,price\nA,1\n")  # partial scan is skipped
+            quant._frames.clear(); quant._payload.clear()
+            self.addCleanup(quant._frames.clear); self.addCleanup(quant._payload.clear)
+            with _mock.patch.object(quant, "CACHE_DIR", d):
+                body = TestClient(create_app()).get("/api/quant/internals").json()
+        self.assertTrue(body["available"])
+        self.assertEqual(body["as_of"], "2026-11-13")
+        self.assertEqual([h["date"] for h in body["breadth_history"]], ["2026-11-13", "2026-11-06"])
+        w = body["factor_windows"][0]
+        self.assertEqual((w["base_date"], w["calendar_days"]), ("2026-11-06", 7))
+        mom = next(f for f in w["factors"] if f["factor"] == "Momentum 60D")
+        self.assertGreater(mom["ic"], 0.9)  # planted: forward return rises with 60D momentum
+        self.assertFalse(body["guardrails"]["buy_sell_authorization"])
+        self.assertFalse(body["sector_map"])
+
+    def test_no_scan_is_reported_not_invented(self):
+        import tempfile
+        from starlette.testclient import TestClient
+        from web.api.routes import quant
+        quant._frames.clear(); quant._payload.clear()
+        self.addCleanup(quant._frames.clear); self.addCleanup(quant._payload.clear)
+        with tempfile.TemporaryDirectory() as d, _mock.patch.object(quant, "CACHE_DIR", d):
+            body = TestClient(create_app()).get("/api/quant/internals").json()
+        self.assertFalse(body["available"])
 
 
 class TestReportPruning(unittest.TestCase):

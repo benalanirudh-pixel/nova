@@ -8,8 +8,9 @@ from fastapi.responses import JSONResponse
 from analysis.data import stock_profile, symbol_master
 from web.api import ttl_cache
 from market_lab import view_model as vm
-from analysis.data.nse_feed import get_stock_history_dataframe
+from analysis.data.market_universe import get_price_history, resolve_symbol
 from analysis.data.technical_engine import analyze_stock, calculate_indicators
+from web.api.routes.quant import stock_quant
 
 router = APIRouter()
 
@@ -31,11 +32,11 @@ def _jsonable(v):
     return v
 
 
-def _chart(symbol: str) -> dict:
-    """OHLC + indicator series from NSE history; empty chart if history unavailable."""
+def _chart(history: pd.DataFrame) -> dict:
+    """OHLC + indicator series from the daily history; empty chart if indicators cannot be built."""
     empty = {"candles": [], "ema20": [], "ema50": [], "ema200": [], "rsi": [], "macd": []}
     try:
-        df = calculate_indicators(get_stock_history_dataframe(symbol))
+        df = calculate_indicators(history)
     except Exception:
         return empty
 
@@ -55,12 +56,26 @@ def _chart(symbol: str) -> dict:
     }
 
 
+def _quant(symbol: str, history: pd.DataFrame) -> dict:
+    try:
+        return stock_quant(symbol, history)
+    except Exception as e:  # analytics must never take the sheet down
+        failed = {"status": "NOT_AVAILABLE", "reason": f"Quant engine failed: {e}"}
+        return {"risk": failed, "scorecard": failed}
+
+
 def _build(symbol: str) -> dict:
-    a = analyze_stock(symbol)  # raises ValueError for unknown symbol
+    security = resolve_symbol(symbol)
+    if security is None:
+        raise ValueError(f"Stock not found in NSE master: {symbol}")
+    # one year, downloaded once and shared by the technical engine, the chart and the quant engine
+    history = get_price_history(security["symbol"], period="1y", interval="1d")
+    a = analyze_stock(security["symbol"], data=history)
     return {
         "info": {"name": a.get("company_name"), "symbol": a["symbol"], "sector": None,
                  "price": a["price"], "change": a.get("return_1d")},
-        "chart": _chart(a["symbol"]),
+        "chart": _chart(history),
+        "quant": _quant(a["symbol"], history),
         "score": {"overall": a.get("momentum_score"), "components": []},
         # No S/R engine in analyze_stock; 52w extremes are the only sourced levels.
         "levels": {"support": [a["low_52w"]] if a.get("low_52w") else [],

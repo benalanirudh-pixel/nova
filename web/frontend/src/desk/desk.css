@@ -1,7 +1,10 @@
 :root{--bg:#0A0B0E;--panel:#111318;--raise:#181B22;--line:#23272E;--line2:#3A3F48;--ink:#E8EAED;--dim:#8A8F98;--faint:#5C626B;--up:#4ADE80;--dn:#F87171;--acc:#60A5FA;--accT:#0A0B0E;--read:#FBBF24;--hp:74,222,128;--hn:248,113,113;--border:#1E2329}
 :root[data-theme="dark"]{--bg:#0A0B0E;--panel:#111318;--raise:#181B22;--line:#23272E;--line2:#3A3F48;--ink:#E8EAED;--dim:#8A8F98;--faint:#5C626B;--up:#4ADE80;--dn:#F87171;--acc:#60A5FA;--accT:#0A0B0E;--read:#FBBF24;--hp:74,222,128;--hn:248,113,113;--border:#1E2329}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0A0B0E;--panel:#111318;--raise:#181B22;--line:#23272E;--line2:#3A3F48;--ink:#E8EAED;--dim:#8A8F98;--faint:#5C626B;--up:#4ADE80;--dn:#F87171;--acc:#60A5FA;--accT:#0A0B0E;--read:#FBBF24;--hp:74,222,128;--hn:248,113,113;--border:#1E2329}}
-@media (prefers-color-scheme:light){:root[data-theme="light"]{--bg:#F7F7F5;--panel:#FFFFFF;--raise:#F0F0EC;--line:#D9D9D2;--line2:#BFBFB6;--ink:#1A1B1E;--dim:#5C626B;--faint:#8A8F98;--up:#0A7A4E;--dn:#C5301C;--acc:#14508F;--accT:#FFFFFF;--read:#7A5310;--hp:10,122,78;--hn:197,48,28;--border:#C4C4BD}}
+:root[data-theme="light"]{--bg:#F7F7F5;--panel:#FFFFFF;--raise:#F0F0EC;--line:#D9D9D2;--line2:#BFBFB6;--ink:#1A1B1E;--dim:#5C626B;--faint:#8A8F98;--up:#0A7A4E;--dn:#C5301C;--acc:#14508F;--accT:#FFFFFF;--read:#7A5310;--hp:10,122,78;--hn:197,48,28;--border:#C4C4BD;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a}
+/* chart series: validated as a set on each surface (dataviz validator, all pairs) */
+:root{--s1:#3987e5;--s2:#d95926;--s3:#199e70}
+:root[data-theme="light"]{--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a}
 * { box-sizing: border-box }
 .app { background: var(--bg); color: var(--ink); font: 400 12px/1.4 "Geist Mono", Consolas, monospace; -webkit-font-smoothing: antialiased; height: 100dvh }
 .app button,.app input,.app select { font: inherit; color: inherit }
@@ -138,13 +141,14 @@ th.so button { all: unset; cursor: pointer } th.so button:focus-visible { outlin
 .view.bare { border: 0; padding-bottom: 0 }
 
 /* grid layouts */
-.grid-eq, .grid-fno, .grid-flows, .grid-sec, .grid-note, .grid-audit { display: grid; gap: 1px; background: var(--border); min-height: 0; min-width: 0; height: 100% }
+.grid-eq, .grid-fno, .grid-flows, .grid-sec, .grid-note, .grid-audit, .grid-quant { display: grid; gap: 1px; background: var(--border); min-height: 0; min-width: 0; height: 100% }
 .grid-eq { grid-template: "wl main side" minmax(0,1fr) / 286px minmax(0,1fr) 340px }
 .grid-fno { grid-template: "hd hd" auto "cx cx" auto "ch rg" minmax(0,1fr) / minmax(0,1fr) 400px }
 .grid-flows { grid-template: "rl st" auto "tb st" minmax(0,1fr) / minmax(0,1fr) 340px }
 .grid-sec { grid-template: "a b" minmax(0,1fr) / 540px minmax(0,1fr) }
 .grid-note { grid-template: "c g n" minmax(0,1fr) / minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.2fr) }
 .grid-audit { grid-template: "f e p" minmax(0,1fr) / minmax(0,1.5fr) minmax(0,1fr) minmax(0,.9fr) }
+.grid-quant { grid-template: "a b c" minmax(0,1fr) / minmax(0,1fr) minmax(0,1.15fr) minmax(0,1fr) }
 .pane.full { height: 100% }
 
 @media (max-width: 1050px) {
@@ -170,3 +174,46 @@ th.so button { all: unset; cursor: pointer } th.so button:focus-visible { outlin
 .ask textarea { width: 100%; resize: vertical; padding: 6px 8px; background: var(--raise); color: var(--ink); border: 1px solid var(--line2); font: 400 11.5px/1.4 Geist, sans-serif }
 .ask .tbtn { justify-self: start }
 .ask .ai { margin: 0; white-space: pre-wrap; font: 400 11.5px/1.5 Geist, sans-serif; color: var(--ink); max-height: 60vh; overflow: auto }
+
+/* charts */
+.chart { padding: 4px 9px 6px }
+.cwrap { position: relative }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible }
+.cgrid { stroke: var(--line); stroke-width: 1 }
+.caxis { stroke: var(--line2); stroke-width: 1 }
+.cmark { stroke: var(--faint); stroke-width: 1 }
+.ccross { stroke: var(--line2); stroke-width: 1 }
+.cband { fill: var(--ink); opacity: .06 }
+.cbar { fill: var(--faint); opacity: .55 }
+.cdot { stroke: var(--panel); stroke-width: 2 }
+.ctick { fill: var(--faint); font: 400 9.5px "Geist Mono", monospace }
+.cend { fill: var(--ink); font: 500 10px "Geist Mono", monospace }
+.cquad { fill: var(--dim); font: 600 10px Geist, sans-serif; letter-spacing: .04em; text-transform: uppercase }
+.clegend { display: flex; flex-wrap: wrap; gap: 3px 14px; padding: 0 0 4px; color: var(--dim); font-size: 10.5px }
+.clegend i { display: inline-block; width: 12px; height: 2px; margin-right: 5px; vertical-align: middle }
+.clegend i.vband { height: 8px; background: var(--ink); opacity: .14 }
+.ctip { position: absolute; top: 6px; z-index: 3; min-width: 150px; padding: 6px 8px; background: var(--raise); border: 1px solid var(--line2); pointer-events: none; font: 400 10.5px "Geist Mono", monospace }
+.ctip b { display: block; margin-bottom: 3px; font: 600 11px Geist, sans-serif }
+.ctip div { display: flex; align-items: center; gap: 6px }
+.ctip i { width: 8px; height: 2px; flex: none }
+.ctip u { text-decoration: none; color: var(--dim); flex: 1 }
+.grid-quant .chart svg { max-height: 420px }
+
+/* scorecard */
+.score { display: flex; align-items: baseline; gap: 9px; padding-bottom: 6px }
+.score b { font: 600 30px/1 "Source Serif 4", Georgia, serif }
+.score span { font: 600 13px Geist, sans-serif }
+.score small { margin-left: auto; color: var(--faint); font-size: 10px }
+.meters > div { display: grid; grid-template-columns: 104px minmax(40px,1fr) 30px 66px; align-items: center; gap: 0 8px; padding: 3px 0; border-top: 1px solid var(--line) }
+.meters u { text-decoration: none; color: var(--dim) }
+.meters b { font: 500 11px "Geist Mono", monospace; text-align: right }
+.meters .mh { border-top: 0; color: var(--faint); font-size: 10px; text-transform: uppercase; letter-spacing: .02em }
+.meters .mh span:nth-child(n+2) { text-align: right; grid-column: span 1 }
+.meters .mh span:nth-child(2) { grid-column: 2 / 4 }
+.meters .mh span:nth-child(3) { display: none }
+.meter { height: 6px; background: color-mix(in srgb, var(--s1) 22%, transparent); border-radius: 3px; overflow: hidden }
+.meter i { display: block; height: 100%; background: var(--s1); border-radius: 3px }
+.meters .cap u { color: var(--faint) }
+.reads.conf { margin-top: 6px }
+.reads.conf li { font-size: 12px }
+p.note-t.pad { margin: 0 }

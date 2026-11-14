@@ -3,9 +3,10 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useMarketData } from "../hooks/useMarketData";
 import { useLiveQuote, useLiveWatch } from "../hooks/useLive";
 import { isNum } from "../lib/format";
-import type { FnoDesk, StockProfile } from "../lib/types";
+import type { FnoDesk, StockProfile, StockQuant } from "../lib/types";
 import { risk, withQuote, type Bar, type Risk } from "./analytics";
 import Ask from "./Ask";
+import { PriceChart, StockQuantBlocks } from "./Quant";
 import { headline, INDEX_NAMES, INDICES, useDesk } from "./data";
 import { big, Block, dayMonth, Empty, Flag, Kv, n, Pct, pc, sg, Table, type Col } from "./ui";
 
@@ -15,8 +16,10 @@ const MAX_MONITOR = 22; // the live feed polls 25 symbols at most; three go to t
 const tickSym = (s: string) => (s === "VIX" ? "INDIAVIX" : s);
 
 interface MonitorRow { sym: string; px: unknown; p: unknown }
+type SeriesPoint = { time: string; value: number | null };
 interface StockData {
-  chart: { candles: { time: string; open: number; high: number; low: number; close: number; volume: number }[] };
+  chart: { candles: { time: string; open: number; high: number; low: number; close: number; volume: number }[]; ema50?: SeriesPoint[]; ema200?: SeriesPoint[] };
+  quant?: StockQuant;
   analysis: { company_name?: string; price: number; open: number; high: number; low: number; volume: number; return_1d: number; rsi_14: number; ema_200: number; vwap_20d: number; high_52w: number; low_52w: number };
 }
 interface Instrument {
@@ -95,7 +98,7 @@ function assess(q: Instrument, x: Risk, base: Risk | null, rel: boolean, stock: 
   return out;
 }
 
-function Sheet({ q, wide, read, sideExtra, loading, pending }: { q: Instrument; wide?: ReactNode; read?: (a: [string, string, string][]) => ReactNode; sideExtra?: ReactNode; loading?: boolean; pending?: ReactNode }) {
+function Sheet({ q, lead, wide, read, sideExtra, loading, pending }: { q: Instrument; lead?: ReactNode; wide?: ReactNode; read?: (a: [string, string, string][]) => ReactNode; sideExtra?: ReactNode; loading?: boolean; pending?: ReactNode }) {
   const { niftyRisk, niftyBars, flags } = useDesk();
   const isNifty = q.sym === "NIFTY";
   const x = useMemo(() => risk(q.bars, q.px, isNifty ? null : niftyBars), [q.bars, q.px, isNifty, niftyBars]);
@@ -123,6 +126,7 @@ function Sheet({ q, wide, read, sideExtra, loading, pending }: { q: Instrument; 
     const m5 = (px * x.rv20) / 100 * Math.sqrt(5 / 252);
     cards = (
       <div className="sheet">
+        {lead}
         <Block title="Performance" sub={isNifty ? "Absolute" : "Against Nifty 50"}>
           <Table cols={[{ h: "Period", v: (r) => r.t, text: true, bold: true }, { h: q.sym, v: (r) => <Pct v={r.v} /> }, ...(isNifty ? [] : [{ h: "Nifty", v: (r: typeof rr[number]) => <Pct v={r.b} /> }, { h: "Excess", v: (r: typeof rr[number]) => (isNum(r.v) && isNum(r.b) ? <Pct v={r.v - r.b} /> : "") }])]} rows={rr} />
         </Block>
@@ -134,7 +138,7 @@ function Sheet({ q, wide, read, sideExtra, loading, pending }: { q: Instrument; 
         </Block>
         <div className="stack">
           <Block title="Risk and volatility" sub={x.beta != null ? `Beta on ${x.pairs} sessions` : ""}>
-            <div className="pad"><Kv rows={[["Realized vol 20D", `${n(x.rv20, 1)}%`], ["Realized vol 60D", `${n(x.rv60, 1)}%`], ["ATR 14", `${n(x.atr)} (${n(x.atrPct)}%)`], ["1σ 5-day", `${n(px - m5, 0)} to ${n(px + m5, 0)}`], ["Max drawdown 6M", pc(x.maxDrawdown, 1)], ["From 6M high", pc(x.fromHigh, 1)], ["Sessions since high", x.sinceHigh], ["Best day 60D", pc(x.best)], ["Worst day 60D", pc(x.worst)], ["Up days 60D", `${n(x.upDays, 0)}%`], ...(x.beta != null ? [["Beta to Nifty 60D", n(x.beta)], ["Correlation 60D", n(x.corr)], ["Alpha 60D", pc(x.alpha, 1)]] as [string, string][] : [])]} /></div>
+            <div className="pad"><Kv rows={[["Realized vol 20D", `${n(x.rv20, 1)}%`], ["Realized vol 60D", `${n(x.rv60, 1)}%`], ["ATR 14", `${n(x.atr)} (${n(x.atrPct)}%)`], ["1σ 5-day", `${n(px - m5, 0)} to ${n(px + m5, 0)}`], ["Max drawdown, window", pc(x.maxDrawdown, 1)], ["From window high", pc(x.fromHigh, 1)], ["Sessions since high", x.sinceHigh], ["Best day 60D", pc(x.best)], ["Worst day 60D", pc(x.worst)], ["Up days 60D", `${n(x.upDays, 0)}%`], ...(x.beta != null ? [["Beta to Nifty 60D", n(x.beta)], ["Correlation 60D", n(x.corr)], ["Alpha 60D", pc(x.alpha, 1)]] as [string, string][] : [])]} /></div>
           </Block>
           {x.vol20 > 0 && <Block title="Volume"><div className="pad"><Kv rows={[...(q.v ? [["Volume today", big(q.v)]] as [string, string][] : []), ["Average 20D", big(x.vol20)], ["Average 5D", big(x.vol5)], ["5D vs 20D", `${n(x.vol5 / x.vol20)}x`], ["Up/down volume 20D", x.upDown ? `${n(x.upDown)}x` : "n/a"]]} /></div></Block>}
         </div>
@@ -225,9 +229,15 @@ function StockSheet({ sym, go }: { sym: string; go: (s: string) => void }) {
       <Ask symbol={sym} />
     </>
   );
+  const lead = stock.data && (
+    <>
+      <PriceChart sym={sym} candles={stock.data.chart.candles} ema50={stock.data.chart.ema50 ?? []} ema200={stock.data.chart.ema200 ?? []} risk={stock.data.quant?.risk} />
+      <StockQuantBlocks q={stock.data.quant} px={px} />
+    </>
+  );
   return (
-    <Sheet q={q} wide={wide} loading={!stock.data && !stock.error}
-      pending={scan && <div className="sheet"><Block wide title="Scan sheet" sub="Last complete scan, shown while history loads"><div className="pad"><Kv rows={[["Last", n(scan.p)], ["1D", pc(scan.r1)], ["5D", pc(scan.r5)], ["20D", pc(scan.r20, 1)], ["60D", pc(scan.r60, 1)], ["vs EMA 20", pc(scan.e20, 1)], ["vs EMA 200", pc(scan.e200, 1)], ["RSI", n(scan.rsi, 0)], ["RS 20D", sg(scan.rs20, 1)], ["ATR", `${n(scan.atr)}%`], ["Rel volume", `${n(scan.rv, 1)}x`], ["Value", `${n(scan.val, 1)} Cr`], ["Trend", scan.t], ["From 52W high", pc(scan.dh, 1)]]} /></div></Block></div>}
+    <Sheet q={q} lead={lead} wide={wide} loading={!stock.data && !stock.error}
+      pending={scan && <div className="sheet"><Block wide title="Scan sheet" sub="Last complete scan, shown while history loads"><div className="pad"><Kv rows={[["Last", n(scan.p)], ["1D", pc(scan.r1)], ["5D", pc(scan.r5)], ["20D", pc(scan.r20, 1)], ["60D", pc(scan.r60, 1)], ["vs EMA 20", pc(scan.e20, 1)], ["vs EMA 200", pc(scan.e200, 1)], ["RSI", n(scan.rsi, 0)], ["RS 20D", sg(scan.rs20, 1)], ["ATR", `${n(scan.atr)}%`], ["Rel volume", `${n(scan.rv, 1)}x`], ["Value", `${n(scan.val, 1)} Cr`], ["Trend", scan.t], ["From 52W high", pc(isNum(scan.dh) ? -Math.abs(scan.dh) : null, 1)]]} /></div></Block></div>}
       read={(asm) => <div className="view"><div className="who">Nova read</div><h1>{asm.length ? `Trend ${asm[0][1].toLowerCase()}. Momentum ${(asm[1]?.[1] ?? "n/a").toLowerCase()}.` : stock.error ? "History unavailable." : "Building the sheet."}</h1></div>}
       sideExtra={
         <>
