@@ -8,6 +8,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from analysis.data import nse_live, price_store
+from web.api import universe
 from market_lab.market_lab_data import get_market_lab_data, save_json_report
 
 IST = "Asia/Kolkata"
@@ -125,9 +126,10 @@ async def update_prices() -> None:
         return
     _prices_running = True
     try:
-        out = await asyncio.to_thread(price_store.update)
-        if out.get("stored"):
-            _broadcast({"type": "prices_updated", "timestamp": datetime.now().isoformat(), "last": out.get("last")})
+        await asyncio.to_thread(price_store.update)
+        # rebuild the whole-market cross-section for the store as it now stands (a no-op when nothing changed)
+        if await asyncio.to_thread(universe.build):
+            _broadcast({"type": "universe_ready", "timestamp": datetime.now().isoformat()})
     except Exception as exc:  # the desk works without the store; say so and carry on
         print(f"[PRICE STORE] update failed: {exc}")
     finally:

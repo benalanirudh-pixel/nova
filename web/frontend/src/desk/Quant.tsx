@@ -35,7 +35,7 @@ export function PriceChart({ sym, candles, ema50, ema200, risk }: { sym: string;
 function Scorecard({ c }: { c: QuantScorecard }) {
   if (c.status !== "AVAILABLE") return <Block title="Scorecard"><div className="pad"><Flag>Not rated</Flag><p className="note-t">{c.reason}</p></div></Block>;
   return (
-    <Block title="Scorecard" sub={`Percentile in ${n(c.universe, 0)} stocks, scan ${dayMonth(c.scan_as_of)}`}>
+    <Block title="Scorecard" sub={`Percentile in ${n(c.universe, 0)} stocks, ${c.universe_source === "Saved scan" ? "saved scan" : "every listed stock"}, ${dayMonth(c.scan_as_of)}`}>
       <div className="pad">
         <div className="score"><b>{n(c.composite, 0)}</b><span>{c.stance}</span><small>Rank against other stocks, not a view on direction</small></div>
         <div className="meters" role="table" aria-label="Pillar percentiles">

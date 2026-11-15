@@ -1750,3 +1750,14 @@ sprint (screenshot caught the brief loading).
 - Not verified: results against a vendor database; delisting losses after a
   stock's last trade are not captured; dividends parsed only when the subject
   names a rupee amount.
+
+## 2026-11-15 - Whole-market universe
+
+- Full offline suite: 563 tests OK (new: bulk adjusted read matches single
+  history across a bonus; store scan keeps listed trading stocks, drops stale,
+  tiny and unlisted ones, leaves 52-week fields empty for short history, cuts
+  Nifty to the store date; screener and scorecard switch to the store only
+  when it is current).
+- Live: universe ready about 45 s after start, 2,589 stocks, 385 short
+  history. Screener shows 2,589; LGEINDIA and MONEYVIEW (30 sessions) sheets
+  render with scorecard ranked in 2,589.

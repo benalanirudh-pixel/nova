@@ -125,7 +125,9 @@ NSE archive  symbolchange.csv                   renames, folded into today's sym
    -> analysis/data/cache/prices/prices.sqlite  (git-ignored, ~400 MB for 2021 onwards)
 scheduler: 19:30 IST Mon-Fri update_prices(), plus a catch-up at server start
 GET /api/research/overview   backtest + breadth, built once per store state (~35 s cold)
-GET /api/stock/{symbol}      history from the store when it holds 250+ fresh sessions, else the feed
+GET /api/stock/{symbol}      history from the store when it holds 20+ fresh sessions, else the feed
+web/api/universe.py          whole-market cross-section (store_scan.build) after each store update;
+                             /api/scan and the scorecard use it when current, else the saved scan
 ```
 
 Rules: bhavcopy PREV_CLOSE is not restated on ex-dates, so adjustment comes from NSE's corporate-action

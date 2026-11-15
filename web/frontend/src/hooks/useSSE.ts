@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { loadSnapshot, pushTick, setStatus } from "../lib/live";
 
 export interface SSEEvent {
-  type: "refresh_complete" | "refresh_failed";
+  type: "refresh_complete" | "refresh_failed" | "universe_ready";
   timestamp: string;
 }
 
@@ -21,7 +21,7 @@ export function useSSE() {
       try { ev = JSON.parse(m.data); } catch { return; /* ignore malformed */ }
       if (ev?.type === "tick") pushTick(ev);
       else if (ev?.type === "feed_status") setStatus(ev);
-      else if (ev?.type === "refresh_complete" || ev?.type === "refresh_failed") setLast(ev);
+      else if (ev?.type === "refresh_complete" || ev?.type === "refresh_failed" || ev?.type === "universe_ready") setLast(ev);
       else if (ev && typeof ev === "object" && ev.symbol && ev.ltp !== undefined) pushTick(ev);
     };
     return () => es.close();

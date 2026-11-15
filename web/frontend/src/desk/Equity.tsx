@@ -115,7 +115,10 @@ function Sheet({ q, lead, wide, read, sideExtra, loading, pending }: { q: Instru
   );
   let cards: ReactNode = loading
     ? <><Empty>Loading daily history for {q.sym}. The first load takes about 15 seconds; repeat visits are instant.</Empty>{pending}</>
-    : <Empty>Not enough daily history for this symbol yet.</Empty>;
+    : lead
+      // under 40 sessions the sheet's own tables cannot be built, but the chart, scorecard and store blocks can
+      ? <div className="sheet">{lead}<Block wide title="Trend, levels and volatility"><Empty>Needs 40 sessions of history; {q.bars.length} so far.</Empty></Block>{wide}</div>
+      : <Empty>Not enough daily history for this symbol yet.</Empty>;
   if (x) {
     const ages = Math.min(q.bars.length - 1, 122);
     const rr = ([["1D", q.p, 1], ["5D", x.ret(5), 5], ["20D", x.ret(20), 20], ["60D", x.ret(60), 60], ["6M", x.ret(ages), ages]] as [string, number | null, number][])
@@ -240,7 +243,7 @@ function StockSheet({ sym, go }: { sym: string; go: (s: string) => void }) {
   return (
     <Sheet q={q} lead={lead} wide={wide} loading={!stock.data && !stock.error}
       pending={scan && <div className="sheet"><Block wide title="Scan sheet" sub="Last complete scan, shown while history loads"><div className="pad"><Kv rows={[["Last", n(scan.p)], ["1D", pc(scan.r1)], ["5D", pc(scan.r5)], ["20D", pc(scan.r20, 1)], ["60D", pc(scan.r60, 1)], ["vs EMA 20", pc(scan.e20, 1)], ["vs EMA 200", pc(scan.e200, 1)], ["RSI", n(scan.rsi, 0)], ["RS 20D", sg(scan.rs20, 1)], ["ATR", `${n(scan.atr)}%`], ["Rel volume", `${n(scan.rv, 1)}x`], ["Value", `${n(scan.val, 1)} Cr`], ["Trend", scan.t], ["From 52W high", pc(isNum(scan.dh) ? -Math.abs(scan.dh) : null, 1)]]} /></div></Block></div>}
-      read={(asm) => <div className="view"><div className="who">Nova read</div><h1>{asm.length ? `Trend ${asm[0][1].toLowerCase()}. Momentum ${(asm[1]?.[1] ?? "n/a").toLowerCase()}.` : stock.error ? "History unavailable." : "Building the sheet."}</h1></div>}
+      read={(asm) => <div className="view"><div className="who">Nova read</div><h1>{asm.length ? `Trend ${asm[0][1].toLowerCase()}. Momentum ${(asm[1]?.[1] ?? "n/a").toLowerCase()}.` : stock.error ? "History unavailable." : stock.data ? `${stock.data.chart.candles.length} sessions of history. Too short for a trend read.` : "Building the sheet."}</h1></div>}
       sideExtra={
         <>
           {stock.error && <div className="pad"><Flag>History failed</Flag><p className="note-t">{stock.error}</p></div>}

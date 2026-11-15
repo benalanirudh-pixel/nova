@@ -216,7 +216,7 @@ class TestRefreshEndpoint(unittest.TestCase):
         from starlette.testclient import TestClient
         from unittest import mock
         app = create_app()
-        with mock.patch("web.api.scheduler.get_market_lab_data"),              mock.patch("analysis.data.nse_live.get", side_effect=RuntimeError("offline test")),              mock.patch("web.api.scheduler.price_store.update", return_value={}) as prices,              TestClient(app):
+        with mock.patch("web.api.scheduler.get_market_lab_data"),              mock.patch("analysis.data.nse_live.get", side_effect=RuntimeError("offline test")),              mock.patch("web.api.scheduler.price_store.update", return_value={}) as prices,              mock.patch("web.api.scheduler.universe.build", return_value=None),              TestClient(app):
             jobs = app.state.scheduler.get_jobs()
             self.assertEqual(len(jobs), 5)  # four report refreshes and the evening price-store update
             for j in jobs:
@@ -536,7 +536,7 @@ class TestStockHistorySource(unittest.TestCase):
 
     def test_thin_stale_or_broken_store_falls_back_to_the_feed(self):
         from web.api.routes import stock
-        cases = [dict(return_value=self._stored(50)), dict(return_value=self._stored(400, last="2026-09-01")), dict(side_effect=RuntimeError("locked"))]
+        cases = [dict(return_value=self._stored(10)), dict(return_value=self._stored(400, last="2026-09-01")), dict(side_effect=RuntimeError("locked"))]
         for case in cases:
             with _mock.patch.object(stock.price_store, "history", **case), \
                  _mock.patch.object(stock.price_store, "status", return_value={"last": "2026-11-13"}), \
@@ -574,6 +574,56 @@ class TestResearchOverview(unittest.TestCase):
         b = body["breadth"]["liquid"]
         self.assertEqual(len(b["dates"]), len(b["above_200_pct"]))
         self.assertTrue(all(v is None or 0 <= v <= 100 for v in b["above_200_pct"]))
+
+
+class TestWholeMarketScan(unittest.TestCase):
+    def _whole(self):
+        import numpy as np
+        import pandas as pd
+        rng = np.random.default_rng(1)
+        n = 1600
+        price = rng.uniform(50, 2000, n)
+        raw = pd.DataFrame({
+            "symbol": [f"S{i:04d}" for i in range(n)], "price": price, "return_1d": rng.normal(0, 2, n), "return_5d": rng.normal(0, 4, n),
+            "return_20d": rng.normal(0, 8, n), "return_60d": rng.normal(0, 15, n), "relative_strength_20d": rng.normal(0, 8, n),
+            "relative_strength_60d": rng.normal(0, 15, n), "ema_20": price, "ema_50": price, "ema_200": [None] * 10 + list(price[10:]),
+            "rsi_14": rng.uniform(20, 80, n), "atr_percent": 2.0, "volume": 1e5, "volume_average_20": 1e5, "relative_volume": 1.0,
+            "high_52w": [None] * 10 + list(price[10:] * 1.2), "low_52w": [None] * 10 + list(price[10:] * 0.8),
+            "distance_52w_high": [None] * 10 + [16.7] * (n - 10), "distance_52w_low": [None] * 10 + [25.0] * (n - 10),
+            "trend": [None] * 10 + ["UPTREND"] * (n - 10), "score": [None] * 10 + [50.0] * (n - 10),
+            "short_history": [True] * 10 + [False] * (n - 10), "sector": "Banks", "company_name": [f"Co {i}" for i in range(n)],
+        })
+        from analysis.data import quant_engine as qe
+        return {"as_of": "2026-11-13", "raw": raw, "frame": qe.prepare(raw), "listed": 1610, "built_at": "x", "short_history": 10, "benchmark_error": None}
+
+    def test_screener_and_scorecard_use_the_store_when_ready(self):
+        from starlette.testclient import TestClient
+        from web.api.routes import desk, quant
+        whole = self._whole()
+        desk._cache.clear()
+        self.addCleanup(desk._cache.clear)
+        with _mock.patch.object(desk.universe, "ready", return_value=whole), _mock.patch.object(quant.universe, "ready", return_value=whole), \
+             _mock.patch.object(quant, "benchmark_close", return_value=(None, "offline")):
+            body = TestClient(create_app()).get("/api/scan").json()
+            card = quant.stock_quant("S0000", __import__("pandas").DataFrame())["scorecard"]
+        self.assertEqual((body["source"], body["stock_count"], body["listed"]), ("store", 1600, 1610))
+        short = dict(zip(body["columns"], body["rows"][0]))
+        self.assertEqual(short["s"], "S0000")
+        self.assertIsNone(short["h52"])   # short history: no 52-week figures, never a high-since-listing
+        self.assertIsNone(short["t"])
+        self.assertEqual(short["n"], "Co 0")
+        self.assertEqual((card["universe"], card["universe_source"]), (1600, "Local price store, every listed stock"))
+
+    def test_saved_scan_is_used_until_the_store_is_ready(self):
+        from web.api import universe
+        universe._state.clear()
+        self.addCleanup(universe._state.clear)
+        self.assertIsNone(universe.ready())
+        universe._state.update(key=("2026-11-12", 10, 5), value={"as_of": "2026-11-12"})
+        with _mock.patch.object(universe.price_store, "version", return_value=("2026-11-13", 11, 5)):
+            self.assertIsNone(universe.ready())  # the store moved on: stale cross-section is not served
+        with _mock.patch.object(universe.price_store, "version", return_value=("2026-11-12", 10, 5)):
+            self.assertEqual(universe.ready()["as_of"], "2026-11-12")
 
 
 class TestQuantInternals(unittest.TestCase):

@@ -3,6 +3,34 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-15 - Whole-market universe: every listed stock
+
+- The Screener, the Monitor's All list and every scorecard now cover 2,589 of
+  the 2,599 stocks in the NSE equity master (the saved scan covered 2,010).
+  The other 10 have not traded in the last week (suspended or renamed).
+- `analysis/data/store_scan.py`: the scan rebuilt from the local price store.
+  Stocks with 210+ sessions go through the scanner's own
+  `analyze_stock_dataframe`, so trend and score mean what they mean in the
+  saved scan. 385 recent listings get the fields their history supports;
+  52-week figures, the 200-day average, trend and score stay empty for them
+  (a high since listing would pass for a 52-week high in every screen).
+- Sectors for all 2,598 master symbols come from
+  `cache/sector/nse_sector_classification.csv`.
+- `web/api/universe.py` builds the cross-section in about 45 s after each
+  price-store update and at server start, then broadcasts `universe_ready`;
+  until then `/api/scan` and the scorecard use the saved scan as before.
+- `price_store.recent_histories` (one bulk read, adjusted) and
+  `price_store.version` (cheap change key; the stock route no longer runs the
+  1 s `status` count on every request).
+- Stock sheets for recent listings: the route now uses the store from 20
+  sessions (shorter stored history is the stock's whole life since listing),
+  and the sheet shows chart, scorecard, delivery and corporate actions even
+  under 40 sessions instead of an empty page.
+- Checked: store closes equal Yahoo's for RELIANCE over 90 sessions; the
+  only difference is the 8 Nov 2026 muhurat session, which Yahoo omits. That
+  shifts 20-day returns against the saved scan (median 1.8 points); scores
+  correlate 0.92. Nifty returns are cut to the store's last session.
+
 ## 2026-11-15 - Local NSE price store and multi-year research
 
 - `analysis/data/price_store.py`: SQLite store of every NSE equity session since

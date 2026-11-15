@@ -11,6 +11,7 @@ from fastapi import APIRouter
 from analysis.data import symbol_master
 from market_lab import view_model as vm
 from market_lab.market_lab_data import CACHE_DIR
+from web.api import universe
 from web.api.report_loader import load_cached_report
 
 router = APIRouter()
@@ -108,8 +109,24 @@ def _date(path: str | None) -> str | None:
     return "-".join(m.groups()) if m else None
 
 
+def _from_store(whole: dict) -> dict:
+    raw = whole["raw"]
+    if _cache.get("key") != ("store", whole["built_at"]):
+        rows = raw.astype(object).where(raw.notna(), None).to_dict("records")
+        stocks = build_stocks(rows, dict(zip(raw["symbol"], raw["sector"].fillna(""))), dict(zip(raw["symbol"], raw["company_name"].fillna(raw["symbol"]))))
+        _cache.update(key=("store", whole["built_at"]), stocks=stocks, table=build_sectors(stocks))
+    return {
+        "available": True, "source": "store", "as_of": whole["as_of"], "stock_count": len(_cache["stocks"]), "newest_stocks": len(_cache["stocks"]),
+        "listed": whole["listed"], "short_history": whole["short_history"], "sector_map_as_of": None, "columns": COLUMNS,
+        "rows": [[r[c] for c in COLUMNS] for r in _cache["stocks"]], "sectors": _cache["table"], "guardrails": vm.guardrails({}),
+    }
+
+
 @router.get("/scan")
 def scan():
+    whole = universe.ready()
+    if whole:
+        return _from_store(whole)
     root = Path(CACHE_DIR)
     path, rows, newest = latest_complete_scan(str(root / "scanner"))
     if not path:
@@ -121,7 +138,7 @@ def scan():
         stocks = build_stocks(rows, sectors, _names())
         _cache.update(key=key, stocks=stocks, table=build_sectors(stocks))
     return {
-        "available": True, "as_of": _date(path), "stock_count": len(_cache["stocks"]), "newest_stocks": newest,
+        "available": True, "source": "scan", "as_of": _date(path), "stock_count": len(_cache["stocks"]), "newest_stocks": newest,
         "sector_map_as_of": _date(enriched[-1]) if enriched else None, "columns": COLUMNS,
         "rows": [[r[c] for c in COLUMNS] for r in _cache["stocks"]], "sectors": _cache["table"],
         "guardrails": vm.guardrails({}),

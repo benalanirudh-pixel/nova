@@ -14,6 +14,7 @@ from fastapi import APIRouter
 
 from analysis.data import fno_desk, quant_engine as qe
 from market_lab import view_model as vm
+from web.api import universe
 from market_lab.market_lab_data import CACHE_DIR
 from web.api.routes.desk import MIN_COMPLETE_ROWS
 
@@ -141,6 +142,10 @@ def stock_quant(symbol: str, history: pd.DataFrame) -> dict:
     risk = qe.risk_profile(history, bench)
     if bench_error and isinstance(risk.get("benchmark"), dict):
         risk["benchmark"]["reason"] = bench_error
-    as_of, frame = latest_frame()
+    whole = universe.ready()
+    if whole:  # every listed stock, from the local price store
+        as_of, frame, source = whole["as_of"], whole["frame"], "Local price store, every listed stock"
+    else:
+        (as_of, frame), source = latest_frame(), "Saved scan"
     card = qe.scorecard(frame, symbol) if frame is not None else {"status": "NOT_AVAILABLE", "reason": "No complete scan on disk."}
-    return {"risk": risk, "scorecard": {**card, "scan_as_of": as_of}}
+    return {"risk": risk, "scorecard": {**card, "scan_as_of": as_of, "universe_source": source}}

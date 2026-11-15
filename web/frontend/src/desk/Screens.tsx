@@ -92,7 +92,7 @@ export function Screener() {
   const partial = scan.newest_stocks < 1500;
   return (
     <section className="pane full" aria-label="Screener">
-      <div className="ph"><h2>Screener</h2><span className="s">Complete scan, {dayMonth(scan.as_of)}. A screen is a filter, not a recommendation</span>{partial && <Flag>Newest scan partial, {scan.newest_stocks} stocks</Flag>}</div>
+      <div className="ph"><h2>Screener</h2><span className="s">{scan.source === "store" ? `Every listed stock from the local price store, ${dayMonth(scan.as_of)}` : `Complete scan, ${dayMonth(scan.as_of)}`}. A screen is a filter, not a recommendation</span>{partial && <Flag>Newest scan partial, {scan.newest_stocks} stocks</Flag>}</div>
       <div className="bar">
         {Object.entries(PRESETS).map(([k, v]) => <button key={k} type="button" className="chip" aria-pressed={preset === k} onClick={() => setPreset(k)}>{v[0]}</button>)}
         <input value={q} onChange={(e) => setQ(e.target.value)} size={13} aria-label="Filter by symbol or name" placeholder="Filter" />

@@ -203,7 +203,7 @@ export interface QuantRisk {
 export interface QuantScorecard {
   status: "AVAILABLE" | "NOT_AVAILABLE"; reason?: string; sector?: string | null; universe?: number; sector_peers?: number | null;
   composite?: QN; stance?: string; pillars?: { pillar: string; universe_pct: QN; sector_pct: QN | undefined }[]; liquidity_pct?: QN;
-  conflicts?: string[]; method?: string; scan_as_of?: string | null;
+  conflicts?: string[]; method?: string; scan_as_of?: string | null; universe_source?: string;
 }
 export interface StockQuant { risk: QuantRisk; scorecard: QuantScorecard }
 

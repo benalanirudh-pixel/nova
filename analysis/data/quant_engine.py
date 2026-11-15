@@ -542,7 +542,7 @@ def scorecard(d: pd.DataFrame, symbol: str) -> dict:
         # capacity, not evidence: reported beside the composite, never inside it
         "liquidity_pct": _percentile(d["avg_value_cr"], row["avg_value_cr"], 1),
         "conflicts": _conflicts(row, pillars),
-        "method": "Percentile rank against every stock in the saved scan; composite is the plain average of the four pillars.",
+        "method": "Percentile rank against every stock in the universe; composite is the plain average of the four pillars.",
         "buy_sell_authorization": BUY_SELL_AUTHORIZATION,
     }
 

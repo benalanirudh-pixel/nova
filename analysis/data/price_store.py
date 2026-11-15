@@ -288,6 +288,18 @@ def update(start: Optional[date] = None, end: Optional[date] = None, con: Option
             con.close()
 
 
+def version(con: Optional[sqlite3.Connection] = None) -> tuple:
+    """(last session, sessions, actions): changes whenever the store does. Milliseconds, unlike `status`."""
+    own = con is None
+    con = con or connect()
+    try:
+        last, sessions = con.execute("SELECT MAX(date), COUNT(*) FROM days WHERE status='ok'").fetchone()
+        return last, sessions, con.execute("SELECT COUNT(*) FROM actions").fetchone()[0]
+    finally:
+        if own:
+            con.close()
+
+
 def status(con: Optional[sqlite3.Connection] = None) -> dict:
     own = con is None
     con = con or connect()
@@ -437,6 +449,43 @@ def history(symbol: str, sessions: Optional[int] = None, con: Optional[sqlite3.C
     })
     out.index = pd.DatetimeIndex(pd.to_datetime(f["date"]), name="Date")
     return out.tail(sessions) if sessions else out
+
+
+def recent_histories(sessions: int = 300, con: Optional[sqlite3.Connection] = None) -> tuple[Optional[str], dict[str, pd.DataFrame]]:
+    """(last session, {symbol: adjusted daily OHLCV}) for every symbol over the last `sessions` stored sessions.
+
+    One bulk read instead of one query per stock. Same adjustment as `history`: verified splits, bonuses and
+    rights restate earlier bars; dividends do not. Old symbols are folded into the name they trade under today.
+    """
+    own = con is None
+    con = con or connect()
+    try:
+        dates = [r[0] for r in con.execute("SELECT date FROM days WHERE status='ok' ORDER BY date DESC LIMIT ?", (sessions,))]
+        if not dates:
+            return None, {}
+        start = dates[-1]
+        f = pd.read_sql_query("SELECT symbol, date, open, high, low, close, volume FROM bars WHERE date >= ?", con, params=[start])
+        acts = pd.read_sql_query("SELECT symbol, ex_date, kind, a, b, c, subject FROM actions WHERE ex_date >= ?", con, params=[start])
+        final = rename_map(con)
+    finally:
+        if own:
+            con.close()
+    f["symbol"] = f["symbol"].map(lambda s: final.get(s, s))
+    acts["symbol"] = acts["symbol"].map(lambda s: final.get(s, s))
+    f = f.drop_duplicates(["symbol", "date"], keep="last").sort_values(["symbol", "date"]).reset_index(drop=True)
+    ev = evaluate_actions(acts, f[["symbol", "date", "close"]])
+    on_day = ev[ev["verified"]].groupby(["symbol", "date"])["factor"].prod().rename("factor").reset_index()
+    f = f.merge(on_day, on=["symbol", "date"], how="left")
+    f["factor"] = f["factor"].fillna(1.0)
+    # product of all later factors within the symbol, so every bar is in today's share terms
+    rev = f.iloc[::-1]
+    f["cum"] = rev.groupby("symbol", sort=False)["factor"].cumprod().iloc[::-1] / f["factor"]
+    out = {}
+    for symbol, g in f.groupby("symbol", sort=False):
+        frame = pd.DataFrame({"Open": g["open"] * g["cum"], "High": g["high"] * g["cum"], "Low": g["low"] * g["cum"],
+                              "Close": g["close"] * g["cum"], "Volume": g["volume"] / g["cum"]}).set_axis(pd.DatetimeIndex(pd.to_datetime(g["date"]), name="Date"))
+        out[symbol] = frame
+    return dates[0], out
 
 
 def corporate_actions(symbol: str, con: Optional[sqlite3.Connection] = None) -> list[dict]:

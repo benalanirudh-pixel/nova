@@ -193,6 +193,42 @@ def synthetic_panels(days=700, names=300, seed=5, drift_spread=0.0015):
             "deliv_pct": pd.DataFrame(rng.uniform(20, 80, (days, names)), index=idx, columns=cols)}
 
 
+class TestRecentHistories(StoreCase):
+    def test_bulk_read_matches_single_history_across_a_bonus(self):
+        self.three_days([200, 102, 103], actions=[action("AAA", "03-Mar-2026", "Bonus 1:1")])
+        as_of, h = ps.recent_histories(sessions=10, con=self.con)
+        self.assertEqual(as_of, "2026-03-04")
+        self.assertEqual(list(h["AAA"]["Close"]), list(ps.history("AAA", con=self.con)["Close"]))
+        self.assertAlmostEqual(h["AAA"]["Volume"].iloc[0], 2000.0)
+        self.assertEqual(ps.version(self.con), ("2026-03-04", 3, 1))
+
+
+class TestStoreScan(unittest.TestCase):
+    def frame(self, n, end="2026-11-13", start=100.0, step=0.003):
+        idx = pd.bdate_range(end=end, periods=n)
+        close = start * np.cumprod(np.full(n, 1 + step))
+        return pd.DataFrame({"Open": close, "High": close * 1.01, "Low": close * 0.99, "Close": close, "Volume": 1e5}, index=idx)
+
+    def test_every_listed_trading_stock_gets_a_row(self):
+        from analysis.data import store_scan
+        nifty = pd.Series(np.linspace(20000, 21000, 300), index=pd.bdate_range(end="2026-11-20", periods=300))  # feed runs past the store
+        hist = {"OLD": self.frame(260), "NEW": self.frame(40), "TINY": self.frame(10), "GONE": self.frame(260, end="2026-09-01"), "UNLISTED": self.frame(260)}
+        out = store_scan.build(hist, "2026-11-13", {"OLD", "NEW", "TINY", "GONE", "MISSING"}, nifty,
+                               pd.DataFrame({"symbol": ["OLD", "NEW"], "sector": ["Banks", "IT"], "company_name": ["Old Ltd", "New Ltd"]}))
+        self.assertEqual(sorted(out["symbol"]), ["NEW", "OLD"])
+        old, new = out.set_index("symbol").loc["OLD"], out.set_index("symbol").loc["NEW"]
+        self.assertFalse(old["short_history"])
+        self.assertIn(old["trend"], ("UPTREND", "STRONG_UPTREND"))   # the scanner's own labels
+        self.assertTrue(new["short_history"])
+        self.assertTrue(pd.isna(new["high_52w"]) and pd.isna(new["ema_200"]) and pd.isna(new["trend"]))
+        self.assertAlmostEqual(new["return_20d"], ((1.003 ** 20) - 1) * 100, places=4)
+        self.assertEqual(new["sector"], "IT")
+        nr = store_scan.nifty_returns(nifty, "2026-11-13")
+        trimmed = nifty[nifty.index <= "2026-11-13"]
+        self.assertAlmostEqual(nr["return_20d"], (trimmed.iloc[-1] / trimmed.iloc[-21] - 1) * 100)  # same end date as the store
+        self.assertAlmostEqual(new["relative_strength_20d"], new["return_20d"] - nr["return_20d"])
+
+
 class TestBacktest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

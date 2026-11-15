@@ -11,7 +11,7 @@ export interface ScanRow {
   h52: number | null; l52: number | null; dh: number | null; t: string; sc: number | null;
 }
 export interface SectorRow { n: string; c: number; r1: number | null; r5: number | null; r20: number | null; r60: number | null; a200: number; rsi: number | null; val: number; best: string; worst: string }
-interface ScanPayload { available: boolean; as_of?: string; stock_count?: number; newest_stocks: number; sector_map_as_of?: string | null; columns: (keyof ScanRow)[]; rows: unknown[][]; sectors: SectorRow[] }
+interface ScanPayload { available: boolean; source?: "store" | "scan"; listed?: number; short_history?: number; as_of?: string; stock_count?: number; newest_stocks: number; sector_map_as_of?: string | null; columns: (keyof ScanRow)[]; rows: unknown[][]; sectors: SectorRow[] }
 export interface Audit {
   report_saved_at: string | null; stocks_analyzed: number | null; data_availability: Record<string, string>; decision_policy: Record<string, boolean>;
   sector_file_as_of: string | null; scanner_file_as_of: string | null; factor_rows: number; factor_rows_empty: number;

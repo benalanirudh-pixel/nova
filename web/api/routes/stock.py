@@ -66,7 +66,9 @@ def _quant(symbol: str, history: pd.DataFrame) -> dict:
 
 STORE_SESSIONS = 750      # about three years: enough for a fully seeded 200-day average on the chart
 RISK_SESSIONS = 253       # one year of returns for the risk profile
-STORE_MIN_SESSIONS = 250
+# the store holds every session since 2021, so a shorter stored history is the stock's whole life since listing:
+# the feed cannot offer more. Below this there is too little for any engine.
+STORE_MIN_SESSIONS = 20
 STORE_MAX_LAG_DAYS = 7    # a symbol whose last stored bar is older than this has stopped trading or the store is stale
 
 
@@ -75,7 +77,7 @@ def _history(symbol: str):
     with delivery. One download from the feed only when the store cannot serve the symbol."""
     try:
         stored = price_store.history(symbol, sessions=STORE_SESSIONS)
-        last = price_store.status()["last"]
+        last = price_store.version()[0]
         if len(stored) >= STORE_MIN_SESSIONS and last and (pd.Timestamp(last) - stored.index[-1]).days <= STORE_MAX_LAG_DAYS:
             return stored[["Open", "High", "Low", "Close", "Volume"]], stored
     except Exception:
