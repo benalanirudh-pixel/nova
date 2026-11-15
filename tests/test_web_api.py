@@ -91,14 +91,17 @@ class TestStockEndpoint(unittest.TestCase):
         from unittest import mock
         fake = {"symbol": "X", "price": np.float64(10.5), "above_ema": np.bool_(True),
                 "atr_14": float("nan"), "momentum_score": np.int64(70)}
+        frame = __import__("pandas").DataFrame({"Close": [1.0, 2.0]})
         with mock.patch("web.api.routes.stock.resolve_symbol", return_value={"symbol": "X"}), \
-             mock.patch("web.api.routes.stock.get_price_history", return_value="history") as history, \
+             mock.patch("web.api.routes.stock._history", return_value=(frame, None)) as history, \
              mock.patch("web.api.routes.stock.analyze_stock", return_value=fake) as analyze, \
              mock.patch("web.api.routes.stock.stock_quant", side_effect=RuntimeError("engine down")), \
              mock.patch("web.api.routes.stock._chart", return_value={}):
             r = self.client.get("/api/stock/X")
-        history.assert_called_once()  # one download shared by the technical, chart and quant engines
-        self.assertEqual(analyze.call_args.kwargs["data"], "history")
+        history.assert_called_once()  # one history shared by the technical, chart and quant engines
+        self.assertIs(analyze.call_args.kwargs["data"], frame)
+        self.assertEqual(r.json()["delivery"]["status"], "NOT_AVAILABLE")  # no store rows: flagged, not invented
+        self.assertEqual(r.json()["history_source"], "Feed download, 1 year")
         self.assertEqual(r.json()["quant"]["risk"]["status"], "NOT_AVAILABLE")  # a quant failure never takes the sheet down
         self.assertEqual(r.status_code, 200)
         body = r.json()
@@ -213,11 +216,12 @@ class TestRefreshEndpoint(unittest.TestCase):
         from starlette.testclient import TestClient
         from unittest import mock
         app = create_app()
-        with mock.patch("web.api.scheduler.get_market_lab_data"),              mock.patch("analysis.data.nse_live.get", side_effect=RuntimeError("offline test")),              TestClient(app):
+        with mock.patch("web.api.scheduler.get_market_lab_data"),              mock.patch("analysis.data.nse_live.get", side_effect=RuntimeError("offline test")),              mock.patch("web.api.scheduler.price_store.update", return_value={}) as prices,              TestClient(app):
             jobs = app.state.scheduler.get_jobs()
-            self.assertEqual(len(jobs), 4)
+            self.assertEqual(len(jobs), 5)  # four report refreshes and the evening price-store update
             for j in jobs:
                 self.assertIn("day_of_week='mon-fri'", str(j.trigger))
+        prices.assert_called_once()  # startup catches the store up on missed sessions
 
 
     def test_missed_refresh_catch_up(self):
@@ -455,7 +459,7 @@ class TestSchedulerMisfire(unittest.TestCase):
              _mock.patch("apscheduler.schedulers.asyncio.AsyncIOScheduler.start"):
             scheduler.start_scheduler(app)
         jobs = app.state.scheduler.get_jobs()
-        self.assertEqual(len(jobs), len(scheduler.SLOTS))
+        self.assertEqual(len(jobs), len(scheduler.SLOTS) + 1)  # plus the evening price-store update
         self.assertTrue(all(j.misfire_grace_time is None and j.coalesce for j in jobs))
 
 
@@ -509,6 +513,67 @@ class TestInterpret(unittest.TestCase):
         with _mock.patch.dict("os.environ", {"NOVA_REFRESH_TOKEN": "s3cret"}):
             self.assertEqual(self.client.post("/api/interpret", json={}).status_code, 403)
         self.assertEqual(self.client.post("/api/interpret", json={"symbol": "A$B"}).status_code, 400)
+
+
+class TestStockHistorySource(unittest.TestCase):
+    def _stored(self, sessions, last="2026-11-13"):
+        import numpy as np
+        import pandas as pd
+        idx = pd.bdate_range(end=last, periods=sessions)
+        px = np.linspace(100, 120, sessions)
+        return pd.DataFrame({"Open": px, "High": px + 1, "Low": px - 1, "Close": px, "Volume": 1e5, "RawClose": px, "DelivPct": 40.0,
+                             "DelivQty": 4e4, "TurnoverCr": 5.0, "Factor": 1.0}, index=idx)
+
+    def test_store_serves_history_without_a_download(self):
+        from web.api.routes import stock
+        with _mock.patch.object(stock.price_store, "history", return_value=self._stored(400)), \
+             _mock.patch.object(stock.price_store, "status", return_value={"last": "2026-11-13"}), \
+             _mock.patch.object(stock, "get_price_history") as feed:
+            history, stored = stock._history("ABC")
+        feed.assert_not_called()
+        self.assertEqual(list(history.columns), ["Open", "High", "Low", "Close", "Volume"])
+        self.assertEqual(len(stored), 400)
+
+    def test_thin_stale_or_broken_store_falls_back_to_the_feed(self):
+        from web.api.routes import stock
+        cases = [dict(return_value=self._stored(50)), dict(return_value=self._stored(400, last="2026-09-01")), dict(side_effect=RuntimeError("locked"))]
+        for case in cases:
+            with _mock.patch.object(stock.price_store, "history", **case), \
+                 _mock.patch.object(stock.price_store, "status", return_value={"last": "2026-11-13"}), \
+                 _mock.patch.object(stock, "get_price_history", return_value="feed") as feed:
+                self.assertEqual(stock._history("ABC"), ("feed", None))
+            feed.assert_called_once()
+
+
+class TestResearchOverview(unittest.TestCase):
+    def test_empty_store_says_how_to_fill_it(self):
+        from starlette.testclient import TestClient
+        from web.api.routes import research
+        empty = {"available": False, "first": None, "last": None, "sessions": 0, "rows": 0, "symbols": 0}
+        with _mock.patch.object(research.price_store, "status", return_value=empty), _mock.patch.object(research.price_store, "panels") as panels:
+            body = TestClient(create_app()).get("/api/research/overview").json()
+        panels.assert_not_called()
+        self.assertFalse(body["available"])
+        self.assertIn("--backfill", body["reason"])
+        self.assertFalse(body["guardrails"]["buy_sell_authorization"])
+
+    def test_built_once_per_store_state(self):
+        from starlette.testclient import TestClient
+        from web.api.routes import research
+        from tests.test_price_store import synthetic_panels
+        research._cache.clear()
+        self.addCleanup(research._cache.clear)
+        st = {"available": True, "first": "2023-01-02", "last": "2025-09-05", "sessions": 700, "rows": 1, "symbols": 300}
+        with _mock.patch.object(research.price_store, "status", return_value=st), \
+             _mock.patch.object(research.price_store, "panels", return_value=synthetic_panels()) as panels, _mock.patch.object(research, "LIQUID_N", 200):
+            c = TestClient(create_app())
+            body = c.get("/api/research/overview").json()
+            c.get("/api/research/overview")
+        panels.assert_called_once()
+        self.assertEqual(body["backtest"]["status"], "AVAILABLE")
+        b = body["breadth"]["liquid"]
+        self.assertEqual(len(b["dates"]), len(b["above_200_pct"]))
+        self.assertTrue(all(v is None or 0 <= v <= 100 for v in b["above_200_pct"]))
 
 
 class TestQuantInternals(unittest.TestCase):

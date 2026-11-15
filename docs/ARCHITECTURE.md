@@ -64,6 +64,8 @@ terminal_main.py -> terminal/main_window.py (NovaTerminal)
 | `risk_engine.py`                | Risk-budget and position-risk calculations        |
 | `event_risk_engine.py`          | Event-risk from `event_calendar.json`             |
 | `research_factor_engine.py`     | Multi-factor scoring                              |
+| `price_store.py`                | Local SQLite of every NSE equity session from the bhavcopy archive (OHLCV, delivery), NSE corporate actions, symbol renames; adjusted history and total-return panels |
+| `research_engine.py`            | Monthly factor backtest, daily breadth series, per-stock delivery profile (pure functions on store panels) |
 | `quant_engine.py`               | Pure functions: 1Y risk profile, benchmark stats, liquidity/capacity, volume profile, scorecard percentiles, market internals, sector rotation, out-of-sample factor spreads |
 | `watchlist_engine.py`           | Per-symbol live snapshot                          |
 | `dhan_feed.py`                  | Optional Dhan market-data adapter (read-only)     |
@@ -113,6 +115,25 @@ GET /api/stock/{symbol}     one 1Y history download shared by technical_engine.a
 Conventions: simple daily returns, 252-day annualisation, risk-free rate 0, historical VaR.
 The scanner stores both 52-week distances as positive magnitudes; `prepare()` names them
 `below_high` / `above_low`.
+
+## Price store
+
+```
+NSE archive  sec_bhavdata_full_DDMMYYYY.csv   one file per session, all equities, with delivery
+NSE API      corporates-corporateActions        splits, bonuses, rights, dividends (one call per year)
+NSE archive  symbolchange.csv                   renames, folded into today's symbol
+   -> analysis/data/cache/prices/prices.sqlite  (git-ignored, ~400 MB for 2021 onwards)
+scheduler: 19:30 IST Mon-Fri update_prices(), plus a catch-up at server start
+GET /api/research/overview   backtest + breadth, built once per store state (~35 s cold)
+GET /api/stock/{symbol}      history from the store when it holds 250+ fresh sessions, else the feed
+```
+
+Rules: bhavcopy PREV_CLOSE is not restated on ex-dates, so adjustment comes from NSE's corporate-action
+record, and each split, bonus or rights issue is applied only when the observed ex-date gap matches its
+stated ratio within 0.70-1.40x. Research returns add cash dividends on the ex-date; charts do not. A
+one-day move beyond 40% that no verified action explains is dropped from returns. The archive serves
+another session's file for some non-trading dates; a file whose DATE1 differs from the date asked is
+recorded as no session.
 
 ## Data Sources
 

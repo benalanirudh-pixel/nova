@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from analysis.data import nse_live
+from analysis.data import nse_live, price_store
 from market_lab.market_lab_data import get_market_lab_data, save_json_report
 
 IST = "Asia/Kolkata"
@@ -114,8 +114,37 @@ def missed_refresh(saved_at: str | None, now: datetime) -> bool:
     return saved < last_slot(now)
 
 
+PRICE_SLOT = (19, 30)  # NSE publishes the day's bhavcopy in the evening
+_prices_running = False
+
+
+async def update_prices() -> None:
+    """Fetch the sessions the price store is missing. Cheap: one small file per missing day."""
+    global _prices_running
+    if _prices_running:
+        return
+    _prices_running = True
+    try:
+        out = await asyncio.to_thread(price_store.update)
+        if out.get("stored"):
+            _broadcast({"type": "prices_updated", "timestamp": datetime.now().isoformat(), "last": out.get("last")})
+    except Exception as exc:  # the desk works without the store; say so and carry on
+        print(f"[PRICE STORE] update failed: {exc}")
+    finally:
+        _prices_running = False
+
+
+def catch_up_prices() -> None:
+    """At startup: pick up any sessions published while the server was off. Needs a running loop."""
+    task = asyncio.get_running_loop().create_task(update_prices())
+    _tasks.add(task)
+    task.add_done_callback(_tasks.discard)
+
+
 def start_scheduler(app) -> None:
     sched = AsyncIOScheduler(timezone=IST)
+    sched.add_job(update_prices, CronTrigger(day_of_week="mon-fri", hour=PRICE_SLOT[0], minute=PRICE_SLOT[1], timezone=IST),
+                  misfire_grace_time=None, coalesce=True)
     for hour, minute in SLOTS:
         # PC sleep makes the timer fire late; APScheduler's 1 s default grace would silently skip the slot
         sched.add_job(_scheduled_refresh, CronTrigger(day_of_week="mon-fri", hour=hour, minute=minute, timezone=IST),

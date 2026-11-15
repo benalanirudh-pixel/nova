@@ -13,6 +13,7 @@ from web.api import live_feed, scheduler
 from web.api.routes.events import router as events_router
 from web.api.routes.market import router as market_router
 from web.api.routes.quant import router as quant_router
+from web.api.routes.research import router as research_router
 from web.api.routes.stock import router as stock_router
 from styles.design_tokens import BUY_SELL_AUTHORIZED, GUARDRAIL_TEXT
 
@@ -20,6 +21,7 @@ from styles.design_tokens import BUY_SELL_AUTHORIZED, GUARDRAIL_TEXT
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     scheduler.start_scheduler(app)
+    scheduler.catch_up_prices()
     live_feed.start(app)
     yield
     live_feed.stop(app)
@@ -54,6 +56,7 @@ def create_app(dist: Path | None = None) -> FastAPI:
     app.include_router(events_router, prefix="/api")
     app.include_router(ai_router, prefix="/api")
     app.include_router(quant_router, prefix="/api")
+    app.include_router(research_router, prefix="/api")
 
     if (dist / "index.html").is_file():
         if (dist / "assets").is_dir():

@@ -1734,3 +1734,19 @@ sprint (screenshot caught the brief loading).
   themes with no console errors; chart tooltip and Day toggle work.
 - Not verified: figures against an external vendor; EMA 200 on the chart
   covers only the last ~48 sessions of a one-year download.
+
+## 2026-11-15 - Price store and research engine
+
+- Full offline suite: 559 tests OK. New: 20 store and research tests on a fake
+  archive (bonus restatement, unmatched action left alone, dividend in total
+  return only, unexplained collapse dropped, rename join, weekend session,
+  wrong-date file rejected, planted momentum found with t > 3, no look-ahead,
+  liquid universe), 5 route tests (store-first history with fallback, research
+  route cached per store state). No test reaches the network.
+- Live: backfill 2021-01-01 to 2026-11-13 with 0 failed requests; panels build
+  30 s, backtest 4 s, breadth 3 s; research route first call ~35 s, then cached.
+- Browser: /research and the NESTLEIND sheet (3Y chart across the Aug 2025
+  bonus, delivery, corporate actions) render with no console errors.
+- Not verified: results against a vendor database; delisting losses after a
+  stock's last trade are not captured; dividends parsed only when the subject
+  names a rupee amount.

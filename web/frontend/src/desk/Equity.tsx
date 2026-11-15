@@ -7,6 +7,7 @@ import type { FnoDesk, StockProfile, StockQuant } from "../lib/types";
 import { risk, withQuote, type Bar, type Risk } from "./analytics";
 import Ask from "./Ask";
 import { PriceChart, StockQuantBlocks } from "./Quant";
+import { StoreBlocks, type CorpAction, type Delivery } from "./Research";
 import { headline, INDEX_NAMES, INDICES, useDesk } from "./data";
 import { big, Block, dayMonth, Empty, Flag, Kv, n, Pct, pc, sg, Table, type Col } from "./ui";
 
@@ -19,7 +20,7 @@ interface MonitorRow { sym: string; px: unknown; p: unknown }
 type SeriesPoint = { time: string; value: number | null };
 interface StockData {
   chart: { candles: { time: string; open: number; high: number; low: number; close: number; volume: number }[]; ema50?: SeriesPoint[]; ema200?: SeriesPoint[] };
-  quant?: StockQuant;
+  quant?: StockQuant; delivery?: Delivery; corporate_actions?: CorpAction[]; history_source?: string;
   analysis: { company_name?: string; price: number; open: number; high: number; low: number; volume: number; return_1d: number; rsi_14: number; ema_200: number; vwap_20d: number; high_52w: number; low_52w: number };
 }
 interface Instrument {
@@ -233,6 +234,7 @@ function StockSheet({ sym, go }: { sym: string; go: (s: string) => void }) {
     <>
       <PriceChart sym={sym} candles={stock.data.chart.candles} ema50={stock.data.chart.ema50 ?? []} ema200={stock.data.chart.ema200 ?? []} risk={stock.data.quant?.risk} />
       <StockQuantBlocks q={stock.data.quant} px={px} />
+      <StoreBlocks delivery={stock.data.delivery} actions={stock.data.corporate_actions} source={stock.data.history_source} />
     </>
   );
   return (

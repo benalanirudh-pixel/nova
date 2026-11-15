@@ -11,6 +11,7 @@ import "./desk/desk.css";
 import Equity from "./desk/Equity";
 import Fno from "./desk/Fno";
 import { Internals } from "./desk/Quant";
+import { Research } from "./desk/Research";
 import { AuditScreen, Flows, Note, Screener, Sectors } from "./desk/Screens";
 import { n, pc } from "./desk/ui";
 import { SSEContext } from "./hooks/SSEContext";
@@ -22,7 +23,7 @@ import { istSession, nextRefreshLabel } from "./lib/schedule";
 import { GUARDRAIL_TEXT } from "./lib/theme";
 
 const NAV = [
-  { to: "/", label: "Stock analysis", end: true }, { to: "/fno", label: "F&O desk" }, { to: "/flows", label: "Institutional flows" }, { to: "/internals", label: "Internals" },
+  { to: "/", label: "Stock analysis", end: true }, { to: "/fno", label: "F&O desk" }, { to: "/flows", label: "Institutional flows" }, { to: "/internals", label: "Internals" }, { to: "/research", label: "Research" },
   { to: "/screener", label: "Screener" }, { to: "/sectors", label: "Sectors" }, { to: "/note", label: "Market note" }, { to: "/audit", label: "Audit" },
 ];
 type TapeItem = [string, unknown, unknown];
@@ -102,7 +103,7 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target, typing = t instanceof HTMLElement && (t.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(t.tagName));
-      const f = e.key.match(/^F([1-8])$/);
+      const f = e.key.match(/^F([1-9])$/);
       if (f) { e.preventDefault(); navigate(NAV[+f[1] - 1].to); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); openSearch(); return; }
       if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -139,6 +140,7 @@ export default function App() {
                 <Route path="/fno" element={<Fno />} />
                 <Route path="/flows" element={<Flows />} />
                 <Route path="/internals" element={<Internals />} />
+                <Route path="/research" element={<Research />} />
                 <Route path="/screener" element={<Screener />} />
                 <Route path="/sectors" element={<Sectors />} />
                 <Route path="/note" element={<Note />} />

@@ -5,7 +5,7 @@ import pandas as pd
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from analysis.data import stock_profile, symbol_master
+from analysis.data import price_store, research_engine, stock_profile, symbol_master
 from web.api import ttl_cache
 from market_lab import view_model as vm
 from analysis.data.market_universe import get_price_history, resolve_symbol
@@ -64,18 +64,46 @@ def _quant(symbol: str, history: pd.DataFrame) -> dict:
         return {"risk": failed, "scorecard": failed}
 
 
+STORE_SESSIONS = 750      # about three years: enough for a fully seeded 200-day average on the chart
+RISK_SESSIONS = 253       # one year of returns for the risk profile
+STORE_MIN_SESSIONS = 250
+STORE_MAX_LAG_DAYS = 7    # a symbol whose last stored bar is older than this has stopped trading or the store is stale
+
+
+def _history(symbol: str):
+    """(daily history, store rows or None). The local price store first: instant, corporate-action adjusted,
+    with delivery. One download from the feed only when the store cannot serve the symbol."""
+    try:
+        stored = price_store.history(symbol, sessions=STORE_SESSIONS)
+        last = price_store.status()["last"]
+        if len(stored) >= STORE_MIN_SESSIONS and last and (pd.Timestamp(last) - stored.index[-1]).days <= STORE_MAX_LAG_DAYS:
+            return stored[["Open", "High", "Low", "Close", "Volume"]], stored
+    except Exception:
+        pass  # a broken or locked store must not take the sheet down; fall through to the feed
+    return get_price_history(symbol, period="1y", interval="1d"), None
+
+
+def _actions(symbol: str) -> list:
+    try:
+        return price_store.corporate_actions(symbol)
+    except Exception:
+        return []
+
+
 def _build(symbol: str) -> dict:
     security = resolve_symbol(symbol)
     if security is None:
         raise ValueError(f"Stock not found in NSE master: {symbol}")
-    # one year, downloaded once and shared by the technical engine, the chart and the quant engine
-    history = get_price_history(security["symbol"], period="1y", interval="1d")
+    history, stored = _history(security["symbol"])
     a = analyze_stock(security["symbol"], data=history)
     return {
         "info": {"name": a.get("company_name"), "symbol": a["symbol"], "sector": None,
                  "price": a["price"], "change": a.get("return_1d")},
         "chart": _chart(history),
-        "quant": _quant(a["symbol"], history),
+        "quant": _quant(a["symbol"], history.tail(RISK_SESSIONS)),
+        "history_source": "NSE bhavcopy (local price store)" if stored is not None else "Feed download, 1 year",
+        "delivery": research_engine.delivery_profile(stored),
+        "corporate_actions": [] if stored is None else _actions(a["symbol"]),
         "score": {"overall": a.get("momentum_score"), "components": []},
         # No S/R engine in analyze_stock; 52w extremes are the only sourced levels.
         "levels": {"support": [a["low_52w"]] if a.get("low_52w") else [],

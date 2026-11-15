@@ -3,6 +3,36 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-15 - Local NSE price store and multi-year research
+
+- `analysis/data/price_store.py`: SQLite store of every NSE equity session since
+  2021 from the bhavcopy-with-delivery archive (1,454 sessions, 3.15 M bars,
+  3,707 symbols including delisted ones), NSE corporate actions (9,583: splits,
+  bonuses, rights, dividends) and symbol renames. CLI `--backfill`, `--update`,
+  `--status`; the scheduler updates it at 19:30 IST and on server start.
+- Corporate actions: bhavcopy PREV_CLOSE is NOT restated on ex-dates (Nestle's
+  1:10 split shows prev_close 27,116.40, close 2,666.40), so adjustment uses
+  NSE's corporate-action record, verified against the observed ex-date gap.
+  780 splits, bonuses and rights applied; 3 listed actions did not match the
+  price and were not applied; 169 unexplained one-day moves beyond 40%
+  (demergers and similar) dropped from research returns. Checked by hand:
+  NESTLEIND 1:10 split and 1:1 bonus, IRCTC 1:5 split, RELIANCE 1:1 bonus.
+- Weekend handling: NSE trades on some weekends (budget days, muhurat, DR
+  drills); 7 such sessions are stored. The archive also serves another day's
+  file for some Sundays; 372 such dates were first recorded as sessions, then
+  re-marked, and the ingester now rejects a file whose date differs.
+- `analysis/data/research_engine.py`: monthly factor backtest on the 500 most
+  liquid stocks (universe chosen on each month-end with that day's data), daily
+  breadth, delivery profile. First run, 58 months to 13 Nov 2026, top fifth
+  over the universe: momentum 12-1 +8.3% a year (t 2.1, +6.7% after 30 bp
+  costs), trend vs 200-day +7.8% (t 1.9), momentum 6-1 +6.2% (t 1.5);
+  low volatility -3.7%, delivery % -1.2%, 1-month reversal -0.7%, none
+  significant. Past spreads, not forecasts.
+- Nova Desk: **Research** page (F5; later pages shift one key). Stock sheet:
+  history comes from the store (three years, adjusted, 200-day average fully
+  seeded; chart gains a 3Y range), plus Delivery and Corporate actions blocks.
+  Falls back to the feed when the store is thin, stale or unreadable.
+
 ## 2026-11-14 - Quant engine: institutional analytics layer
 
 - New `analysis/data/quant_engine.py` (pure functions, no I/O, 16 tests on

@@ -9,7 +9,7 @@ import { Block, dayMonth, Empty, Flag, Kv, n, Pane, Pct, pc, sg, Table } from ".
 type Point = { time: string; value: number | null };
 type Candle = { time: string; close: number; volume: number };
 const pct = (v: unknown, d = 1) => (isNum(v) ? `${n(v, d)}%` : "n/a");
-const RANGES: [string, number][] = [["3M", 63], ["6M", 126], ["1Y", 0]];
+const RANGES: [string, number][] = [["3M", 63], ["6M", 126], ["1Y", 252], ["3Y", 0]];
 
 /** Close with the 50 and 200-day averages, volume underneath, and the value area the stock has traded in. */
 export function PriceChart({ sym, candles, ema50, ema200, risk }: { sym: string; candles: Candle[]; ema50: Point[]; ema200: Point[]; risk?: QuantRisk }) {
