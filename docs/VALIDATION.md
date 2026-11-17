@@ -1761,3 +1761,17 @@ sprint (screenshot caught the brief loading).
 - Live: universe ready about 45 s after start, 2,589 stocks, 385 short
   history. Screener shows 2,589; LGEINDIA and MONEYVIEW (30 sessions) sheets
   render with scorecard ranked in 2,589.
+
+## 2026-11-17 - Full check
+
+- Full offline suite: 574 tests OK (new: exact symbol resolution and
+  renames, equity filter, store-vs-scan freshness, Internals session merge,
+  special-session status, source fall-through, parallel stock round, index
+  loop independent of stocks).
+- Live during market hours (10:31 IST): every API endpoint returned 200 except
+  /api/stock/NIFTYBEES (404, an ETF, correct). The stale-index bug was seen
+  live and traced to the 15-21 s MCP quotes.
+- After the fix (after hours): 24/24 stocks quoted in 3.5 s, indices in 0.6 s.
+  Not yet watched streaming during a session; next session will show it.
+- Browser: all nine pages render; ICICIPRULI opens ICICI Life (ICICILIFE)
+  with scorecard, risk, delivery and corporate actions.

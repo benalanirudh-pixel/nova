@@ -3,6 +3,40 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-17 - Full check: seven bugs fixed
+
+- Live prices starved during market hours. NSE MCP takes 15-21 s per stock
+  quote, the stock round ran one symbol at a time, and the index poll waited
+  behind it, so NIFTY/BANKNIFTY/VIX ticks went stale. An MCP error also ended
+  the round with no fallback ("Unexpected stock quote response format").
+  Now indices and stocks run in separate loops, stocks are quoted six at a
+  time, Yahoo is tried first, then NSE MCP, then Stooq, and one failing
+  source or symbol no longer sinks the rest. 24 stocks: 3.5 s per round.
+- Weekend and holiday special sessions (budget day, muhurat, DR drills) were
+  never live. Off the clock the feed now asks NSE's market status, at most
+  every 5 minutes and only between 08:45 and 20:00 IST.
+- Wrong company on a stock sheet: the stock route used a fuzzy symbol search,
+  so a symbol missing from the master opened its nearest neighbour. Now exact
+  matches only, following NSE renames both ways (ICICIPRULI opens ICICILIFE,
+  HEG opens HEGAM); anything else is a 404.
+- The NSE equity master was six weeks old (7 Oct): 34 listings missing and
+  renamed stocks dropped out of the universe. It now refreshes daily with the
+  price store (2,633 listings); the universe follows renames and takes company
+  names from the master for listings the sector file does not know yet.
+- ETFs and rights entitlements sat in the research universe and breadth:
+  NIFTYBEES, GOLDBEES, LIQUIDBEES and others were among the 500 most liquid
+  "stocks". Research now keeps equities only: 600 symbols excluded, 2,846
+  equities kept including delisted ones. Momentum 12-1 moves from +8.3% to
+  +7.7% a year over the universe (t 2.05).
+- Internals read the saved scan even when the price store was a session
+  ahead. It now uses the newer of the two; the session ledger gains a Stocks
+  column because the sources cover different counts.
+- The Screener and scorecard preferred the store even when a refresh during
+  the day had produced a newer scan. They now use whichever is newer; the
+  store catches up at 19:30.
+- Research rebuilt its cache key from a 1 s row count on every request; it
+  now uses the cheap store version.
+
 ## 2026-11-15 - Whole-market universe: every listed stock
 
 - The Screener, the Monitor's All list and every scorecard now cover 2,589 of

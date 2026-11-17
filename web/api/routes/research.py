@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from analysis.data import price_store, research_engine as rs
 from market_lab import view_model as vm
+from web.api import universe
 
 router = APIRouter()
 
@@ -19,14 +20,29 @@ def _series(frame) -> dict:
             **{c: [None if v != v else round(float(v), 2) for v in frame[c]] for c in frame.columns}}
 
 
+def _listed() -> set:
+    """Equity master symbols under the names they trade as now."""
+    con = price_store.connect()
+    try:
+        final = price_store.rename_map(con)
+    finally:
+        con.close()
+    return universe.listed_symbols(final)[0]
+
+
 def build() -> dict:
-    st = price_store.status()
-    if not st["available"]:
-        return {"available": False, "reason": "The price store is empty. Run: python -m analysis.data.price_store --backfill 2021-01-01", "store": st}
-    key = (st["last"], st["sessions"])
+    key = price_store.version()  # milliseconds; status() counts three million rows
+    if not key[0]:
+        return {"available": False, "reason": "The price store is empty. Run: python -m analysis.data.price_store --backfill 2021-01-01",
+                "store": price_store.status()}
     with _lock:
         if _cache.get("key") != key:
-            panels = price_store.panels()
+            st = price_store.status()
+            raw = price_store.panels()
+            listed = _listed()
+            keep = rs.equity_columns(raw, listed) if listed else list(raw["traded"].columns)
+            panels = rs.restrict(raw, keep)
+            st = {**st, "equities": len(keep), "excluded_funds_and_entitlements": int(raw["traded"].shape[1] - len(keep))}
             _cache.clear()
             _cache.update(key=key, body={
                 "available": True, "store": st,

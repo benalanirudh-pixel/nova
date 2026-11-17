@@ -99,23 +99,41 @@ def _factor_windows(sessions) -> list[dict]:
     return out
 
 
+def sessions_with_store(frames: dict, whole: dict | None) -> list:
+    """Saved-scan sessions, with the store universe as the newest session when it is at least as recent.
+
+    The saved scan only moves when a full refresh runs; the store updates every evening. On the same session
+    the store wins: it covers every listed stock, the scan about 2,000.
+    """
+    sessions = list(frames["sessions"])
+    if whole:
+        if sessions and sessions[-1][0] == whole["as_of"]:
+            sessions[-1] = (whole["as_of"], whole["frame"])
+        elif not sessions or whole["as_of"] > sessions[-1][0]:
+            sessions.append((whole["as_of"], whole["frame"]))
+    return sessions
+
+
 @router.get("/quant/internals")
 def internals():
     frames = scan_frames()
-    sessions = frames["sessions"]
+    whole = universe.ready()
+    sessions = sessions_with_store(frames, whole)
     if not sessions:
         return {"available": False, "reason": "No complete scan on disk. Run a refresh to build one.", "guardrails": vm.guardrails({})}
-    if _payload.get("key") != frames["key"]:
+    key = (frames["key"], whole and whole["built_at"])
+    if _payload.get("key") != key:
         as_of, now = sessions[-1]
         m, rot = qe.market_internals(now), qe.sector_rotation(now)
         windows = _factor_windows(sessions)
         _payload.clear()
-        _payload.update(key=frames["key"], body={
+        _payload.update(key=key, body={
             "available": True, "as_of": as_of, "stocks": int(len(now)), "engine": f"{qe.ENGINE_NAME} {qe.ENGINE_VERSION}",
+            "source": "Local price store, every listed stock" if whole and as_of == whole["as_of"] else "Saved scan",
             "internals": m, "rotation": rot, "factor_windows": windows,
             "breadth_history": [{"date": d, **qe.breadth_point(f)} for d, f in sessions[-HISTORY_POINTS:]][::-1],
             "read": qe.internals_read(m, rot, windows[0] if windows else None),
-            "sector_map": bool(frames["key"][2]),
+            "sector_map": bool(frames["key"][2]) or bool(whole),
             "guardrails": vm.guardrails({}),
         })
     return _payload["body"]
@@ -143,9 +161,10 @@ def stock_quant(symbol: str, history: pd.DataFrame) -> dict:
     if bench_error and isinstance(risk.get("benchmark"), dict):
         risk["benchmark"]["reason"] = bench_error
     whole = universe.ready()
-    if whole:  # every listed stock, from the local price store
+    scan_as_of, scan_frame = latest_frame()
+    if whole and (scan_as_of is None or whole["as_of"] >= scan_as_of):  # every listed stock, from the local price store
         as_of, frame, source = whole["as_of"], whole["frame"], "Local price store, every listed stock"
-    else:
-        (as_of, frame), source = latest_frame(), "Saved scan"
+    else:  # a refresh during the day is a session ahead of the store until the evening update
+        as_of, frame, source = scan_as_of, scan_frame, "Saved scan"
     card = qe.scorecard(frame, symbol) if frame is not None else {"status": "NOT_AVAILABLE", "reason": "No complete scan on disk."}
     return {"risk": risk, "scorecard": {**card, "scan_as_of": as_of, "universe_source": source}}

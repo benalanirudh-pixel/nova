@@ -117,7 +117,7 @@ export function Internals() {
   const open = (r: RotationRow) => { try { sessionStorage.setItem("nova.sector", r.sector); } catch { /* storage unavailable */ } nav("/screener"); };
   return (
     <div className="grid-quant">
-      <Pane area="a" title="Market internals" sub={`${n(data.stocks, 0)} stocks, session of ${dayMonth(data.as_of)}`}>
+      <Pane area="a" title="Market internals" sub={`${n(data.stocks, 0)} stocks, session of ${dayMonth(data.as_of)}. ${data.source ?? ""}`}>
         <div className="view"><div className="who">Nova read</div><h1>{I.regime.label}</h1><p>{I.regime.rule}</p></div>
         <ul className="reads pad">{(data.read ?? []).slice(1).map((c) => <li key={c.topic}><em>{c.topic}</em>{c.text}</li>)}</ul>
         <Block title="Breadth" sub="Whole scan"><div className="pad"><Kv rows={breadthRows(I.breadth)} /></div></Block>
@@ -140,7 +140,7 @@ export function Internals() {
         </Block>
         <Block title="Session ledger" sub="Newest first. Sessions without a saved scan are absent, not interpolated">
           <Table rows={data.breadth_history ?? []} cols={[
-            { h: "Session", v: (r: BreadthPoint) => dayMonth(r.date), text: true, bold: true }, { h: "Adv", v: (r) => r.advancing }, { h: "Dec", v: (r) => r.declining },
+            { h: "Session", v: (r: BreadthPoint) => dayMonth(r.date), text: true, bold: true }, { h: "Stocks", v: (r) => r.stocks }, { h: "Adv", v: (r) => r.advancing }, { h: "Dec", v: (r) => r.declining },
             { h: "> 20D", v: (r) => pct(r.above_ema20_pct, 0), heat: { max: 50, of: (r) => (r.above_ema20_pct ?? 50) - 50 } }, { h: "> 50D", v: (r) => pct(r.above_ema50_pct, 0), heat: { max: 50, of: (r) => (r.above_ema50_pct ?? 50) - 50 } },
             { h: "> 200D", v: (r) => pct(r.above_ema200_pct, 0), heat: { max: 50, of: (r) => (r.above_ema200_pct ?? 50) - 50 } }, { h: "Highs", v: (r) => r.new_highs }, { h: "Lows", v: (r) => r.new_lows }, { h: "Med 20D", v: (r) => <Pct v={r.median_20d_pct} d={1} /> },
           ]} />

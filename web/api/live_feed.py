@@ -4,7 +4,9 @@ Polls existing adapters during the NSE session and pushes changed quotes over
 the scheduler's SSE channel. Analysis only: no orders, no broker execution.
 Never triggers the full NSE equity scan.
 
-Free live sources (tried in order): NSE MCP (primary) -> Yahoo Finance -> Stooq.
+Indices: Dhan when configured, else NSE's website API. Stocks, tried in order per symbol:
+Yahoo Finance (1-3 s) -> NSE MCP (15-20 s a call, so only a fallback) -> Stooq, several symbols at once.
+Indices and stocks run in separate loops, so a slow stock round never makes index ticks stale.
 Yahoo/Stooq are rate-limited; don't poll thousands of symbols every few seconds.
 """
 import asyncio
@@ -14,6 +16,7 @@ import os
 import re
 import time
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, time as dtime
 from zoneinfo import ZoneInfo
 
@@ -29,6 +32,7 @@ HEARTBEAT_S = 10.0
 WATCH_TTL_S = 120.0  # clients re-post their symbols; closed tabs drop off
 MAX_WATCH = 25
 MAX_BACKOFF_S = 300.0
+STOCK_WORKERS = 6           # parallel quote requests; 25 watched symbols take one or two Yahoo round trips
 INDICES = ("NIFTY", "BANKNIFTY", "INDIAVIX")
 SESSION_OPEN, SESSION_CLOSE = dtime(9, 15), dtime(15, 30)
 _SYMBOL_RE = re.compile(r"^[A-Z0-9&\-]{1,20}$")
@@ -40,6 +44,9 @@ _next_at: dict[str, float] = {}        # source -> monotonic time of next poll
 _errors: dict[str, str] = {}           # source -> last error
 _status: dict = {"type": "feed_status", "state": "closed", "reason": "Not started", "as_of": None}
 _holidays: dict = {"day": None, "dates": set()}  # NSE trading holidays, fetched once per IST day
+STATUS_CHECK_S = 300.0                               # off the clock, ask NSE whether a special session is open
+SPECIAL_WINDOW = (dtime(8, 45), dtime(20, 0))        # muhurat runs in the evening; never ask overnight
+_nse_state: dict = {"at": None, "open": False}
 
 
 def reset() -> None:
@@ -47,6 +54,7 @@ def reset() -> None:
         d.clear()
     _status.update(state="closed", reason="Not started", as_of=None)
     _holidays.update(day=None, dates=set())
+    _nse_state.update(at=None, open=False)
 
 
 def in_session(now: datetime, holidays=frozenset()) -> bool:
@@ -63,6 +71,22 @@ async def _load_holidays(now: datetime) -> None:
     except Exception:
         pass  # keep the last list; without one the feed falls back to weekday hours
     _holidays["day"] = day
+
+
+async def _nse_says_open(mono: float, now: datetime) -> bool:
+    """NSE's Capital Market status, asked at most every STATUS_CHECK_S and only inside SPECIAL_WINDOW."""
+    t = now.astimezone(IST).time()
+    if not SPECIAL_WINDOW[0] <= t <= SPECIAL_WINDOW[1]:
+        return False
+    if _nse_state["at"] is None or mono - _nse_state["at"] >= STATUS_CHECK_S:
+        _nse_state["at"] = mono
+        try:
+            status = await asyncio.to_thread(nse_live.get, "marketStatus")
+            cm = next((m for m in (status or {}).get("marketState", []) if m.get("market") == "Capital Market"), {})
+            _nse_state["open"] = str(cm.get("marketStatus", "")).strip().lower() == "open"
+        except Exception:
+            _nse_state["open"] = False
+    return _nse_state["open"]
 
 
 def watch(symbols, mono: float | None = None) -> dict:
@@ -194,19 +218,30 @@ def fetch_stooq_quote(symbol: str, as_of: str) -> dict | None:
     return None
 
 
-def fetch_stock_quote_free(symbol: str, as_of: str) -> dict | None:
-    """Try NSE MCP first, then Yahoo, then Stooq. Returns a tick dict or None."""
+def _mcp_quote(symbol: str, as_of: str) -> dict | None:
     q = nse_feed.get_normalized_stock_quote(symbol)
-    if q.get("price") is not None:
-        return {"type": "tick", "symbol": symbol, "ltp": q["price"], "change": q.get("change"),
-                "change_pct": q.get("change_percent"), "volume": q.get("volume"),
-                "source": q.get("source", "NSE MCP"), "as_of": as_of,
-                "max_age_s": 2 * STOCK_POLL_S}
-    tick = fetch_yahoo_quote(symbol, as_of)
-    if tick:
-        return tick
-    tick = fetch_stooq_quote(symbol, as_of)
-    return tick
+    if q.get("price") is None:
+        return None
+    return {"type": "tick", "symbol": symbol, "ltp": q["price"], "change": q.get("change"),
+            "change_pct": q.get("change_percent"), "volume": q.get("volume"),
+            "source": q.get("source", "NSE MCP"), "as_of": as_of, "max_age_s": 2 * STOCK_POLL_S}
+
+
+def fetch_stock_quote_free(symbol: str, as_of: str) -> dict | None:
+    """Yahoo, then NSE MCP, then Stooq. One source failing never hides the next.
+    Raises when no source had a quote and at least one failed, so the round is reported and backed off."""
+    errors = []
+    for name, fetch in (("Yahoo", fetch_yahoo_quote), ("NSE MCP", _mcp_quote), ("Stooq", fetch_stooq_quote)):
+        try:
+            tick = fetch(symbol, as_of)
+        except Exception as exc:
+            errors.append(f"{name}: {exc}")
+            continue
+        if tick:
+            return tick
+    if errors:
+        raise RuntimeError("; ".join(errors))
+    return None
 
 
 def fetch_indices(as_of: str) -> list[dict]:
@@ -223,11 +258,22 @@ def fetch_indices(as_of: str) -> list[dict]:
 
 
 def fetch_stocks(symbols, as_of: str) -> list[dict]:
-    ticks = []
-    for sym in symbols:
-        tick = fetch_stock_quote_free(sym, as_of)
-        if tick:
-            ticks.append(tick)
+    """Quotes for every watched symbol, several at a time. Raises when no symbol could be quoted at all."""
+    symbols = list(symbols)
+    if not symbols:
+        return []
+    ticks, errors = [], []
+    with ThreadPoolExecutor(max_workers=min(STOCK_WORKERS, len(symbols))) as pool:
+        for sym, fut in [(s, pool.submit(fetch_stock_quote_free, s, as_of)) for s in symbols]:
+            try:
+                tick = fut.result()
+            except Exception as exc:
+                errors.append(f"{sym}: {exc}")
+                continue
+            if tick:
+                ticks.append(tick)
+    if errors and not ticks:
+        raise RuntimeError(errors[0])
     return ticks
 
 
@@ -246,15 +292,13 @@ def _set_status(state: str, reason: str, as_of: str) -> None:
     _status.update(state=state, reason=reason, as_of=as_of)
 
 
-async def poll_once(mono: float, now: datetime) -> int:
-    """One loop iteration. Returns number of ticks broadcast."""
+async def poll_once(mono: float, now: datetime, only: set | None = None) -> int:
+    """One pass over the due sources (all, or just `only`). Returns the number of ticks broadcast."""
     as_of = now.astimezone(IST).isoformat()
     await _load_holidays(now)
-    if now.astimezone(IST).date().isoformat() in _holidays["dates"]:
-        _set_status("closed", "NSE trading holiday", as_of)
-        return 0
-    if not in_session(now):
-        _set_status("closed", "Outside NSE session (09:15-15:30 IST, Mon-Fri)", as_of)
+    holiday = now.astimezone(IST).date().isoformat() in _holidays["dates"]
+    if (holiday or not in_session(now)) and not await _nse_says_open(mono, now):
+        _set_status("closed", "NSE trading holiday" if holiday else "Outside NSE session (09:15-15:30 IST, Mon-Fri)", as_of)
         return 0
 
     for sym, exp in list(_watch.items()):
@@ -265,6 +309,9 @@ async def poll_once(mono: float, now: datetime) -> int:
     if _watch:
         syms = sorted(_watch)
         sources["stocks"] = (STOCK_POLL_S, lambda: fetch_stocks(syms, as_of))
+    active = set(sources)  # the status covers every source, whichever loop is calling
+    if only is not None:
+        sources = {k: v for k, v in sources.items() if k in only}
 
     sent = 0
     for name, (interval, fetch) in sources.items():
@@ -282,24 +329,34 @@ async def poll_once(mono: float, now: datetime) -> int:
         _next_at[name] = mono + interval
         sent += sum(_emit(t) for t in ticks)
 
-    if _errors and len(_errors) == len(sources):
-        _set_status("error", "; ".join(_errors.values()), as_of)
-    elif _errors:
-        _set_status("delayed", "; ".join(_errors.values()), as_of)
+    errs = {k: v for k, v in _errors.items() if k in active}
+    if errs and len(errs) == len(active):
+        _set_status("error", "; ".join(errs.values()), as_of)
+    elif errs:
+        _set_status("delayed", "; ".join(errs.values()), as_of)
     else:
         _set_status("live", "", as_of)
     return sent
 
 
-async def run() -> None:
-    last_beat = 0.0
+async def _poll_loop(names: set, pause: float) -> None:
     while True:
-        mono = time.monotonic()
-        await poll_once(mono, datetime.now(IST))
-        if mono - last_beat >= HEARTBEAT_S:
-            scheduler._broadcast(dict(_status))
-            last_beat = mono
-        await asyncio.sleep(min(INDEX_POLL_S, HEARTBEAT_S))
+        try:
+            await poll_once(time.monotonic(), datetime.now(IST), only=names)
+        except Exception as exc:  # one bad pass must not end the feed
+            print(f"[LIVE FEED] {sorted(names)}: {exc}")
+        await asyncio.sleep(pause)
+
+
+async def _heartbeat() -> None:
+    while True:
+        scheduler._broadcast(dict(_status))
+        await asyncio.sleep(HEARTBEAT_S)
+
+
+async def run() -> None:
+    # separate loops: a stock round can take seconds, and index ticks must not wait for it
+    await asyncio.gather(_poll_loop({"indices"}, min(INDEX_POLL_S, HEARTBEAT_S)), _poll_loop({"stocks"}, 1.0), _heartbeat())
 
 
 def start(app) -> None:

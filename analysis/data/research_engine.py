@@ -26,6 +26,7 @@ What the backtest does and does not do (repeated in its payload):
 from __future__ import annotations
 
 import math
+import re
 from typing import Optional
 
 import numpy as np
@@ -59,6 +60,29 @@ def _f(v, d: int = 2) -> Optional[float]:
     except (TypeError, ValueError):
         return None
     return round(x, d) if math.isfinite(x) else None
+
+
+_NOT_EQUITY = re.compile(r"-RE\d*$|ETF|BEES$|^LIQUID|GOLD|SILVER")
+DELISTED_AFTER_DAYS = 30
+
+
+def equity_columns(p: dict, listed: set) -> list[str]:
+    """Symbols that are equities: listed in the NSE equity master, or no longer trading and not fund-like.
+
+    The bhavcopy's EQ series also carries ETFs (NIFTYBEES, GOLDBEES, LIQUIDBEES ...) and rights entitlements
+    (XYZ-RE). Liquid and gold funds would sit in the "low volatility" quintile and in the liquid 500.
+    A delisted stock is not in today's master, so it is kept unless its name marks it as a fund or entitlement.
+    """
+    traded = p["traded"]
+    last_trade = traded[::-1].idxmax()
+    end = traded.index[-1]
+    gone = last_trade < end - pd.Timedelta(days=DELISTED_AFTER_DAYS)
+    return [s for s in traded.columns if s in listed or (bool(gone.get(s)) and not _NOT_EQUITY.search(s))]
+
+
+def restrict(p: dict, columns: list[str]) -> dict:
+    """The same panels with only `columns`; non-frame entries (meta) pass through."""
+    return {k: (v[columns] if isinstance(v, pd.DataFrame) else v) for k, v in p.items()}
 
 
 def rebalance_positions(index: pd.DatetimeIndex) -> list[int]:

@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from analysis.data import price_store, research_engine, stock_profile, symbol_master
 from web.api import ttl_cache
 from market_lab import view_model as vm
-from analysis.data.market_universe import get_price_history, resolve_symbol
+from analysis.data.market_universe import get_price_history
 from analysis.data.technical_engine import analyze_stock, calculate_indicators
 from web.api.routes.quant import stock_quant
 
@@ -92,20 +92,42 @@ def _actions(symbol: str) -> list:
         return []
 
 
+def _security(symbol: str):
+    """(NSE master row or None, the symbol the stock trades under now).
+
+    Exact matches only. A fuzzy search here once opened HEG Advanced Materials for "HEG". Renames are followed
+    both ways, because the master and NSE's rename list are refreshed at different times.
+    """
+    try:
+        con = price_store.connect()
+        try:
+            final = price_store.rename_map(con)
+        finally:
+            con.close()
+    except Exception:
+        final = {}
+    now = final.get(symbol, symbol)
+    for name in dict.fromkeys([symbol, now] + [old for old, new in final.items() if new == now]):
+        security = symbol_master.get_security(name)
+        if security:
+            return security, now
+    return None, now
+
+
 def _build(symbol: str) -> dict:
-    security = resolve_symbol(symbol)
+    security, trades_as = _security(symbol)
     if security is None:
-        raise ValueError(f"Stock not found in NSE master: {symbol}")
-    history, stored = _history(security["symbol"])
+        raise ValueError(f"Not an NSE-listed equity: {symbol}")
+    history, stored = _history(trades_as)
     a = analyze_stock(security["symbol"], data=history)
     return {
-        "info": {"name": a.get("company_name"), "symbol": a["symbol"], "sector": None,
+        "info": {"name": a.get("company_name"), "symbol": a["symbol"], "trades_as": trades_as, "sector": None,
                  "price": a["price"], "change": a.get("return_1d")},
         "chart": _chart(history),
-        "quant": _quant(a["symbol"], history.tail(RISK_SESSIONS)),
+        "quant": _quant(trades_as, history.tail(RISK_SESSIONS)),
         "history_source": "NSE bhavcopy (local price store)" if stored is not None else "Feed download, 1 year",
         "delivery": research_engine.delivery_profile(stored),
-        "corporate_actions": [] if stored is None else _actions(a["symbol"]),
+        "corporate_actions": [] if stored is None else _actions(trades_as),
         "score": {"overall": a.get("momentum_score"), "components": []},
         # No S/R engine in analyze_stock; 52w extremes are the only sourced levels.
         "levels": {"support": [a["low_52w"]] if a.get("low_52w") else [],

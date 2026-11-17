@@ -13,7 +13,7 @@ interface Factor {
   quintiles_annual_pct?: N[]; monotonic?: boolean; curve?: Curve;
 }
 interface BreadthSeries { dates: string[]; stocks: N[]; above_50_pct: N[]; above_200_pct: N[]; advancing: N[]; declining: N[]; new_highs: N[]; new_lows: N[]; ad_line: N[] }
-interface Store { available: boolean; first: string | null; last: string | null; sessions: number; rows: number; symbols: number; actions?: number }
+interface Store { available: boolean; first: string | null; last: string | null; sessions: number; rows: number; symbols: number; actions?: number; equities?: number; excluded_funds_and_entitlements?: number }
 interface Overview {
   available: boolean; reason?: string; store: Store;
   backtest?: {
@@ -98,7 +98,7 @@ export function Research() {
         <Block title="Price store" sub="NSE bhavcopy and corporate actions, held locally">
           <div className="pad"><Kv rows={[
             ["Sessions", n(data.store.sessions, 0)], ["From", `${dayMonth(data.store.first)} ${data.store.first?.slice(0, 4)}`], ["To", `${dayMonth(data.store.last)} ${data.store.last?.slice(0, 4)}`],
-            ["Symbols ever traded", n(data.store.symbols, 0)], ["Daily bars", n(data.store.rows, 0)],
+            ["Symbols ever traded", n(data.store.symbols, 0)], ["Equities in research", n(data.store.equities, 0)], ["ETFs and entitlements left out", n(data.store.excluded_funds_and_entitlements, 0)], ["Daily bars", n(data.store.rows, 0)],
             ["Splits, bonuses, rights applied", n(adj.splits_bonuses_rights_applied, 0)], ["Listed but not matching price", n(adj.splits_bonuses_rights_unverified, 0)],
             ["Dividends added", n(adj.dividends_applied, 0)], ["Unexplained moves dropped", n(adj.unexplained_moves_dropped, 0)],
           ]} /></div>

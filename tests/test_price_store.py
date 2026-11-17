@@ -271,6 +271,19 @@ class TestBacktest(unittest.TestCase):
         self.assertEqual(re_.factor_backtest({})["status"], "NOT_AVAILABLE")
 
 
+class TestEquityFilter(unittest.TestCase):
+    def test_funds_and_entitlements_leave_delisted_stocks_stay(self):
+        idx = pd.bdate_range("2025-01-01", periods=200)
+        cols = ["RELIANCE", "NIFTYBEES", "LIQUIDBEES", "ABC-RE1", "OLDCO", "OLDETF", "NEWIPO"]
+        traded = pd.DataFrame(True, index=idx, columns=cols)
+        traded.loc[idx[100]:, ["OLDCO", "OLDETF"]] = False   # stopped trading months ago
+        keep = re_.equity_columns({"traded": traded}, listed={"RELIANCE", "NEWIPO"})
+        self.assertEqual(keep, ["RELIANCE", "OLDCO", "NEWIPO"])
+        p = re_.restrict({"traded": traded, "meta": {"x": 1}}, keep)
+        self.assertEqual(list(p["traded"].columns), keep)
+        self.assertEqual(p["meta"], {"x": 1})
+
+
 class TestBreadthAndDelivery(unittest.TestCase):
     def test_breadth_of_a_rising_market(self):
         idx = pd.bdate_range("2024-01-01", periods=320)

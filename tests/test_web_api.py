@@ -79,7 +79,7 @@ class TestStockEndpoint(unittest.TestCase):
 
     def test_invalid_symbol_returns_404(self):
         from unittest import mock
-        with mock.patch("web.api.routes.stock.resolve_symbol", return_value=None), \
+        with mock.patch("web.api.routes.stock._security", return_value=(None, "XYZNOTREAL123")), \
              mock.patch("web.api.routes.stock.get_price_history") as history:
             r = self.client.get("/api/stock/XYZNOTREAL123")
         history.assert_not_called()  # an unknown symbol never reaches the network
@@ -92,7 +92,7 @@ class TestStockEndpoint(unittest.TestCase):
         fake = {"symbol": "X", "price": np.float64(10.5), "above_ema": np.bool_(True),
                 "atr_14": float("nan"), "momentum_score": np.int64(70)}
         frame = __import__("pandas").DataFrame({"Close": [1.0, 2.0]})
-        with mock.patch("web.api.routes.stock.resolve_symbol", return_value={"symbol": "X"}), \
+        with mock.patch("web.api.routes.stock._security", return_value=({"symbol": "X"}, "X")), \
              mock.patch("web.api.routes.stock._history", return_value=(frame, None)) as history, \
              mock.patch("web.api.routes.stock.analyze_stock", return_value=fake) as analyze, \
              mock.patch("web.api.routes.stock.stock_quant", side_effect=RuntimeError("engine down")), \
@@ -216,7 +216,7 @@ class TestRefreshEndpoint(unittest.TestCase):
         from starlette.testclient import TestClient
         from unittest import mock
         app = create_app()
-        with mock.patch("web.api.scheduler.get_market_lab_data"),              mock.patch("analysis.data.nse_live.get", side_effect=RuntimeError("offline test")),              mock.patch("web.api.scheduler.price_store.update", return_value={}) as prices,              mock.patch("web.api.scheduler.universe.build", return_value=None),              TestClient(app):
+        with mock.patch("web.api.scheduler.get_market_lab_data"),              mock.patch("analysis.data.nse_live.get", side_effect=RuntimeError("offline test")),              mock.patch("web.api.scheduler.price_store.update", return_value={}) as prices,              mock.patch("web.api.scheduler.universe.build", return_value=None),              mock.patch("web.api.scheduler.universe.refresh_master", return_value=False),              TestClient(app):
             jobs = app.state.scheduler.get_jobs()
             self.assertEqual(len(jobs), 5)  # four report refreshes and the evening price-store update
             for j in jobs:
@@ -515,6 +515,35 @@ class TestInterpret(unittest.TestCase):
         self.assertEqual(self.client.post("/api/interpret", json={"symbol": "A$B"}).status_code, 400)
 
 
+class TestStockSymbolResolution(unittest.TestCase):
+    def _run(self, master, renames, symbol):
+        from web.api.routes import stock
+        with _mock.patch.object(stock.symbol_master, "get_security", side_effect=lambda s: {"symbol": s} if s in master else None), \
+             _mock.patch.object(stock.price_store, "rename_map", return_value=renames), \
+             _mock.patch.object(stock.price_store, "connect"):
+            return stock._security(symbol)
+
+    def test_exact_symbol_only_never_a_fuzzy_neighbour(self):
+        self.assertEqual(self._run({"HEGAM"}, {}, "HEG"), (None, "HEG"))
+        self.assertEqual(self._run({"HEG", "HEGAM"}, {}, "HEG"), ({"symbol": "HEG"}, "HEG"))
+
+    def test_renames_resolve_in_both_directions(self):
+        renames = {"ICICIPRULI": "ICICILIFE"}
+        self.assertEqual(self._run({"ICICIPRULI"}, renames, "ICICILIFE"), ({"symbol": "ICICIPRULI"}, "ICICILIFE"))  # master not yet refreshed
+        self.assertEqual(self._run({"ICICILIFE"}, renames, "ICICIPRULI"), ({"symbol": "ICICILIFE"}, "ICICILIFE"))  # old name typed
+
+    def test_unknown_symbol_is_404_without_a_download(self):
+        from starlette.testclient import TestClient
+        from web.api.routes import stock
+        stock._stock_cache.clear()
+        with _mock.patch.object(stock.symbol_master, "get_security", return_value=None), \
+             _mock.patch.object(stock.price_store, "rename_map", return_value={}), \
+             _mock.patch.object(stock, "get_price_history") as feed:
+            r = TestClient(create_app()).get("/api/stock/NIFTYBEES")
+        self.assertEqual(r.status_code, 404)
+        feed.assert_not_called()
+
+
 class TestStockHistorySource(unittest.TestCase):
     def _stored(self, sessions, last="2026-11-13"):
         import numpy as np
@@ -550,7 +579,8 @@ class TestResearchOverview(unittest.TestCase):
         from starlette.testclient import TestClient
         from web.api.routes import research
         empty = {"available": False, "first": None, "last": None, "sessions": 0, "rows": 0, "symbols": 0}
-        with _mock.patch.object(research.price_store, "status", return_value=empty), _mock.patch.object(research.price_store, "panels") as panels:
+        with _mock.patch.object(research.price_store, "status", return_value=empty), _mock.patch.object(research.price_store, "version", return_value=(None, 0, 0)), \
+             _mock.patch.object(research.price_store, "panels") as panels:
             body = TestClient(create_app()).get("/api/research/overview").json()
         panels.assert_not_called()
         self.assertFalse(body["available"])
@@ -565,6 +595,8 @@ class TestResearchOverview(unittest.TestCase):
         self.addCleanup(research._cache.clear)
         st = {"available": True, "first": "2023-01-02", "last": "2025-09-05", "sessions": 700, "rows": 1, "symbols": 300}
         with _mock.patch.object(research.price_store, "status", return_value=st), \
+             _mock.patch.object(research.price_store, "version", return_value=("2025-09-05", 700, 0)), \
+             _mock.patch.object(research, "_listed", return_value=set()), \
              _mock.patch.object(research.price_store, "panels", return_value=synthetic_panels()) as panels, _mock.patch.object(research, "LIQUID_N", 200):
             c = TestClient(create_app())
             body = c.get("/api/research/overview").json()
@@ -574,6 +606,18 @@ class TestResearchOverview(unittest.TestCase):
         b = body["breadth"]["liquid"]
         self.assertEqual(len(b["dates"]), len(b["above_200_pct"]))
         self.assertTrue(all(v is None or 0 <= v <= 100 for v in b["above_200_pct"]))
+
+
+class TestInternalsSessions(unittest.TestCase):
+    def test_store_replaces_or_extends_the_newest_scan_session(self):
+        from web.api.routes import quant
+        frames = {"sessions": [("2026-11-06", "scan-a"), ("2026-11-13", "scan-b")]}
+        newer = {"as_of": "2026-11-16", "frame": "store"}
+        same = {"as_of": "2026-11-13", "frame": "store"}
+        self.assertEqual(quant.sessions_with_store(frames, newer)[-2:], [("2026-11-13", "scan-b"), ("2026-11-16", "store")])
+        self.assertEqual(quant.sessions_with_store(frames, same), [("2026-11-06", "scan-a"), ("2026-11-13", "store")])
+        self.assertEqual(quant.sessions_with_store(frames, None), frames["sessions"])
+        self.assertEqual(quant.sessions_with_store({"sessions": []}, newer), [("2026-11-16", "store")])
 
 
 class TestWholeMarketScan(unittest.TestCase):
@@ -603,6 +647,8 @@ class TestWholeMarketScan(unittest.TestCase):
         desk._cache.clear()
         self.addCleanup(desk._cache.clear)
         with _mock.patch.object(desk.universe, "ready", return_value=whole), _mock.patch.object(quant.universe, "ready", return_value=whole), \
+             _mock.patch.object(desk, "latest_complete_scan", return_value=("scan.csv", [{"symbol": "A", "timestamp": "2026-11-12T00:00:00+05:30"}], 1)), \
+             _mock.patch.object(quant, "latest_frame", return_value=("2026-11-12", None)), \
              _mock.patch.object(quant, "benchmark_close", return_value=(None, "offline")):
             body = TestClient(create_app()).get("/api/scan").json()
             card = quant.stock_quant("S0000", __import__("pandas").DataFrame())["scorecard"]
@@ -613,6 +659,18 @@ class TestWholeMarketScan(unittest.TestCase):
         self.assertIsNone(short["t"])
         self.assertEqual(short["n"], "Co 0")
         self.assertEqual((card["universe"], card["universe_source"]), (1600, "Local price store, every listed stock"))
+
+    def test_a_newer_saved_scan_beats_the_store(self):
+        from web.api.routes import desk, quant
+        whole = self._whole()  # store as of 13 Nov
+        rows = [{"symbol": "A", "price": "10", "timestamp": "2026-11-16T00:00:00+05:30"}]
+        with _mock.patch.object(desk.universe, "ready", return_value=whole), \
+             _mock.patch.object(desk, "latest_complete_scan", return_value=("market_scan_20261116_161551.csv", rows, 1)):
+            self.assertEqual(desk.scan()["source"], "scan")
+        with _mock.patch.object(quant.universe, "ready", return_value=whole), _mock.patch.object(quant, "latest_frame", return_value=("2026-11-16", None)), \
+             _mock.patch.object(quant, "benchmark_close", return_value=(None, "offline")):
+            card = quant.stock_quant("S0001", __import__("pandas").DataFrame())["scorecard"]
+        self.assertEqual(card["universe_source"], "Saved scan")
 
     def test_saved_scan_is_used_until_the_store_is_ready(self):
         from web.api import universe

@@ -220,7 +220,7 @@ export interface FactorRow { factor: string; status: string; names: number; top_
 export interface FactorWindow { base_date: string; to_date: string; calendar_days: number; names: number; dropped_corporate_action_suspects: number; universe_median_pct: QN; factors: FactorRow[] }
 export interface BreadthPoint { date: string; stocks: number; advancing: number; declining: number; above_ema20_pct: QN; above_ema50_pct: QN; above_ema200_pct: QN; new_highs: number; new_lows: number; median_20d_pct: QN; rsi_over_70_pct: QN; rsi_under_30_pct: QN }
 export interface QuantInternals {
-  available: boolean; reason?: string; as_of?: string; stocks?: number; engine?: string; sector_map?: boolean;
+  available: boolean; reason?: string; as_of?: string; stocks?: number; engine?: string; sector_map?: boolean; source?: string;
   internals?: {
     status: string; breadth: QBreadth; regime: { label: string; rule: string }; tiers: (QBreadth & { tier: string; value_cr: QN })[];
     concentration: { total_value_cr: QN; top10_share_pct: QN; top50_share_pct: QN; hhi: QN; top10: { symbol: string; value_cr: QN; return_1d: QN }[] };

@@ -127,6 +127,10 @@ async def update_prices() -> None:
     _prices_running = True
     try:
         await asyncio.to_thread(price_store.update)
+        try:
+            await asyncio.to_thread(universe.refresh_master)
+        except Exception as exc:  # the cached master still works; new listings just wait for the next try
+            print(f"[MASTER] refresh failed: {exc}")
         # rebuild the whole-market cross-section for the store as it now stands (a no-op when nothing changed)
         if await asyncio.to_thread(universe.build):
             _broadcast({"type": "universe_ready", "timestamp": datetime.now().isoformat()})

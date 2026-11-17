@@ -116,6 +116,33 @@ class TestBackoff(LiveFeedBase):
         self.assertIn("MCP down", status["reason"])
 
 
+class TestStockSources(LiveFeedBase):
+    def test_a_failing_source_falls_through_to_the_next(self):
+        yahoo = {"type": "tick", "symbol": "RELIANCE", "ltp": 1340.6, "change": -4.2, "change_pct": -0.31, "volume": None, "source": "Yahoo", "as_of": "x", "max_age_s": 60}
+        with mock.patch.object(live_feed, "fetch_yahoo_quote", side_effect=RuntimeError("rate limited")), \
+             mock.patch.object(live_feed.nse_feed, "get_normalized_stock_quote", side_effect=RuntimeError("Unexpected stock quote response format.")), \
+             mock.patch.object(live_feed, "fetch_stooq_quote", return_value={**yahoo, "source": "Stooq"}):
+            self.assertEqual(live_feed.fetch_stock_quote_free("RELIANCE", "x")["source"], "Stooq")
+
+    def test_one_bad_symbol_does_not_sink_the_round(self):
+        def quote(sym, as_of):
+            if sym == "BAD":
+                raise RuntimeError("no data")
+            return {"type": "tick", "symbol": sym, "ltp": 1.0, "change": 0, "change_pct": 0, "volume": None, "source": "Yahoo", "as_of": as_of, "max_age_s": 60}
+        with mock.patch.object(live_feed, "fetch_stock_quote_free", side_effect=quote):
+            ticks = live_feed.fetch_stocks(["BAD", "TCS", "INFY"], "x")
+        self.assertEqual(sorted(t["symbol"] for t in ticks), ["INFY", "TCS"])
+
+    def test_indices_update_while_stocks_are_slow(self):
+        import time as _time
+        payload = {"data": [{"index": "NIFTY 50", "last": 25400.0, "variation": 10.0, "percentChange": 0.04}]}
+        live_feed.watch(["RELIANCE"], mono=1000.0)
+        with mock.patch.object(live_feed.nse_live, "get", return_value=payload), \
+             mock.patch.object(live_feed, "fetch_stocks", side_effect=lambda *a: _time.sleep(0.5) or []):
+            sent = asyncio.run(live_feed.poll_once(1000.0, MON_11AM, only={"indices"}))
+        self.assertEqual(sent, 1)  # the stock source was not touched by the index loop
+
+
 class TestWatch(LiveFeedBase):
     def test_cap_validation_and_expiry(self):
         res = live_feed.watch(["reliance", "bad symbol!", "NIFTY"], mono=0.0)
@@ -159,6 +186,26 @@ class TestLiveRoutes(LiveFeedBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSpecialSessions(LiveFeedBase):
+    OPEN = {"marketState": [{"market": "Capital Market", "marketStatus": "Open"}]}
+
+    def test_weekend_special_session_streams_when_nse_says_open(self):
+        sunday_muhurat = datetime(2026, 11, 8, 18, 15, tzinfo=IST)
+        live_feed.watch(["RELIANCE"], mono=1000.0)
+        with mock.patch.object(live_feed.nse_live, "get", return_value=self.OPEN), \
+             mock.patch.object(live_feed.nse_feed, "get_normalized_stock_quote", return_value=_quote(2500.0)):
+            self.assertGreater(self.poll(1000.0, sunday_muhurat), 0)
+        self.assertEqual(live_feed._status["state"], "live")
+
+    def test_status_is_asked_rarely_and_never_overnight(self):
+        with mock.patch.object(live_feed.nse_live, "get", return_value={"marketState": []}) as get:
+            self.poll(1000.0, MON_11AM.replace(hour=17))
+            self.poll(1100.0, MON_11AM.replace(hour=17, minute=2))   # inside the 300 s window: no new request
+            self.poll(1400.0, MON_11AM.replace(hour=23))             # overnight: never asked
+        self.assertEqual([c.args[0] for c in get.call_args_list].count("marketStatus"), 1)
+        self.assertEqual(live_feed._status["state"], "closed")
 
 
 class TestHolidays(LiveFeedBase):

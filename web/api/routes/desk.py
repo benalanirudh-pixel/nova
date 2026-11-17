@@ -122,13 +122,19 @@ def _from_store(whole: dict) -> dict:
     }
 
 
+def scan_session(rows: list[dict]) -> str:
+    """The market session a scan describes (its newest bar), '' when unknown."""
+    return max((str(r.get("timestamp") or "")[:10] for r in rows), default="")
+
+
 @router.get("/scan")
 def scan():
-    whole = universe.ready()
-    if whole:
-        return _from_store(whole)
     root = Path(CACHE_DIR)
     path, rows, newest = latest_complete_scan(str(root / "scanner"))
+    whole = universe.ready()
+    # the store gets each session's bhavcopy in the evening; a refresh during the day can be a session ahead of it
+    if whole and whole["as_of"] >= scan_session(rows):
+        return _from_store(whole)
     if not path:
         return {"available": False, "columns": COLUMNS, "rows": [], "sectors": [], "newest_stocks": newest}
     enriched = sorted(glob.glob(str(root / "sector" / "sector_enriched*")))

@@ -81,9 +81,11 @@ Nova Desk is the main terminal. Its screens live in `web/frontend/src/desk/`.
 frontend, rebuilding it when the source is newer than `dist`. The lifespan starts the refresh scheduler and the live quote loop.
 
 ```
-web/api/live_feed.py  (asyncio task, 09:15-15:30 IST Mon-Fri; no holiday calendar)
+web/api/live_feed.py  (two asyncio loops, indices and stocks; 09:15-15:30 IST Mon-Fri, NSE holidays skipped,
+                       special sessions followed through NSE's market status)
   -> dhan_feed.get_index_quote          NIFTY, BANKNIFTY, INDIAVIX every 5 s (only if configured)
-  -> nse_feed.get_normalized_stock_quote watched stocks every 15 s (max 25, 120 s TTL)
+  -> fetch_stocks                      watched stocks every 15 s (max 25, 120 s TTL), six at a time:
+                                        Yahoo, then NSE MCP, then Stooq
   -> scheduler._broadcast               changed ticks + feed_status heartbeat (10 s)
      -> GET /api/events (SSE)
         -> hooks/useSSE.ts              tick/feed_status -> lib/live.ts store (per-frame batch)
