@@ -8,7 +8,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from analysis.data import nse_live, price_store
-from web.api import universe
+from web.api import telegram, universe
 from market_lab.market_lab_data import get_market_lab_data, save_json_report
 
 IST = "Asia/Kolkata"
@@ -51,23 +51,33 @@ def prune_reports(report_dir: Path, keep: int = KEEP_REPORTS) -> int:
     return max(0, len(files) - keep)
 
 
-def _refresh_and_save() -> None:
+def _refresh_and_save() -> dict:
     # the dashboard reads only saved reports, so a refresh that is not saved changes nothing
-    path = save_json_report(get_market_lab_data(force_refresh=True))
+    report = get_market_lab_data(force_refresh=True)
+    path = save_json_report(report)
     prune_reports(Path(path).parent)
+    return report
+
+
+async def _notify(text: str) -> None:
+    if telegram.is_configured():
+        await asyncio.to_thread(telegram.send, text)
 
 
 async def _run_refresh() -> None:
     global _running
     try:
         # The worker thread can't be killed, so a late-finishing scan may overlap the next one.
-        await asyncio.wait_for(asyncio.to_thread(_refresh_and_save), timeout=REFRESH_TIMEOUT_S)
+        report = await asyncio.wait_for(asyncio.to_thread(_refresh_and_save), timeout=REFRESH_TIMEOUT_S)
         _broadcast({"type": "refresh_complete", "timestamp": datetime.now().isoformat()})
+        await _notify(telegram.summary(report))
     except asyncio.TimeoutError:
         _broadcast({"type": "refresh_failed", "timestamp": datetime.now().isoformat(),
                     "error": f"Refresh timed out after {REFRESH_TIMEOUT_S}s"})
+        await _notify(f"NOVA scan failed: timed out after {REFRESH_TIMEOUT_S}s")
     except Exception as exc:  # keep scheduler/app alive; surface via SSE
         _broadcast({"type": "refresh_failed", "timestamp": datetime.now().isoformat(), "error": str(exc)})
+        await _notify(f"NOVA scan failed: {exc}")
     finally:
         _running = False
 

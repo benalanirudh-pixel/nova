@@ -3,6 +3,21 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-18 - Telegram scan updates
+
+- `web/api/telegram.py`: after each scheduled or manual scan, Nova Desk
+  pushes a short digest to Telegram (regime, NIFTY, BANKNIFTY 1D, VIX,
+  breadth, top 3 sectors, top 5 technical scores, stale event-calendar
+  warning). A failed or timed-out scan sends a failure message. One-way:
+  the bot reads no commands. Off unless configured.
+- Config: env `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`, or git-ignored
+  `telegram_config.json` `{"bot_token": "...", "chat_id": "..."}`.
+  `python -m web.api.telegram` sends a test message, or lists chat ids
+  when `chat_id` is missing.
+- Send errors are logged and swallowed; a Telegram outage never fails a scan.
+- Tests: `tests/test_telegram.py`. Refresh tests in `test_web_api.py` now
+  patch Telegram off so a configured machine sends nothing during tests.
+
 ## 2026-11-17 - Full check: seven bugs fixed
 
 - Live prices starved during market hours. NSE MCP takes 15-21 s per stock

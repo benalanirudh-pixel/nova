@@ -205,7 +205,7 @@ class TestRefreshEndpoint(unittest.TestCase):
         from web.api import scheduler
         q = scheduler.subscribe()
         try:
-            with mock.patch.object(scheduler, "REFRESH_TIMEOUT_S", 0.05),                  mock.patch.object(scheduler, "get_market_lab_data", side_effect=lambda **k: time.sleep(0.3)),                  mock.patch.object(scheduler, "_running", True):
+            with mock.patch.object(scheduler, "REFRESH_TIMEOUT_S", 0.05),                  mock.patch.object(scheduler, "get_market_lab_data", side_effect=lambda **k: time.sleep(0.3)),                  mock.patch.object(scheduler, "_running", True),                  mock.patch.object(scheduler.telegram, "is_configured", return_value=False):
                 asyncio.run(scheduler._run_refresh())
                 self.assertFalse(scheduler._running)
             self.assertIn("refresh_failed", q.get_nowait())
@@ -242,7 +242,7 @@ class TestRefreshSaves(unittest.TestCase):
         import asyncio
         from unittest import mock
         from web.api import scheduler
-        with mock.patch.object(scheduler, "get_market_lab_data", return_value={"generated": "x"}) as g,              mock.patch.object(scheduler, "save_json_report") as save,              mock.patch.object(scheduler, "_running", True):
+        with mock.patch.object(scheduler, "get_market_lab_data", return_value={"generated": "x"}) as g,              mock.patch.object(scheduler, "save_json_report") as save,              mock.patch.object(scheduler, "_running", True),              mock.patch.object(scheduler.telegram, "is_configured", return_value=False):
             asyncio.run(scheduler._run_refresh())
         g.assert_called_once_with(force_refresh=True)
         save.assert_called_once_with({"generated": "x"})
