@@ -502,6 +502,59 @@ def extract_stock(
 
 
 # ============================================================
+# GAP FILL FROM THE NSE PRICE STORE
+# ============================================================
+
+GAP_FILL_SESSIONS = 10
+GAP_FILL_MAX_JUMP = 0.25  # a stored close this far from Yahoo's neighbour is an adjustment mismatch, not a fill
+
+
+def load_store_recent(sessions: int = GAP_FILL_SESSIONS) -> dict:
+    """{symbol: adjusted OHLCV} for the last few NSE bhavcopy sessions; {} if the store is unavailable."""
+    try:
+        from analysis.data import price_store
+        return price_store.recent_histories(sessions=sessions)[1]
+    except Exception as exc:
+        print(f"  Price store unavailable for gap fill: {exc}")
+        return {}
+
+
+def fill_missing_sessions(
+    frame: pd.DataFrame,
+    store: pd.DataFrame | None,
+) -> tuple[pd.DataFrame, int]:
+    """
+    Yahoo sometimes lags a completed session for some tickers, so the
+    1-day return silently spans two sessions. Insert any completed session
+    NSE's bhavcopy has and Yahoo lacks. Returns (frame, sessions filled).
+    """
+
+    if store is None or store.empty or frame.empty:
+        return frame, 0
+
+    tz = frame.index.tz
+    have = {str(i)[:10] for i in frame.index}
+    first = str(frame.index[0])[:10]
+    rows = []
+
+    for day, bar in store.iterrows():
+        key = str(day)[:10]
+        # weekend special sessions (Muhurat) are left out, as Yahoo does, so N-day counts stay consistent
+        if key in have or key < first or pd.Timestamp(key).weekday() >= 5:
+            continue
+        stamp = pd.Timestamp(key).tz_localize(tz) if tz else pd.Timestamp(key)
+        before = frame[frame.index < stamp]["Close"]
+        if before.empty or not before.iloc[-1] or abs(bar["Close"] / before.iloc[-1] - 1) > GAP_FILL_MAX_JUMP:
+            continue
+        rows.append(pd.DataFrame([bar[[c for c in frame.columns if c in bar.index]]], index=[stamp]))
+
+    if not rows:
+        return frame, 0
+
+    return pd.concat([frame, *rows]).sort_index(), len(rows)
+
+
+# ============================================================
 # STOCK RETURN
 # ============================================================
 
@@ -1721,6 +1774,8 @@ def scan_market(
     # ========================================================
 
     results = []
+    store_recent = load_store_recent()
+    gap_filled = 0
 
     chunks = list(
         chunked(
@@ -1777,6 +1832,12 @@ def scan_market(
 
                 continue
 
+            stock_data, filled = fill_missing_sessions(
+                stock_data,
+                store_recent.get(symbol),
+            )
+            gap_filled += bool(filled)
+
             result = (
                 analyze_stock_dataframe(
                     symbol,
@@ -1805,6 +1866,10 @@ def scan_market(
             time.sleep(
                 REQUEST_DELAY
             )
+
+    print(
+        f"Gap-filled from NSE price store: {gap_filled} stocks"
+    )
 
     # ========================================================
     # BUILD DATAFRAME

@@ -3,6 +3,29 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-18 - Scanner gap fill, NSE-first news, short pre-market
+
+- Data bug fixed: in the 13:31 scan about 62% of a 61-stock sample took
+  their 1-day move from 16 Nov because Yahoo had not yet served 17 Nov
+  for those tickers (PASHUPATI showed -9.72%, true -4.99%; RELIANCE +1.54%,
+  true -0.11%). `market_scanner.fill_missing_sessions` now inserts any
+  completed weekday session the NSE price store (bhavcopy) has and Yahoo
+  lacks, before returns and indicators are computed. Skipped when the stored
+  close is more than 25% from Yahoo's neighbour (adjustment mismatch) and for
+  weekend special sessions (Muhurat), which Yahoo omits. The scan log prints
+  how many stocks were gap-filled. Tests: `tests/test_scanner_gap_fill.py`.
+- Mover context: NSE corporate actions (ex-date in the last 4 days, marked
+  "price adjusts") and the most material NSE filing of the last 48 h come
+  first; routine filings (newspaper copies, trading window, ESOP, analyst
+  meets) are skipped. Google headlines are used only when NSE has nothing.
+- Market headlines: last 12 h, established publishers first (ET, Mint, BS,
+  Moneycontrol, CNBC-TV18, Reuters...), near-duplicates removed.
+- Pre-market is short (~700 chars): GIFT Nifty, S&P, Nasdaq, Nikkei, Hang
+  Seng, crude, USD/INR, net FII/DII, pre-open breadth, NIFTY range, two
+  headlines.
+- Hourly pulse adds live NIFTY 50 / BANK NIFTY constituent advances and
+  declines from NSE. Post-market and rescan notes show data coverage.
+
 ## 2026-11-18 - Telegram messages in desk-note format
 
 - All messages are Telegram HTML: `NOVA · <TITLE>` header with weekday,

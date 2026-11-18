@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import html
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from analysis.data import day_movers, morning_brief, nse_feed, nse_live
@@ -95,7 +95,8 @@ def index_quotes() -> dict:
         for k in ("nifty", "banknifty", "vix"):
             if q.get(k) and q[k]["price"] is not None:
                 out[k] = {"price": q[k]["price"], "change_pct": q[k]["change_percent"],
-                          "high": q[k]["high"], "low": q[k]["low"], "source": "NSE"}
+                          "high": q[k]["high"], "low": q[k]["low"], "source": "NSE",
+                          "advances": q[k].get("advances"), "declines": q[k].get("declines")}
     except Exception as exc:
         print(f"[UPDATES] NSE indices failed: {exc}")
     for k, t in YAHOO.items():
@@ -135,13 +136,21 @@ def _sources(quotes: dict, *extra: str) -> str:
 
 # ---------------------------------------------------------------- hourly pulse
 
+def _constituents(quotes: dict) -> str | None:
+    parts = []
+    for k, label in (("nifty", "NIFTY 50"), ("banknifty", "BANK")):
+        a, d = (quotes.get(k) or {}).get("advances"), (quotes.get(k) or {}).get("declines")
+        if _num(a) is not None and _num(d) is not None:
+            parts.append(f"{label} {a:.0f}▲ {d:.0f}▼")
+    return "Constituents: " + " · ".join(parts) if parts else None
+
+
 def pulse_text(quotes: dict, last: dict | None = None, now=None) -> str:
-    return "\n".join([
-        header("INDEX PULSE", now),
-        index_table(quotes, last or {}),
-        "<i>1H% = change since the last pulse. RNG = position in day range (0 low, 100 high).</i>",
-        footer(_sources(quotes)),
-    ])
+    lines = [header("INDEX PULSE", now), index_table(quotes, last or {})]
+    if c := _constituents(quotes):
+        lines.append(c)
+    lines += ["<i>1H% = since last pulse · RNG = place in day range (0 low, 100 high)</i>", footer(_sources(quotes))]
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------- pre-market
@@ -157,39 +166,125 @@ def _flows_table(fii: list | None) -> str | None:
         [r["category"][:8], _money(r.get("buy_cr"), 0), _money(r.get("sell_cr"), 0), f"{r['net_cr']:+,.0f}"] for r in rows])
 
 
+PREMARKET_GLOBAL = ("S&P 500", "Nasdaq", "Nikkei 225", "Hang Seng")
+
+
+def _net_flows(fii: list | None) -> str:
+    rows = [r for r in fii or [] if _num(r.get("net_cr")) is not None]
+    if not rows:
+        return "FII/DII: not yet posted"
+    return " · ".join(f"{r['category'].split('/')[0]} {r['net_cr']:+,.0f} cr" for r in rows) + f" ({rows[0].get('date') or '?'})"
+
+
 def premarket_text(brief: dict, now=None) -> str:
+    """Short by design: what moves the open, nothing else."""
     g = brief.get("global") or {}
-    out = [header("PRE-MARKET BRIEF", now)]
-    rows = [["MARKET", "LAST", "CHG%"]]
+    rows = [["CUE", "LAST", "CHG%"]]
     gift = brief.get("gift_nifty")
     if gift:
-        rows.append(["GIFT NIFTY", _money(gift.get("price")), _pct(gift.get("change_pct"))])
-    rows += [[i["name"][:11], _money(i.get("last"), 0), _pct(i.get("change_pct"))] for i in g.get("indices") or []]
-    rows += [[c["name"][:11], _money(c.get("price"), 2), _pct(c.get("change_pct"))]
-             for c in g.get("commodities") or [] if c.get("name") in ("Crude oil", "Gold")]
-    rows += [[f["pair"][:11], _money(f.get("rate"), 2), _pct(f.get("change_pct"))]
+        rows.append(["GIFT NIFTY", _money(gift.get("price"), 0), _pct(gift.get("change_pct"))])
+    by = {i["name"]: i for i in g.get("indices") or []}
+    rows += [[n[:10], _money(by[n].get("last"), 0), _pct(by[n].get("change_pct"))] for n in PREMARKET_GLOBAL if n in by]
+    rows += [[c["name"][:10], _money(c.get("price"), 2), _pct(c.get("change_pct"))]
+             for c in g.get("commodities") or [] if c.get("name") == "Crude oil"]
+    rows += [[f["pair"][:10], _money(f.get("rate"), 2), _pct(f.get("change_pct"))]
              for f in g.get("fx") or [] if str(f.get("pair", "")).upper().startswith("USD")][:1]
-    out += [section("Global cues"), table(rows) if len(rows) > 1 else NA]
-    flows = _flows_table(brief.get("fii_dii"))
-    date = ((brief.get("fii_dii") or [{}])[0]).get("date")
-    out += [section(f"Institutional flows, ₹ cr ({date or 'prev session'})"), flows or "Not yet posted"]
+    out = [header("PRE-MARKET", now), table(rows) if len(rows) > 1 else "Global cues: n/a",
+           _net_flows(brief.get("fii_dii"))]
     po = brief.get("preopen") or {}
     if po.get("is_today") and po.get("advances") is not None:
-        out += [section("Pre-open (09:08)"), f"Advances {po['advances']:.0f} · Declines {po.get('declines') or 0:.0f}"]
-    points = [c for c in brief.get("morning_call") or [] if c.get("text") and c.get("topic") not in TABLED_TOPICS]
-    if points:
-        out.append(section("Desk view"))
-        out += [f"{ {'positive': '▲', 'negative': '▼'}.get(c.get('tone'), '•') } {esc(c['text'])}" for c in points[:5]]
+        out.append(f"Pre-open: {po['advances']:.0f}▲ {po.get('declines') or 0:.0f}▼")
     r = brief.get("range")
     if r:
-        out += [section("Expected NIFTY range (1-day)"),
-                f"{r['low']:,.0f} – {r['high']:,.0f}  (±{r['points']:,.0f} pts, ±{_pct(r.get('pct'), False)}%)"]
-    news = brief.get("news") or []
-    if news:
-        out.append(section("Headlines"))
-        out += [f"• {esc(n['title'])} <i>({esc(n.get('source') or '?')})</i>" for n in news[:3]]
-    out.append(footer("NSE, Yahoo, Indian Market MCP, Google News"))
+        out.append(f"NIFTY range: <b>{r['low']:,.0f} – {r['high']:,.0f}</b> (±{_pct(r.get('pct'), False)}%)")
+    for n in market_headlines(brief.get("news") or [], now=now, n=2):
+        out.append(f"• {esc(n['title'])} <i>({esc(n.get('source') or '?')})</i>")
+    out.append(footer("NSE, Yahoo, MCP, news wires"))
     return "\n".join(out)
+
+
+# ---------------------------------------------------------------- news quality
+
+TRUSTED_SOURCES = ("economic times", "mint", "business standard", "moneycontrol", "cnbc", "reuters", "bloomberg",
+                   "financial express", "businessline", "ndtv profit", "business today", "zee business", "the hindu",
+                   "times of india", "bq prime", "et now", "outlook business")
+MARKET_NEWS_HOURS = 12
+
+
+def _key(title: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", title.lower())[:7])
+
+
+def market_headlines(items: list[dict], now=None, hours: int = MARKET_NEWS_HOURS, n: int = 3) -> list[dict]:
+    """Fresh, de-duplicated headlines from established publishers; any fresh source only if none qualify."""
+    cutoff = (_now(now) - timedelta(hours=hours)).astimezone(ZoneInfo("UTC")).isoformat()
+    fresh = [i for i in items if i.get("published") and i["published"] >= cutoff]
+    trusted = [i for i in fresh if any(t in str(i.get("source") or "").lower() for t in TRUSTED_SOURCES)]
+    seen, out = set(), []
+    for i in sorted(trusted or fresh, key=lambda i: i["published"], reverse=True):
+        k = _key(i.get("title", ""))
+        if k and k not in seen:
+            seen.add(k)
+            out.append(i)
+    return out[:n]
+
+
+# NSE filing categories that rarely explain a price move
+FILING_SKIP = {"Copy of Newspaper Publication", "Trading Window", "ESOP/ESOS/ESPS", "Shareholders meeting",
+               "Analysts/Institutional Investor Meet/Con. Call Updates", "Trading Plan under PIT",
+               "Amendment to AOA/MOA", "Loss of Share Certificates", "Duplicate Share Certificate",
+               "Certificate under SEBI (Depositories and Participants) Regulations, 2018"}
+FILING_HIGH = {"Financial Results", "Outcome of Board Meeting", "Bagging/Receiving of orders/contracts", "Acquisition",
+               "Credit Rating", "Credit Rating- Revision", "Change in Management", "News Verification",
+               "Disclosure of material issue", "Action(s) taken or orders passed", "Other Restructuring",
+               "Press Release", "Clarification - Financial Results", "Spurt in Volume", "Price movement"}
+FILING_HOURS = 48
+ACTION_DAYS = 4
+
+
+def _clean_filing(desc: str, text) -> str:
+    text = re.sub(r"^.*?has (?:informed|submitted to|submitted)( to)?( the)? Exchange( a copy)?\s*(?:about|regarding|of|that)?\s*",
+                  "", str(text or ""), flags=re.I).strip(" .'")
+    body = text if text and text.lower() != desc.lower() else ""
+    return f"{desc}: {body}"[:150].rstrip(": ") if body else desc
+
+
+def nse_context(symbol: str, now=None) -> list[dict]:
+    """Official reasons first: a recent ex-date (bonus/split/dividend) and the most material NSE filing."""
+    now = _now(now)
+    out = []
+    try:
+        acts = nse_live.get("corporates-corporateActions", {"index": "equities", "symbol": symbol})
+        for a in acts if isinstance(acts, list) else []:
+            try:
+                ex = datetime.strptime(str(a.get("exDate")), "%d-%b-%Y").replace(tzinfo=IST)
+            except ValueError:
+                continue
+            if timedelta(0) <= now - ex <= timedelta(days=ACTION_DAYS):
+                out.append({"title": f"Ex-date {a['exDate']}: {a.get('subject')} (price adjusts)", "source": "NSE"})
+                break
+    except Exception as exc:
+        print(f"[UPDATES] NSE actions {symbol} failed: {exc}")
+    try:
+        rows = nse_live.get("corporate-announcements", {"index": "equities", "symbol": symbol})
+        best = None
+        for a in rows if isinstance(rows, list) else []:
+            try:
+                t = datetime.strptime(str(a.get("an_dt")), "%d-%b-%Y %H:%M:%S").replace(tzinfo=IST)
+            except ValueError:
+                continue
+            desc = str(a.get("desc") or "").strip()
+            if now - t > timedelta(hours=FILING_HOURS) or t > now + timedelta(minutes=5) or desc in FILING_SKIP:
+                continue
+            rank = (desc in FILING_HIGH, t)
+            if best is None or rank > best[0]:
+                best = (rank, {"title": _clean_filing(desc, a.get("attchmntText")),
+                               "source": f"NSE filing {t:%d-%b %H:%M}"})
+        if best:
+            out.append(best[1])
+    except Exception as exc:
+        print(f"[UPDATES] NSE filings {symbol} failed: {exc}")
+    return out
 
 
 # ---------------------------------------------------------------- post-market
@@ -229,6 +324,8 @@ def postmarket_text(report: dict, quotes: dict, movers: dict | None, sectors: di
     ad = f"{adv:,} / {dec:,} (A/D {adv / dec:.2f})" if _num(adv) is not None and dec else NA
     out += [section("Market internals"), f"Regime: <b>{esc(report.get('market_regime', NA))}</b>",
             f"Advances / declines: {ad}"]
+    if cov := coverage(report, now)[2]:
+        out.append(f"Data: {cov}")
     if _num(b.get("above_ema50_percent")) is not None:
         out.append(f"Stocks above 50-DMA: {b['above_ema50_percent']:.0f}% · 200-DMA: "
                    + (f"{b['above_ema200_percent']:.0f}%" if _num(b.get("above_ema200_percent")) is not None else NA))
@@ -243,23 +340,26 @@ def postmarket_text(report: dict, quotes: dict, movers: dict | None, sectors: di
                 section("Top losers"), _movers_table(movers.get("losers") or []) if movers.get("losers") else "None"]
         looked = [m for k in ("gainers", "losers") for m in (movers.get(k) or [])[:NEWS_FOR]]
         if looked:
-            out.append(section("Mover headlines (context, not confirmed cause)"))
+            out.append(section("Mover context (NSE first; not confirmed cause)"))
             for m in looked:
-                h = headlines.get(m["symbol"])
-                out.append(f"{_arrow(m['change_pct'])} <b>{esc(m['symbol'])}</b>: "
-                           + (f"{esc(h['title'])} <i>({esc(h.get('source') or '?')})</i>" if h else "<i>no news found</i>"))
+                items = headlines.get(m["symbol"]) or []
+                items = items if isinstance(items, list) else [items]
+                out.append(f"{_arrow(m['change_pct'])} <b>{esc(m['symbol'])}</b> {_pct(m['change_pct'])}%")
+                out += [f"   {esc(h['title'])} <i>({esc(h.get('source') or '?')})</i>" for h in items[:2]] \
+                    or ["   <i>No NSE filing or news in 48h</i>"]
 
     if sectors and (sectors.get("up") or sectors.get("down")):
         rows = [["SECTOR (MEDIAN)", "1D%", "N"]] + [[short_sector(s["sector"], 16), _pct(s["median_pct"]), s["stocks"]]
                                                     for s in (sectors.get("up") or []) + (sectors.get("down") or [])]
         out += [section("Sector moves"), table(rows)]
 
-    if market_news:
+    news = market_headlines(market_news, now=now)
+    if news:
         out.append(section("Market headlines"))
-        out += [f"• {esc(n['title'])} <i>({esc(n.get('source') or '?')})</i>" for n in market_news[:3]]
+        out += [f"• {esc(n['title'])} <i>({esc(n.get('source') or '?')})</i>" for n in news]
     if ai:
         out += [section("AI read"), f"<i>Unverified, {esc(MODEL)}:</i> {esc(ai)}"]
-    out.append(footer(_sources(quotes, "Nova scan", "Google News")))
+    out.append(footer(_sources(quotes, "Nova scan", "NSE filings", "news wires")))
     return "\n".join(out)
 
 
@@ -283,31 +383,39 @@ def collect_news(movers: dict | None) -> tuple[dict, list]:
         return {}, []
     headlines = {}
     for m in picks:
-        hit = day_movers.match_headline(_clean_news(raw.get(f"s:{m['symbol']}")), m["symbol"], m.get("company"))
-        if hit:
-            headlines[m["symbol"]] = hit
+        items = nse_context(m["symbol"])
+        if not items:  # Google only where NSE has nothing official
+            hit = day_movers.match_headline(_clean_news(raw.get(f"s:{m['symbol']}")), m["symbol"], m.get("company"))
+            items = [hit] if hit else []
+        if items:
+            headlines[m["symbol"]] = items
     return headlines, _clean_news(raw.get("market"))
 
 
 # ---------------------------------------------------------------- rescan / alerts
 
-def rescan_text(report: dict, now=None) -> str:
-    """After a rescan: how many stocks carry today's prices, so stale data is visible."""
+def coverage(report: dict, now=None) -> tuple:
+    """(fresh, total, text): how many scanned stocks carry today's prices."""
     total, fresh = report.get("stocks_analyzed"), None
     try:
         import pandas as pd
         stamps = pd.read_csv(report["scanner_file"], usecols=["timestamp"])["timestamp"].astype(str).str[:10]
         total, fresh = len(stamps), int((stamps == _now(now).date().isoformat()).sum())
-    except Exception as exc:
-        print(f"[UPDATES] rescan count failed: {exc}")
+    except Exception:
+        pass
     if fresh is not None and total:
-        cover = f"{fresh:,} / {total:,} stocks on today's prices ({fresh / total * 100:.1f}%)"
-        if fresh < total:
-            cover += f" · {total - fresh} stale"
-    else:
-        cover = f"{total:,} stocks scanned" if isinstance(total, int) else "Stock count n/a"
-    return "\n".join([header("FULL-MARKET RESCAN", now), cover,
-                      f"Regime: <b>{esc(report.get('market_regime', NA))}</b>", footer("Nova scan")])
+        text = f"{fresh:,} / {total:,} stocks on today's prices ({fresh / total * 100:.1f}%)"
+        return fresh, total, text + (f" · {total - fresh} stale" if fresh < total else "")
+    return fresh, total, f"{total:,} stocks scanned" if isinstance(total, int) else None
+
+
+def rescan_text(report: dict, now=None) -> str:
+    """After a rescan: how many stocks carry today's prices, so stale data is visible."""
+    b = report.get("breadth") or {}
+    adv, dec = b.get("advancing"), b.get("declining")
+    breadth = f" · A/D {adv:,}▲ {dec:,}▼" if _num(adv) is not None and _num(dec) is not None else ""
+    return "\n".join([header("RESCAN", now), coverage(report, now)[2] or "Stock count n/a",
+                      f"Regime <b>{esc(report.get('market_regime', NA))}</b>{breadth}", footer("Nova scan")])
 
 
 def failure_text(reason: str, now=None) -> str:

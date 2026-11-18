@@ -89,12 +89,13 @@ class TestMessages(unittest.TestCase):
                                   {"topic": "Trend", "tone": "negative", "text": "Regime <BEAR> & weak"}],
                  "range": {"low": 25100, "high": 25600, "points": 250, "pct": 1.0}, "news": []}
         text = mu.premarket_text(brief)
-        self.assertRegex(text, r"GIFT NIFTY\s+25,450.0\s+\+0.25")
-        self.assertRegex(text, r"FII/FPI\s+10,000\s+5,805\s+\+4,195")
-        self.assertIn("▼ Regime &lt;BEAR&gt; &amp; weak", text)   # escaped for Telegram HTML
-        self.assertNotIn("dup of table", text)
-        self.assertIn("25,100 – 25,600", text)
-        self.assertIn("Not yet posted", mu.premarket_text({}))
+        self.assertRegex(text, r"GIFT NIFTY\s+25,450\s+\+0.25")
+        self.assertIn("S&amp;P 500", text)                       # escaped for Telegram HTML
+        self.assertIn("FII +4,195 cr (17-Nov-2026)", text)
+        self.assertIn("<b>25,100 – 25,600</b>", text)
+        self.assertNotIn("dup of table", text)                   # short: no desk-view essay
+        self.assertLess(len(text), 700)
+        self.assertIn("not yet posted", mu.premarket_text({}))
 
     def test_postmarket_sections(self):
         movers = day_movers.top_movers(scan(), n=5)
@@ -104,7 +105,7 @@ class TestMessages(unittest.TestCase):
                                   [{"category": "FII/FPI", "date": "18-Nov-2026", "net_cr": -1234.5}],
                                   ai="Banks led the gains.")
         for part in ("POST-MARKET WRAP", "<b>Top gainers</b>", "<b>Top losers</b>", "<b>Sector moves</b>",
-                     "▲ <b>ODD</b>: ODD wins order <i>(ET)</i>", "<i>no news found</i>",
+                     "▲ <b>ODD</b> +30.00%\n   ODD wins order <i>(ET)</i>", "<i>No NSE filing or news in 48h</i>",
                      "945 / 1,084 (A/D 0.87)", "<i>Unverified, qwen3.5:4b:</i> Banks led the gains."):
             self.assertIn(part, text)
         self.assertRegex(text, r"BIG\s+\+9.00\s+4.2x\s+Banks")
@@ -128,6 +129,43 @@ class TestMessages(unittest.TestCase):
     def test_ai_failure_returns_none(self):
         with mock.patch("ollama.Client", side_effect=ConnectionError("ollama down")):
             self.assertIsNone(mu.ai_read("facts"))
+
+
+class TestNewsQuality(unittest.TestCase):
+    NOW = datetime(2026, 11, 18, 18, 5, tzinfo=IST)
+
+    def test_market_headlines_trusted_fresh_deduped(self):
+        utc = lambda h: (self.NOW - timedelta(hours=h)).astimezone(timezone.utc).isoformat()
+        items = [{"title": "Sensex falls 700 points as IT drags", "source": "The Economic Times", "published": utc(1)},
+                 {"title": "Sensex falls 700 points as IT drags, check details", "source": "Mint", "published": utc(2)},
+                 {"title": "Top 5 stocks to buy now", "source": "Kalkine Media", "published": utc(1)},
+                 {"title": "Old RBI story", "source": "Reuters", "published": utc(30)}]
+        got = mu.market_headlines(items, now=self.NOW)
+        self.assertEqual([i["source"] for i in got], ["The Economic Times"])
+
+    def test_untrusted_used_only_when_nothing_trusted(self):
+        utc = (self.NOW - timedelta(hours=1)).astimezone(timezone.utc).isoformat()
+        got = mu.market_headlines([{"title": "Markets end lower", "source": "Local Wire", "published": utc}], now=self.NOW)
+        self.assertEqual(len(got), 1)
+
+    def test_nse_context_prefers_ex_date_and_material_filing(self):
+        def fake(endpoint, params):
+            if endpoint == "corporates-corporateActions":
+                return [{"exDate": "17-Nov-2026", "subject": "Bonus 3:2"}]
+            return [{"an_dt": "18-Nov-2026 10:00:00", "desc": "Copy of Newspaper Publication", "attchmntText": "x"},
+                    {"an_dt": "17-Nov-2026 21:00:00", "desc": "Updates", "attchmntText": "routine"},
+                    {"an_dt": "18-Nov-2026 09:30:00", "desc": "Bagging/Receiving of orders/contracts",
+                     "attchmntText": "ABC Limited has informed the Exchange about receipt of order worth Rs 500 crore"},
+                    {"an_dt": "10-Nov-2026 09:30:00", "desc": "Financial Results", "attchmntText": "too old"}]
+        with mock.patch.object(mu.nse_live, "get", side_effect=fake):
+            got = mu.nse_context("ABC", now=self.NOW)
+        self.assertEqual(got[0]["title"], "Ex-date 17-Nov-2026: Bonus 3:2 (price adjusts)")
+        self.assertEqual(got[1]["title"], "Bagging/Receiving of orders/contracts: receipt of order worth Rs 500 crore")
+        self.assertEqual(got[1]["source"], "NSE filing 18-Nov 09:30")
+
+    def test_nse_failure_gives_empty_context(self):
+        with mock.patch.object(mu.nse_live, "get", side_effect=RuntimeError("NSE down")), mock.patch("builtins.print"):
+            self.assertEqual(mu.nse_context("ABC", now=self.NOW), [])
 
 
 class TestTelegramSend(unittest.TestCase):
@@ -192,7 +230,7 @@ class TestRescanNote(unittest.TestCase):
             text = mu.rescan_text({"scanner_file": f, "market_regime": "NEUTRAL"},
                                   now=datetime(2026, 11, 18, 12, 21, tzinfo=IST))
         self.assertIn("3 / 4 stocks on today's prices (75.0%) · 1 stale", text)
-        self.assertIn("FULL-MARKET RESCAN", text)
+        self.assertIn("NOVA · RESCAN", text)
 
     def test_missing_scan_file_falls_back(self):
         self.assertIn("2,052 stocks scanned", mu.rescan_text({"stocks_analyzed": 2052, "scanner_file": "nope.csv"}))
