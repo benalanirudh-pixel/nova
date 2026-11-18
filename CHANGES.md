@@ -3,6 +3,21 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-18 - Telegram messages in desk-note format
+
+- All messages are Telegram HTML: `NOVA · <TITLE>` header with weekday,
+  date and IST time; bold section headers; fixed-width `<pre>` tables kept
+  under ~36 chars so they do not wrap on a phone; source line and the
+  analysis-only disclaimer in every footer. All dynamic text is escaped.
+- Index table: LAST/CLOSE, CHG%, 1H% (since last pulse), RNG (position in
+  the day's range, 0 = low, 100 = high). Flows table: buy / sell / net in
+  Rs cr. Movers table: symbol, CHG%, RVOL, short sector name.
+- `telegram.send` falls back to plain text when Telegram rejects the HTML
+  (HTTP 400) or the message is over 4000 chars, so numbers still arrive.
+- Movers exclude stocks whose latest bar is not today's (stale 1-day move).
+  Sector placeholders (no letters, "Unclassified") count as unknown.
+- `morning_brief.JUNK_NEWS` also drops "Share Market Live" landing pages.
+
 ## 2026-11-18 - Full rescan about every 3 hours
 
 - Scan slots moved from 09:15 / 13:30 / 15:15 / 18:00 to

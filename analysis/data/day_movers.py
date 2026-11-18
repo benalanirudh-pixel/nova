@@ -30,7 +30,9 @@ def load_latest(scanner_dir: Path = SCANNER_DIR, classification_file: Path = CLA
     scan = pd.read_csv(files[-1])
     try:
         classes = pd.read_csv(classification_file, usecols=["symbol", "company_name", "sector"])
-        classes["sector"] = classes["sector"].replace({"—": None, "-": None, "": None})  # placeholder, not a sector
+        sec = classes["sector"].astype("string")
+        # placeholders ("—", mojibake, "Unclassified") are not sectors
+        classes["sector"] = sec.where(sec.str.contains(r"[A-Za-z]", na=False) & (sec != "Unclassified"), None)
         scan = scan.merge(classes, on="symbol", how="left")
     except (OSError, ValueError):
         scan["company_name"], scan["sector"] = None, None
@@ -49,6 +51,9 @@ def _row(r) -> dict:
 def top_movers(scan: pd.DataFrame, n: int = 5, min_price: float = MIN_PRICE,
                min_turnover_cr: float = MIN_TURNOVER_CR) -> dict:
     d = scan.dropna(subset=["return_1d", "price", "volume_average_20"])
+    if "timestamp" in d:  # a stock with no bar today carries an old 1-day move: not today's mover
+        day = d["timestamp"].astype(str).str[:10]
+        d = d[day == day.max()]
     d = d[(d["price"] >= min_price) & (d["price"] * d["volume_average_20"] / 1e7 >= min_turnover_cr)]
     return {"gainers": [_row(r) for _, r in d.nlargest(n, "return_1d").iterrows() if r["return_1d"] > 0],
             "losers": [_row(r) for _, r in d.nsmallest(n, "return_1d").iterrows() if r["return_1d"] < 0]}

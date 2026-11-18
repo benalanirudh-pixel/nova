@@ -105,10 +105,10 @@ async def _run_refresh() -> None:
     except asyncio.TimeoutError:
         _broadcast({"type": "refresh_failed", "timestamp": datetime.now().isoformat(),
                     "error": f"Refresh timed out after {REFRESH_TIMEOUT_S}s"})
-        await _notify(f"NOVA scan failed: timed out after {REFRESH_TIMEOUT_S}s")
+        await _notify(market_updates.failure_text(f"Timed out after {REFRESH_TIMEOUT_S}s"))
     except Exception as exc:  # keep scheduler/app alive; surface via SSE
         _broadcast({"type": "refresh_failed", "timestamp": datetime.now().isoformat(), "error": str(exc)})
-        await _notify(f"NOVA scan failed: {exc}")
+        await _notify(market_updates.failure_text(str(exc)))
     finally:
         _running = False
 

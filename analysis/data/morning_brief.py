@@ -26,7 +26,7 @@ import pandas as pd
 from analysis.data import nse_feed, nse_live
 from analysis.data.stock_profile import CLASSIFICATION_FILE, SCANNER_DIR, _error_of, _num, parse_news
 
-JUNK_NEWS = re.compile(r"live updates|top (gainers|losers) today|stock market today live|share price - live|stock price & chart", re.I)
+JUNK_NEWS = re.compile(r"live updates|share market live|top (gainers|losers) today|stock market today live|share price - live|stock price & chart", re.I)
 IST = timezone(timedelta(hours=5, minutes=30))
 CRORE = 1e7
 

@@ -6,8 +6,10 @@ root: {"bot_token": "...", "chat_id": "..."}. Analysis only: no orders, no BUY/S
 
 Setup check:  .\\venv\\Scripts\\python.exe -m web.api.telegram
 """
+import html
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -33,15 +35,31 @@ def is_configured() -> bool:
     return all(_config())
 
 
+def plain(text: str) -> str:
+    """Telegram HTML to plain text: tags dropped, entities decoded."""
+    return html.unescape(re.sub(r"<[^>]+>", "", text))
+
+
+def _post(token: str, payload: dict):
+    return requests.post(API.format(token=token, method="sendMessage"), json=payload, timeout=15)
+
+
 def send(text: str) -> bool:
-    """Send a plain-text message. Never raises: a Telegram outage must not break a scan."""
+    """Send a Telegram-HTML message. Never raises: a Telegram outage must not break a scan."""
     token, chat = _config()
     if not (token and chat):
         return False
+    base = {"chat_id": chat, "disable_web_page_preview": True}
     try:
-        r = requests.post(API.format(token=token, method="sendMessage"),
-                          json={"chat_id": chat, "text": text[:MAX_LEN], "disable_web_page_preview": True},
-                          timeout=15)
+        if len(text) <= MAX_LEN:
+            r = _post(token, {**base, "text": text, "parse_mode": "HTML"})
+            if r.ok or r.status_code != 400:
+                if not r.ok:
+                    print(f"[TELEGRAM] send failed: HTTP {r.status_code} {r.text[:200]}")
+                return r.ok
+            print(f"[TELEGRAM] HTML rejected, resending as plain text: {r.text[:200]}")
+        # too long (cutting could split a tag) or HTML rejected: plain text still gets the numbers through
+        r = _post(token, {**base, "text": plain(text)[:MAX_LEN]})
         if not r.ok:
             print(f"[TELEGRAM] send failed: HTTP {r.status_code} {r.text[:200]}")
         return r.ok

@@ -39,6 +39,16 @@ class TestDayMovers(unittest.TestCase):
         self.assertEqual(syms[0], "ODD")
         self.assertEqual(m["losers"][0]["symbol"], "DOWN")
 
+    def test_stale_stock_is_not_todays_mover(self):
+        d = scan()
+        d["timestamp"] = "2026-11-18T00:00:00+05:30"
+        d.loc[d.symbol == "ODD", "timestamp"] = "2026-11-16T00:00:00+05:30"
+        self.assertNotIn("ODD", [r["symbol"] for r in day_movers.top_movers(d)["gainers"]])
+
+    def test_sector_short_names(self):
+        self.assertEqual(mu.short_sector("Fast Moving Consumer Goods", 12), "FMCG")
+        self.assertEqual(mu.short_sector(None, 12), "n/a")
+
     def test_sector_median_ignores_small_sectors(self):
         s = day_movers.sector_moves(scan(), min_stocks=5)
         self.assertEqual([r["sector"] for r in s["up"]], ["Banks"])
@@ -56,42 +66,54 @@ class TestDayMovers(unittest.TestCase):
 
 
 class TestMessages(unittest.TestCase):
-    def test_pulse_shows_hourly_change_and_na(self):
+    def test_pulse_table_hourly_change_and_na(self):
         text = mu.pulse_text(QUOTES, {"nifty": {"price": 25300.0}}, now=datetime(2026, 11, 18, 11, 15, tzinfo=IST))
-        self.assertIn("NOVA hourly 11:15 IST", text)
-        self.assertIn("NIFTY 50 25,387.4 (+0.38%), 1h +0.35%, H 25,501 L 25,267", text)
-        self.assertIn("SENSEX 83,100.0", text)
-        self.assertIn("BANKNIFTY: n/a", text)
-        self.assertIn("INDIA VIX 15.52 (-1.02%)", text)
-        self.assertIn(mu.FOOTER, text)
+        self.assertIn("<b>NOVA · INDEX PULSE</b>", text)
+        self.assertIn("Wed 18 Nov 2026 · 11:15 IST", text)
+        self.assertRegex(text, r"NIFTY 50\s+25,387.4\s+\+0.38\s+\+0.35\s+51")  # RNG: position in day range
+        self.assertRegex(text, r"BANKNIFTY\s+n/a\s+n/a")
+        self.assertRegex(text, r"INDIA VIX\s+15.52\s+-1.02")
+        self.assertIn(mu.DISCLAIMER, text)
 
-    def test_premarket_uses_morning_call(self):
-        brief = {"morning_call": [{"text": "GIFT Nifty 25,450 (+0.25%)"}],
-                 "range": {"low": 25100, "high": 25600, "points": 250}, "news": []}
+    def test_tables_fit_a_phone(self):
+        text = mu.pulse_text(QUOTES, {"nifty": {"price": 25300.0}})
+        body = text.split("<pre>")[1].split("</pre>")[0]
+        self.assertLessEqual(max(len(l) for l in body.splitlines()), 36)
+
+    def test_premarket_tables_and_desk_view(self):
+        brief = {"gift_nifty": {"price": 25450.0, "change_pct": 0.25},
+                 "global": {"indices": [{"name": "S&P 500", "last": 6800.0, "change_pct": -1.0}],
+                            "fx": [{"pair": "USD/INR", "rate": 93.5, "change_pct": 0.06}]},
+                 "fii_dii": [{"category": "FII/FPI", "date": "17-Nov-2026", "buy_cr": 10000, "sell_cr": 5805, "net_cr": 4195}],
+                 "morning_call": [{"topic": "GIFT Nifty", "tone": "positive", "text": "dup of table"},
+                                  {"topic": "Trend", "tone": "negative", "text": "Regime <BEAR> & weak"}],
+                 "range": {"low": 25100, "high": 25600, "points": 250, "pct": 1.0}, "news": []}
         text = mu.premarket_text(brief)
-        self.assertIn("- GIFT Nifty 25,450", text)
-        self.assertIn("25,100 - 25,600", text)
-        self.assertIn("Morning call: n/a", mu.premarket_text({}))
+        self.assertRegex(text, r"GIFT NIFTY\s+25,450.0\s+\+0.25")
+        self.assertRegex(text, r"FII/FPI\s+10,000\s+5,805\s+\+4,195")
+        self.assertIn("▼ Regime &lt;BEAR&gt; &amp; weak", text)   # escaped for Telegram HTML
+        self.assertNotIn("dup of table", text)
+        self.assertIn("25,100 – 25,600", text)
+        self.assertIn("Not yet posted", mu.premarket_text({}))
 
-    def test_postmarket_movers_headlines_and_ai_label(self):
+    def test_postmarket_sections(self):
         movers = day_movers.top_movers(scan(), n=5)
         heads = {"ODD": {"title": "ODD wins order", "source": "ET"}}
         text = mu.postmarket_text(REPORT, QUOTES, movers, day_movers.sector_moves(scan(), min_stocks=5), heads,
                                   [{"title": "Sensex ends higher", "source": "BS"}],
                                   [{"category": "FII/FPI", "date": "18-Nov-2026", "net_cr": -1234.5}],
                                   ai="Banks led the gains.")
-        self.assertIn("Headline: ODD wins order (ET)", text)
-        self.assertIn("No news found", text)          # looked up, nothing matched: never a guessed reason
-        self.assertIn("4.2x avg vol", text)
-        self.assertIn("Sectors up: Banks", text)
-        self.assertIn("FII/FPI -1,234 cr", text)
-        self.assertIn("AI read (unverified, qwen3.5:4b): Banks led the gains.", text)
-        self.assertIn("945 up / 1084 down", text)
+        for part in ("POST-MARKET WRAP", "<b>Top gainers</b>", "<b>Top losers</b>", "<b>Sector moves</b>",
+                     "▲ <b>ODD</b>: ODD wins order <i>(ET)</i>", "<i>no news found</i>",
+                     "945 / 1,084 (A/D 0.87)", "<i>Unverified, qwen3.5:4b:</i> Banks led the gains."):
+            self.assertIn(part, text)
+        self.assertRegex(text, r"BIG\s+\+9.00\s+4.2x\s+Banks")
+        self.assertRegex(text, r"FII/FPI\s+n/a\s+n/a\s+-1,234")
 
     def test_postmarket_without_data(self):
         text = mu.postmarket_text({}, {}, None, None, {}, [], None)
-        self.assertIn("Movers: n/a", text)
-        self.assertIn("FII/DII: not yet posted", text)
+        self.assertIn("n/a (no scan cached)", text)
+        self.assertIn("Not yet posted", text)
         self.assertNotIn("AI read", text)
 
     def test_ai_line_dropped_when_it_gives_trade_advice(self):
@@ -115,6 +137,14 @@ class TestTelegramSend(unittest.TestCase):
             self.assertFalse(telegram.send("hi"))
         post.assert_not_called()
 
+    def test_html_rejected_falls_back_to_plain(self):
+        bad, ok = mock.Mock(ok=False, status_code=400, text="can't parse entities"), mock.Mock(ok=True)
+        with mock.patch.object(telegram, "_config", return_value=("t", "c")),              mock.patch.object(telegram.requests, "post", side_effect=[bad, ok]) as post,              mock.patch("builtins.print"):
+            self.assertTrue(telegram.send("<b>A &amp; B</b>"))
+        self.assertEqual(post.call_args_list[0].kwargs["json"]["parse_mode"], "HTML")
+        self.assertEqual(post.call_args_list[1].kwargs["json"]["text"], "A & B")
+        self.assertNotIn("parse_mode", post.call_args_list[1].kwargs["json"])
+
     def test_send_swallows_network_errors(self):
         with mock.patch.object(telegram, "_config", return_value=("t", "c")), \
              mock.patch.object(telegram.requests, "post", side_effect=telegram.requests.ConnectionError("down")), \
@@ -137,7 +167,8 @@ class TestSchedule(unittest.TestCase):
              mock.patch.object(scheduler.telegram, "is_configured", return_value=True), \
              mock.patch.object(scheduler.telegram, "send") as send:
             asyncio.run(scheduler._run_refresh())
-        self.assertIn("scan failed: scanner down", send.call_args[0][0])
+        self.assertIn("SCAN FAILED", send.call_args[0][0])
+        self.assertIn("scanner down", send.call_args[0][0])
 
     def test_pulse_remembers_last_hour(self):
         scheduler._last_pulse.clear()
@@ -147,8 +178,8 @@ class TestSchedule(unittest.TestCase):
              mock.patch.object(scheduler.telegram, "send") as send:
             asyncio.run(scheduler.hourly_pulse())
             asyncio.run(scheduler.hourly_pulse())
-        self.assertNotIn("1h", send.call_args_list[0][0][0])
-        self.assertIn("1h +0.00%", send.call_args_list[1][0][0])
+        self.assertRegex(send.call_args_list[0][0][0], r"NIFTY 50\s+25,387.4\s+\+0.38\s+n/a")
+        self.assertRegex(send.call_args_list[1][0][0], r"NIFTY 50\s+25,387.4\s+\+0.38\s+\+0.00")
         scheduler._last_pulse.clear()
 
 
@@ -160,7 +191,8 @@ class TestRescanNote(unittest.TestCase):
             pd.DataFrame({"timestamp": ["2026-11-18T00:00:00"] * 3 + ["2026-11-16T00:00:00"]}).to_csv(f, index=False)
             text = mu.rescan_text({"scanner_file": f, "market_regime": "NEUTRAL"},
                                   now=datetime(2026, 11, 18, 12, 21, tzinfo=IST))
-        self.assertEqual(text, "NOVA rescan 12:21 IST: 3 of 4 stocks with today's prices (1 stale). Regime: NEUTRAL")
+        self.assertIn("3 / 4 stocks on today's prices (75.0%) · 1 stale", text)
+        self.assertIn("FULL-MARKET RESCAN", text)
 
     def test_missing_scan_file_falls_back(self):
         self.assertIn("2,052 stocks scanned", mu.rescan_text({"stocks_analyzed": 2052, "scanner_file": "nope.csv"}))
