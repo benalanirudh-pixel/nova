@@ -3,6 +3,19 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-18 - Full rescan about every 3 hours
+
+- Scan slots moved from 09:15 / 13:30 / 15:15 / 18:00 to
+  09:20 / 12:20 / 15:35 / 18:00 IST (`SLOTS` in `web/api/scheduler.py`,
+  mirrored in `web/frontend/src/lib/schedule.ts`). 09:20 gives today's
+  bar time to form; 15:35 captures final close prices.
+- After each daytime rescan Telegram gets one line: how many stocks carry
+  today's prices and how many are stale (from the scan CSV `timestamp`
+  column). The evening scan sends the post-market report instead.
+- Found while checking: scans on 2026-11-17/18 ran late (10:37, 16:16,
+  13:31) or were skipped because the PC was asleep at the slot time. The
+  scheduler catches up on wake, but a sleeping PC cannot scan on time.
+
 ## 2026-11-18 - Telegram market updates: pre-market, hourly, post-market
 
 - Replaces the per-scan digest below. Weekdays, NSE holidays skipped:

@@ -64,7 +64,7 @@ def _setup_check() -> int:
         for cid, name in chats.items():
             print(f"  {cid}  {name}")
         return 1
-    ok = send("Nova Desk connected: pre-market 09:10, hourly 10:15-15:15, post-market after the 18:00 scan.")
+    ok = send("Nova Desk connected: pre-market 09:10, hourly 10:15-15:15, rescans 09:20/12:20/15:35/18:00, post-market after the 18:00 scan.")
     print("Test message sent." if ok else "Send failed, see error above.")
     return 0 if ok else 1
 

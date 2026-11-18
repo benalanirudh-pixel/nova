@@ -1,5 +1,5 @@
-// Fixed IST schedule (minutes since midnight): 09:15, 13:30, 15:15, 18:00
-const SCHEDULE = [555, 810, 915, 1080];
+// Fixed IST schedule (minutes since midnight): 09:20, 12:20, 15:35, 18:00 (mirrors SLOTS in web/api/scheduler.py)
+const SCHEDULE = [560, 740, 935, 1080];
 
 function istParts(now: Date) {
   const parts = new Intl.DateTimeFormat("en-GB", {

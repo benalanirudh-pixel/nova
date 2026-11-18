@@ -12,7 +12,8 @@ from web.api import market_updates, telegram, universe
 from market_lab.market_lab_data import get_market_lab_data, save_json_report
 
 IST = "Asia/Kolkata"
-SLOTS = ((9, 15), (13, 30), (15, 15), (18, 0))
+# full rescan about every 3 hours: after the open, midday, final close prices, evening (FII/DII posted)
+SLOTS = ((9, 20), (12, 20), (15, 35), (18, 0))
 REFRESH_TIMEOUT_S = 900
 _running = False  # set synchronously so two quick calls can't both start
 _subscribers: list[asyncio.Queue] = []
@@ -81,13 +82,17 @@ def postmarket_due(now: datetime, sent_on: str | None, holiday: bool) -> bool:
             and sent_on != now.date().isoformat())
 
 
-async def _send_postmarket(report: dict) -> None:
+async def _send_scan_update(report: dict) -> None:
+    """Post-market report once a day after the evening scan; a one-line rescan note otherwise."""
     global _postmarket_sent
-    now = datetime.now(ZoneInfo(IST))
-    if not telegram.is_configured() or not postmarket_due(now, _postmarket_sent, await _is_holiday()):
+    if not telegram.is_configured():
         return
-    _postmarket_sent = now.date().isoformat()  # once a day, even if a manual refresh follows
-    await _notify(await asyncio.to_thread(market_updates.build_postmarket, report))
+    now = datetime.now(ZoneInfo(IST))
+    if postmarket_due(now, _postmarket_sent, await _is_holiday()):
+        _postmarket_sent = now.date().isoformat()  # once a day, even if a manual refresh follows
+        await _notify(await asyncio.to_thread(market_updates.build_postmarket, report))
+    else:
+        await _notify(await asyncio.to_thread(market_updates.rescan_text, report))
 
 
 async def _run_refresh() -> None:
@@ -96,7 +101,7 @@ async def _run_refresh() -> None:
         # The worker thread can't be killed, so a late-finishing scan may overlap the next one.
         report = await asyncio.wait_for(asyncio.to_thread(_refresh_and_save), timeout=REFRESH_TIMEOUT_S)
         _broadcast({"type": "refresh_complete", "timestamp": datetime.now().isoformat()})
-        await _send_postmarket(report)
+        await _send_scan_update(report)
     except asyncio.TimeoutError:
         _broadcast({"type": "refresh_failed", "timestamp": datetime.now().isoformat(),
                     "error": f"Refresh timed out after {REFRESH_TIMEOUT_S}s"})

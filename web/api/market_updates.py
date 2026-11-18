@@ -233,5 +233,19 @@ def build_postmarket(report: dict) -> str:
     return postmarket_text(*args, ai=ai_read(postmarket_text(*args)))
 
 
+def rescan_text(report: dict, now=None) -> str:
+    """One line after a rescan: how many stocks carry today's prices, so stale data is visible."""
+    total, fresh = report.get("stocks_analyzed"), None
+    try:
+        import pandas as pd
+        stamps = pd.read_csv(report["scanner_file"], usecols=["timestamp"])["timestamp"].astype(str).str[:10]
+        total, fresh = len(stamps), int((stamps == _now(now).date().isoformat()).sum())
+    except Exception as exc:
+        print(f"[UPDATES] rescan count failed: {exc}")
+    counts = f"{fresh:,} of {total:,} stocks with today's prices" if fresh is not None and total         else f"{total:,} stocks scanned" if isinstance(total, int) else "stock count n/a"
+    stale = f" ({total - fresh} stale)" if fresh is not None and total and fresh < total else ""
+    return f"NOVA rescan {_now(now):%H:%M} IST: {counts}{stale}. Regime: {report.get('market_regime', 'n/a')}"
+
+
 def build_premarket(report: dict | None) -> str:
     return premarket_text(morning_brief.build_morning_brief(report))

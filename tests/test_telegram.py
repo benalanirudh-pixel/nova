@@ -152,5 +152,28 @@ class TestSchedule(unittest.TestCase):
         scheduler._last_pulse.clear()
 
 
+class TestRescanNote(unittest.TestCase):
+    def test_counts_fresh_and_stale_stocks(self):
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as d:
+            f = os.path.join(d, "scan.csv")
+            pd.DataFrame({"timestamp": ["2026-11-18T00:00:00"] * 3 + ["2026-11-16T00:00:00"]}).to_csv(f, index=False)
+            text = mu.rescan_text({"scanner_file": f, "market_regime": "NEUTRAL"},
+                                  now=datetime(2026, 11, 18, 12, 21, tzinfo=IST))
+        self.assertEqual(text, "NOVA rescan 12:21 IST: 3 of 4 stocks with today's prices (1 stale). Regime: NEUTRAL")
+
+    def test_missing_scan_file_falls_back(self):
+        self.assertIn("2,052 stocks scanned", mu.rescan_text({"stocks_analyzed": 2052, "scanner_file": "nope.csv"}))
+
+    def test_daytime_scan_sends_note_evening_sends_report(self):
+        def run(hour):
+            with mock.patch.object(scheduler, "datetime") as dt,                  mock.patch.object(scheduler, "_postmarket_sent", None),                  mock.patch.object(scheduler, "_is_holiday", mock.AsyncMock(return_value=False)),                  mock.patch.object(scheduler.telegram, "is_configured", return_value=True),                  mock.patch.object(scheduler.market_updates, "rescan_text", return_value="note"),                  mock.patch.object(scheduler.market_updates, "build_postmarket", return_value="report"),                  mock.patch.object(scheduler.telegram, "send") as send:
+                dt.now.return_value = datetime(2026, 11, 18, hour, 1, tzinfo=IST)
+                asyncio.run(scheduler._send_scan_update({}))
+            return send.call_args[0][0]
+        self.assertEqual(run(12), "note")
+        self.assertEqual(run(18), "report")
+
+
 if __name__ == "__main__":
     unittest.main()

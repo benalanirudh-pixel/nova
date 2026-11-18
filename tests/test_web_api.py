@@ -229,7 +229,7 @@ class TestRefreshEndpoint(unittest.TestCase):
         from zoneinfo import ZoneInfo
         from web.api import scheduler
         tue_1100 = datetime(2026, 11, 3, 11, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
-        self.assertEqual(scheduler.last_slot(tue_1100).strftime("%a %H:%M"), "Tue 09:15")
+        self.assertEqual(scheduler.last_slot(tue_1100).strftime("%a %H:%M"), "Tue 09:20")
         mon_0800 = tue_1100.replace(day=2, hour=8)
         self.assertEqual(scheduler.last_slot(mon_0800).strftime("%a %d %H:%M"), "Fri 30 18:00")  # skips weekend
         self.assertTrue(scheduler.missed_refresh("2026-11-01T20:10:43", tue_1100))   # Sunday report
