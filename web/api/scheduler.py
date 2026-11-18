@@ -8,7 +8,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from analysis.data import nse_live, price_store
-from web.api import telegram, universe
+from web.api import market_updates, telegram, universe
 from market_lab.market_lab_data import get_market_lab_data, save_json_report
 
 IST = "Asia/Kolkata"
@@ -64,13 +64,39 @@ async def _notify(text: str) -> None:
         await asyncio.to_thread(telegram.send, text)
 
 
+async def _is_holiday() -> bool:
+    try:
+        return datetime.now(ZoneInfo(IST)).date().isoformat() in await asyncio.to_thread(nse_live.trading_holidays)
+    except Exception:
+        return False  # holiday list unavailable: run as scheduled
+
+
+POSTMARKET_AFTER = (17, 30)  # the 18:00 scan (or a later catch-up) carries the full session
+_postmarket_sent: str | None = None
+
+
+def postmarket_due(now: datetime, sent_on: str | None, holiday: bool) -> bool:
+    now = now.astimezone(ZoneInfo(IST))
+    return (now.weekday() < 5 and not holiday and (now.hour, now.minute) >= POSTMARKET_AFTER
+            and sent_on != now.date().isoformat())
+
+
+async def _send_postmarket(report: dict) -> None:
+    global _postmarket_sent
+    now = datetime.now(ZoneInfo(IST))
+    if not telegram.is_configured() or not postmarket_due(now, _postmarket_sent, await _is_holiday()):
+        return
+    _postmarket_sent = now.date().isoformat()  # once a day, even if a manual refresh follows
+    await _notify(await asyncio.to_thread(market_updates.build_postmarket, report))
+
+
 async def _run_refresh() -> None:
     global _running
     try:
         # The worker thread can't be killed, so a late-finishing scan may overlap the next one.
         report = await asyncio.wait_for(asyncio.to_thread(_refresh_and_save), timeout=REFRESH_TIMEOUT_S)
         _broadcast({"type": "refresh_complete", "timestamp": datetime.now().isoformat()})
-        await _notify(telegram.summary(report))
+        await _send_postmarket(report)
     except asyncio.TimeoutError:
         _broadcast({"type": "refresh_failed", "timestamp": datetime.now().isoformat(),
                     "error": f"Refresh timed out after {REFRESH_TIMEOUT_S}s"})
@@ -95,12 +121,32 @@ def do_refresh() -> str:
 
 
 async def _scheduled_refresh() -> None:
-    try:
-        if datetime.now(ZoneInfo(IST)).date().isoformat() in await asyncio.to_thread(nse_live.trading_holidays):
-            return  # NSE is shut: a scan would only re-save the last session
-    except Exception:
-        pass  # holiday list unavailable: refresh as scheduled
+    if await _is_holiday():
+        return  # NSE is shut: a scan would only re-save the last session
     do_refresh()
+
+
+PULSE_HOURS = "10-15"  # :15 past each hour, 10:15 to 15:15 IST; the open is covered by the pre-market brief
+PREMARKET_SLOT = (9, 10)  # after NSE's 09:08 pre-open match, before the 09:15 open
+_last_pulse: dict = {}
+
+
+async def hourly_pulse() -> None:
+    if not telegram.is_configured() or await _is_holiday():
+        return
+    quotes = await asyncio.to_thread(market_updates.index_quotes)
+    day = datetime.now(ZoneInfo(IST)).date().isoformat()
+    last = _last_pulse.get("quotes") if _last_pulse.get("day") == day else None
+    await _notify(market_updates.pulse_text(quotes, last))
+    _last_pulse.update(day=day, quotes=quotes)
+
+
+async def premarket_brief() -> None:
+    if not telegram.is_configured() or await _is_holiday():
+        return
+    from web.api.report_loader import load_cached_report
+    saved = load_cached_report()
+    await _notify(await asyncio.to_thread(market_updates.build_premarket, saved and saved["report"]))
 
 
 def last_slot(now: datetime) -> datetime:
@@ -165,6 +211,11 @@ def start_scheduler(app) -> None:
         # PC sleep makes the timer fire late; APScheduler's 1 s default grace would silently skip the slot
         sched.add_job(_scheduled_refresh, CronTrigger(day_of_week="mon-fri", hour=hour, minute=minute, timezone=IST),
                       misfire_grace_time=None, coalesce=True)
+    # a late wake would send stale prices: skip a pulse more than 5 min late, the brief after 15 min
+    sched.add_job(hourly_pulse, CronTrigger(day_of_week="mon-fri", hour=PULSE_HOURS, minute=15, timezone=IST),
+                  misfire_grace_time=300, coalesce=True)
+    sched.add_job(premarket_brief, CronTrigger(day_of_week="mon-fri", hour=PREMARKET_SLOT[0], minute=PREMARKET_SLOT[1],
+                                               timezone=IST), misfire_grace_time=900, coalesce=True)
     sched.start()
     app.state.scheduler = sched
     # cron never re-runs a slot missed while the server was off; catch up once at startup

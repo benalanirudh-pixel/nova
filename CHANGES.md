@@ -3,6 +3,31 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-18 - Telegram market updates: pre-market, hourly, post-market
+
+- Replaces the per-scan digest below. Weekdays, NSE holidays skipped:
+  - 09:10 pre-market: morning-call lines from `morning_brief` (GIFT Nifty,
+    global cues, FII/DII, crude, INR), expected NIFTY range, 3 headlines.
+  - 10:15-15:15 hourly: NIFTY 50, SENSEX, BANKNIFTY, INDIA VIX with day
+    change, change since the last hourly, day high/low. NSE first, Yahoo
+    fallback; SENSEX from Yahoo daily history (`fast_info` returns None for
+    index tickers).
+  - Post-market after the first scan finishing at or after 17:30 (normally
+    the 18:00 slot), once per day: index closes, regime, breadth, FII/DII,
+    top 5 gainers/losers (price >= Rs 20, 20-day avg traded value >= Rs 5 cr),
+    1-day sector medians (sectors with >= 10 stocks), headlines for the top
+    3 gainers/losers ("No news found" when nothing in the last 36 h names
+    the stock), 3 market headlines, and one AI line from local
+    `qwen3.5:4b`, labelled "AI read (unverified)". An AI line mentioning
+    buy/sell/short/accumulate/book profit is dropped; an Ollama failure just
+    omits the line.
+- Hourly and pre-market jobs have short misfire grace (5 / 15 min) so a PC
+  waking late does not send stale prices; scan jobs keep unlimited grace.
+- New: `analysis/data/day_movers.py` (offline), `web/api/market_updates.py`.
+- Live dry run 2026-11-18: pulse <1 s, pre-market 14 s, post-market 10-86 s
+  (Ollama cold start dominates). Movers' news is often old: Google News
+  returns by relevance, so many movers honestly show "No news found".
+
 ## 2026-11-18 - Telegram scan updates
 
 - `web/api/telegram.py`: after each scheduled or manual scan, Nova Desk

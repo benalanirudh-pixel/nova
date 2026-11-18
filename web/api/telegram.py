@@ -50,37 +50,6 @@ def send(text: str) -> bool:
         return False
 
 
-def _pct(v) -> str:
-    return f"{v:+.2f}%" if isinstance(v, (int, float)) else "n/a"
-
-
-def summary(report: dict) -> str:
-    """Short scan digest. Missing fields show as n/a, never invented."""
-    snap = report.get("nifty_snapshot") or {}
-    vix = (report.get("volatility") or {}).get("india_vix") or {}
-    b = report.get("breadth") or {}
-    price = snap.get("price")
-    lines = [
-        f"NOVA scan {str(report.get('generated', ''))[:16].replace('T', ' ')} IST",
-        f"Regime: {report.get('market_regime', 'n/a')}",
-        f"NIFTY {price:,.1f} ({_pct(snap.get('change_percent'))})" if isinstance(price, (int, float)) and snap.get("available") else "NIFTY: n/a",
-        f"BANKNIFTY 1D {_pct((report.get('bank_nifty_returns') or {}).get('1D'))}",
-        f"VIX {vix['value']:.2f} ({_pct(vix.get('change_percent'))}, {vix.get('regime', '?')})" if vix.get("available") and isinstance(vix.get("value"), (int, float)) else "VIX: n/a",
-        f"Breadth: {b.get('advancing', 'n/a')} up / {b.get('declining', 'n/a')} down of {b.get('total', 'n/a'):.0f}" if isinstance(b.get("total"), (int, float)) else "Breadth: n/a",
-    ]
-    sectors = (report.get("sector_intelligence") or {}).get("top_sectors") or []
-    if sectors:
-        lines.append("Top sectors (20D): " + ", ".join(f"{s.get('sector')} {_pct(s.get('return_20d'))}" for s in sectors[:3]))
-    stocks = report.get("top_technical_stocks") or []
-    if stocks:
-        lines.append("Top technical scores: " + ", ".join(f"{s.get('symbol')} {s.get('technical_score', 0):.0f}" for s in stocks[:5]))
-    events = report.get("event_risk_context") or {}
-    if events.get("status") == "NOT_AVAILABLE" or events.get("source_fresh") is False:
-        lines.append("Warning: event calendar stale or unavailable")
-    lines.append("Analysis only. Not a buy/sell signal.")
-    return "\n".join(lines)
-
-
 def _setup_check() -> int:
     token, chat = _config()
     if not token:
@@ -95,7 +64,7 @@ def _setup_check() -> int:
         for cid, name in chats.items():
             print(f"  {cid}  {name}")
         return 1
-    ok = send("Nova Desk connected. You'll get a digest after each scheduled scan.")
+    ok = send("Nova Desk connected: pre-market 09:10, hourly 10:15-15:15, post-market after the 18:00 scan.")
     print("Test message sent." if ok else "Send failed, see error above.")
     return 0 if ok else 1
 
