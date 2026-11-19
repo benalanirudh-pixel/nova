@@ -548,6 +548,7 @@ def canonicalize_primary_rows(
         dataframe,
         [
             "symbol",
+            "source_symbol",  # sector_classification.parse_primary_html names
             "ticker",
             "yahoo_symbol",
             "scrip",
@@ -558,6 +559,7 @@ def canonicalize_primary_rows(
         dataframe,
         [
             "company_name",
+            "source_company_name",
             "name",
             "company",
         ],

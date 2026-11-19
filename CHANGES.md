@@ -3,6 +3,20 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-19 - Sector refresh was failing on every scan
+
+- Every full scan since 2026-11-17 10:35 refreshed stocks but kept the old
+  sector file: `sector_engine.canonicalize_primary_rows` raised "Primary
+  classifier output does not contain a company-name column". The path only
+  runs when the scan has symbols missing from the classification cache
+  (5 new listings appeared), and `parse_primary_html` names its columns
+  `source_symbol` / `source_company_name`. Both names are now accepted;
+  a dry run built 44 sectors and classified 4 of the 5 new listings.
+- `market_lab_data` only printed a warning on that failure, so Telegram now
+  says so: rescan notes and the post-market wrap show "Sector data is from
+  <date> (sector refresh failed)" whenever the report's sector file is not
+  from today.
+
 ## 2026-11-18 - Scanner gap fill, NSE-first news, short pre-market
 
 - Data bug fixed: in the 13:31 scan about 62% of a 61-stock sample took

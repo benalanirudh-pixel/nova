@@ -41,5 +41,28 @@ class TestGapFill(unittest.TestCase):
         self.assertEqual(ms.fill_missing_sessions(yahoo, None)[1], 0)
 
 
+
+class TestSectorClassifierColumns(unittest.TestCase):
+    def test_parser_source_columns_are_accepted(self):
+        # sector_classification.parse_primary_html returns source_* names; this crashed every scan from 2026-11-17
+        from analysis.data import sector_engine as se
+        rows = pd.DataFrame([{"source_symbol": "NEWCO", "source_company_name": "New Co Ltd", "macro_sector": "Energy",
+                              "sector": "Oil", "industry": "Refining", "basic_industry": "Refineries"}])
+        out = se.canonicalize_primary_rows(rows)
+        self.assertEqual(out.iloc[0]["company_name"], "New Co Ltd")
+        self.assertEqual(out.iloc[0]["symbol"], "NEWCO")
+
+
+class TestStaleSectorWarning(unittest.TestCase):
+    def test_warns_only_when_sector_file_is_not_today(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        from web.api import market_updates as mu
+        now = datetime(2026, 11, 19, 12, 21, tzinfo=ZoneInfo("Asia/Kolkata"))
+        old = {"sector_file": "C:/x/sector_scan_20261117_103552.csv"}
+        self.assertEqual(mu.stale_sector_warning(old, now), "⚠ Sector data is from 17-Nov (sector refresh failed)")
+        self.assertIsNone(mu.stale_sector_warning({"sector_file": "sector_scan_20261119_120834.csv"}, now))
+        self.assertIn("⚠ Sector data is from 17-Nov", mu.rescan_text(old, now))
+
 if __name__ == "__main__":
     unittest.main()

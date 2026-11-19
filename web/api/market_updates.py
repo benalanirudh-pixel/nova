@@ -326,6 +326,8 @@ def postmarket_text(report: dict, quotes: dict, movers: dict | None, sectors: di
             f"Advances / declines: {ad}"]
     if cov := coverage(report, now)[2]:
         out.append(f"Data: {cov}")
+    if warn := stale_sector_warning(report, now):
+        out.append(warn)
     if _num(b.get("above_ema50_percent")) is not None:
         out.append(f"Stocks above 50-DMA: {b['above_ema50_percent']:.0f}% · 200-DMA: "
                    + (f"{b['above_ema200_percent']:.0f}%" if _num(b.get("above_ema200_percent")) is not None else NA))
@@ -414,8 +416,20 @@ def rescan_text(report: dict, now=None) -> str:
     b = report.get("breadth") or {}
     adv, dec = b.get("advancing"), b.get("declining")
     breadth = f" · A/D {adv:,}▲ {dec:,}▼" if _num(adv) is not None and _num(dec) is not None else ""
-    return "\n".join([header("RESCAN", now), coverage(report, now)[2] or "Stock count n/a",
-                      f"Regime <b>{esc(report.get('market_regime', NA))}</b>{breadth}", footer("Nova scan")])
+    lines = [header("RESCAN", now), coverage(report, now)[2] or "Stock count n/a",
+             f"Regime <b>{esc(report.get('market_regime', NA))}</b>{breadth}"]
+    if warn := stale_sector_warning(report, now):
+        lines.append(warn)
+    return "\n".join(lines + [footer("Nova scan")])
+
+
+def stale_sector_warning(report: dict, now=None) -> str | None:
+    """The sector refresh can fail while the stock scan succeeds; say so instead of showing old sectors as new."""
+    m = re.search(r"sector_scan_(\d{8})_", str(report.get("sector_file") or ""))
+    if not m:
+        return "⚠ Sector data: no sector file in this report"
+    day = datetime.strptime(m.group(1), "%Y%m%d").date()
+    return None if day == _now(now).date() else f"⚠ Sector data is from {day:%d-%b} (sector refresh failed)"
 
 
 def failure_text(reason: str, now=None) -> str:
