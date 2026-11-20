@@ -23,7 +23,8 @@ MAX_QUESTION = 500
 
 
 def _stock_report(symbol: str, question: str, report: dict | None) -> str:
-    built = stock_route._build(symbol)
+    # reuse the Stock page's cached sheet: a rebuild costs ~15 s on top of the model call
+    built = ttl_cache.get(stock_route._stock_cache, symbol, stock_route._STOCK_TTL) or stock_route._build(symbol)
     candles = [{"t": c["time"]} for c in built["chart"]["candles"]]
     return brain.analyze_stock_report(symbol, built["analysis"], candles, report,
                                       mode="quick" if "quick" in question.lower() else "full")

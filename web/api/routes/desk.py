@@ -109,16 +109,28 @@ def _date(path: str | None) -> str | None:
     return "-".join(m.groups()) if m else None
 
 
+def _cached(key, make_stocks) -> tuple[list, list]:
+    """(stocks, sector table) for key. Stored as one tuple: a concurrent request on the other source
+    (store vs scan) cannot hand back one source's rows with the other's sector table."""
+    hit = _cache.get("v")
+    if hit and hit[0] == key:
+        return hit[1], hit[2]
+    stocks = make_stocks()
+    table = build_sectors(stocks)
+    _cache["v"] = (key, stocks, table)
+    return stocks, table
+
+
 def _from_store(whole: dict) -> dict:
     raw = whole["raw"]
-    if _cache.get("key") != ("store", whole["built_at"]):
-        rows = raw.astype(object).where(raw.notna(), None).to_dict("records")
-        stocks = build_stocks(rows, dict(zip(raw["symbol"], raw["sector"].fillna(""))), dict(zip(raw["symbol"], raw["company_name"].fillna(raw["symbol"]))))
-        _cache.update(key=("store", whole["built_at"]), stocks=stocks, table=build_sectors(stocks))
+    key = ("store", whole["built_at"])
+    stocks, table = _cached(key, lambda: build_stocks(raw.astype(object).where(raw.notna(), None).to_dict("records"),
+                                                      dict(zip(raw["symbol"], raw["sector"].fillna(""))),
+                                                      dict(zip(raw["symbol"], raw["company_name"].fillna(raw["symbol"])))))
     return {
-        "available": True, "source": "store", "as_of": whole["as_of"], "stock_count": len(_cache["stocks"]), "newest_stocks": len(_cache["stocks"]),
+        "available": True, "source": "store", "as_of": whole["as_of"], "stock_count": len(stocks), "newest_stocks": len(stocks),
         "listed": whole["listed"], "short_history": whole["short_history"], "sector_map_as_of": None, "columns": COLUMNS,
-        "rows": [[r[c] for c in COLUMNS] for r in _cache["stocks"]], "sectors": _cache["table"], "guardrails": vm.guardrails({}),
+        "rows": [[r[c] for c in COLUMNS] for r in stocks], "sectors": table, "guardrails": vm.guardrails({}),
     }
 
 
@@ -139,14 +151,12 @@ def scan():
         return {"available": False, "columns": COLUMNS, "rows": [], "sectors": [], "newest_stocks": newest}
     enriched = sorted(glob.glob(str(root / "sector" / "sector_enriched*")))
     key = (path, enriched[-1] if enriched else None)
-    if _cache.get("key") != key:
-        sectors = {r["symbol"]: r.get("sector") or "" for r in _rows(enriched[-1])} if enriched else {}
-        stocks = build_stocks(rows, sectors, _names())
-        _cache.update(key=key, stocks=stocks, table=build_sectors(stocks))
+    stocks, table = _cached(key, lambda: build_stocks(
+        rows, {r["symbol"]: r.get("sector") or "" for r in _rows(enriched[-1])} if enriched else {}, _names()))
     return {
-        "available": True, "source": "scan", "as_of": _date(path), "stock_count": len(_cache["stocks"]), "newest_stocks": newest,
+        "available": True, "source": "scan", "as_of": _date(path), "stock_count": len(stocks), "newest_stocks": newest,
         "sector_map_as_of": _date(enriched[-1]) if enriched else None, "columns": COLUMNS,
-        "rows": [[r[c] for c in COLUMNS] for r in _cache["stocks"]], "sectors": _cache["table"],
+        "rows": [[r[c] for c in COLUMNS] for r in stocks], "sectors": table,
         "guardrails": vm.guardrails({}),
     }
 

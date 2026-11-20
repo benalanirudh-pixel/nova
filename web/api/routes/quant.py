@@ -72,7 +72,7 @@ def scan_frames() -> dict:
             raw["sector"] = raw["symbol"].astype(str).map(sectors).fillna("")
             sessions[_data_date(raw, fd)] = qe.prepare(raw)  # later file dates overwrite the same session
             break
-    _frames.clear()
+    # one update, no clear(): a request thread reading _frames mid-rebuild must never see it empty
     _frames.update(key=key, sessions=sorted(sessions.items()))
     return _frames
 
@@ -126,8 +126,7 @@ def internals():
         as_of, now = sessions[-1]
         m, rot = qe.market_internals(now), qe.sector_rotation(now)
         windows = _factor_windows(sessions)
-        _payload.clear()
-        _payload.update(key=key, body={
+        _payload.update(key=key, body={  # no clear(): see scan_frames
             "available": True, "as_of": as_of, "stocks": int(len(now)), "engine": f"{qe.ENGINE_NAME} {qe.ENGINE_VERSION}",
             "source": "Local price store, every listed stock" if whole and as_of == whole["as_of"] else "Saved scan",
             "internals": m, "rotation": rot, "factor_windows": windows,

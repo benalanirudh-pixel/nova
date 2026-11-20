@@ -3,6 +3,18 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-20 - Backend audit: cache race fixes
+
+- `web/api/routes/quant.py`: `scan_frames` and `/quant/internals` no longer
+  `clear()` their module caches before refilling them. Sync routes run in
+  FastAPI's thread pool, so a concurrent request could read the cache in the
+  gap and fail with `KeyError` (HTTP 500) right after a new scan landed.
+- `web/api/routes/desk.py`: `/scan` keeps (key, stocks, sector table) as one
+  tuple (`_cached`), so a concurrent store-vs-scan rebuild can no longer mix
+  one source's rows with the other's sector table.
+- `web/api/routes/ai.py`: stock questions reuse the Stock page's cached sheet
+  (`stock._stock_cache`) instead of rebuilding it (~15 s saved per call).
+
 ## 2026-11-20 - Live market news: Desk News page + Telegram push
 
 - New `web/api/news_feed.py`: polls 8 publisher RSS feeds (ET x2, Business
