@@ -3,6 +3,34 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-20 - Live market news: Desk News page + Telegram push
+
+- New `web/api/news_feed.py`: polls 8 publisher RSS feeds (ET x2, Business
+  Standard, Mint, CNBC-TV18, NDTV Profit, BusinessLine, Google News India)
+  plus NSE corporate announcements, in parallel, every 60 s
+  (`scheduler.news_tick`, IntervalTrigger, max one run at a time). Feed URLs
+  were checked on 2026-11-20. Moneycontrol RSS stopped updating in 2024 and
+  Financial Express returns 410, so both are left out.
+- Dedupe is by link or by the first 7 title words, so one story from several
+  outlets counts once. Seen ids are kept for 3 days in the git-ignored
+  `cache/news_seen.json`, so a restart does not resend. The Desk list keeps
+  the last 24 h (max 300).
+- Google News items are kept only from `TRUSTED_SOURCES` publishers. Junk
+  "live updates" pages are dropped, using `morning_brief.JUNK_NEWS`.
+- Keyword tags: RBI, SEBI, RESULTS, DEAL, ORDER, IPO, FLOWS, MACRO, RATING
+  and INDEX. HIGH = RBI/SEBI/RESULTS/DEAL/ORDER, or an NSE filing in
+  `FILING_HIGH` other than a plain press release. The tags are a heuristic
+  and are labelled as one.
+- Telegram (`market_updates.news_text`): at most one message per poll, with up
+  to 8 HIGH items published in the last 30 min. Sent Mon-Fri 08:00-20:00 IST
+  only (`NEWS_PUSH_HOURS`). The Desk list updates around the clock.
+- A failed source is listed in `errors` and shown on the page. It is never
+  back-filled.
+- Fetches bind to IPv4: on this PC IPv6 has no route, and `requests` spent
+  8 s per IPv6 address before falling back (a 16 s poll; it is now 1.6 s).
+- `GET /api/news/live`; Desk page `/news` (nav "News", F8), refreshed every
+  30 s, with a "High impact only" toggle. F10 now reaches the 10th tab (Audit).
+
 ## 2026-11-20 - Event calendar: re-verified, NSE feed automated, 7-day schedule rule
 
 - Event risk had been NOT_AVAILABLE in every report since 2026-10-11: the

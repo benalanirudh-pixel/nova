@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from analysis.data import morning_brief, nse_live
 
 from market_lab import view_model as vm
+from web.api import news_feed
 from web.api.report_loader import load_cached_report
 
 router = APIRouter()
@@ -116,3 +117,9 @@ async def morning_brief_route():
     data["guardrails"] = vm.guardrails(saved["report"] if saved else {})
     _brief_cache["v"] = (time.monotonic(), data)
     return data
+
+
+@router.get("/news/live")
+def news_live():
+    """Last 24 h of market news merged from every source; the scheduler refreshes it every 60 s."""
+    return news_feed.snapshot()

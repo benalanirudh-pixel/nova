@@ -6,9 +6,10 @@ from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from analysis.data import nse_live, price_store
-from web.api import market_updates, telegram, universe
+from web.api import market_updates, news_feed, telegram, universe
 from market_lab.market_lab_data import get_market_lab_data, save_json_report
 
 IST = "Asia/Kolkata"
@@ -154,6 +155,28 @@ async def premarket_brief() -> None:
     await _notify(await asyncio.to_thread(market_updates.build_premarket, saved and saved["report"]))
 
 
+NEWS_SECONDS = 60
+NEWS_PUSH_HOURS = (8, 20)  # Telegram news pushes 08:00-20:00 IST Mon-Fri; the Desk list updates around the clock
+
+
+def news_push_due(now: datetime) -> bool:
+    now = now.astimezone(ZoneInfo(IST))
+    return now.weekday() < 5 and NEWS_PUSH_HOURS[0] <= now.hour < NEWS_PUSH_HOURS[1]
+
+
+async def news_tick() -> None:
+    """Poll every news source; push fresh high-impact items to Telegram in one message."""
+    try:
+        result = await asyncio.to_thread(news_feed.poll)
+    except Exception as exc:  # keep the job alive; the Desk shows the last good list
+        print(f"[NEWS] poll failed: {exc}")
+        return
+    now = datetime.now(ZoneInfo(IST))
+    picks = news_feed.alerts(result["new"], now)
+    if picks and news_push_due(now):
+        await _notify(market_updates.news_text(picks, now))
+
+
 def last_slot(now: datetime) -> datetime:
     """Most recent scheduled refresh time at or before `now` (IST, Mon-Fri)."""
     now = now.astimezone(ZoneInfo(IST))
@@ -241,6 +264,9 @@ def start_scheduler(app) -> None:
                   misfire_grace_time=300, coalesce=True)
     sched.add_job(premarket_brief, CronTrigger(day_of_week="mon-fri", hour=PREMARKET_SLOT[0], minute=PREMARKET_SLOT[1],
                                                timezone=IST), misfire_grace_time=900, coalesce=True)
+    # first poll at startup fills the Desk list; one running poll at a time, a late one is skipped not queued
+    sched.add_job(news_tick, IntervalTrigger(seconds=NEWS_SECONDS, timezone=IST), next_run_time=datetime.now(ZoneInfo(IST)),
+                  max_instances=1, coalesce=True, misfire_grace_time=30)
     sched.start()
     app.state.scheduler = sched
     # cron never re-runs a slot missed while the server was off; catch up once at startup

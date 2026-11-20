@@ -476,6 +476,20 @@ def failure_text(reason: str, now=None) -> str:
     return "\n".join([header("SCAN FAILED", now), esc(reason), "<i>The desk keeps the last good report.</i>"])
 
 
+def news_text(items: list[dict], now=None) -> str:
+    """Fresh high-impact headlines from the live news feed, newest first, each linked to its source."""
+    lines = [header("MARKET NEWS", now, f"{len(items)} new")]
+    for i in items:
+        try:
+            t = f"{datetime.fromisoformat(i['published']).astimezone(IST):%H:%M}"
+        except (TypeError, ValueError):
+            t = NA
+        tags = " ".join(i.get("tags") or []) or "NEWS"
+        lines.append(f"\n<b>{esc(tags)}</b> · {t} · {esc(i.get('source') or NA)}\n"
+                     f"<a href=\"{html.escape(i['link'], quote=True)}\">{esc(i['title'])}</a>")
+    return "\n".join(lines + [footer("publisher RSS, NSE filings; tags are keyword-based")])
+
+
 # ---------------------------------------------------------------- AI read
 
 MODEL = "qwen3.5:4b"

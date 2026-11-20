@@ -141,12 +141,16 @@ th.so button { all: unset; cursor: pointer } th.so button:focus-visible { outlin
 .view.bare { border: 0; padding-bottom: 0 }
 
 /* grid layouts */
-.grid-eq, .grid-fno, .grid-flows, .grid-sec, .grid-note, .grid-audit, .grid-quant, .grid-research { display: grid; gap: 1px; background: var(--border); min-height: 0; min-width: 0; height: 100% }
+.grid-eq, .grid-fno, .grid-flows, .grid-sec, .grid-note, .grid-news, .grid-audit, .grid-quant, .grid-research { display: grid; gap: 1px; background: var(--border); min-height: 0; min-width: 0; height: 100% }
 .grid-eq { grid-template: "wl main side" minmax(0,1fr) / 286px minmax(0,1fr) 340px }
 .grid-fno { grid-template: "hd hd" auto "cx cx" auto "ch rg" minmax(0,1fr) / minmax(0,1fr) 400px }
 .grid-flows { grid-template: "rl st" auto "tb st" minmax(0,1fr) / minmax(0,1fr) 340px }
 .grid-sec { grid-template: "a b" minmax(0,1fr) / 540px minmax(0,1fr) }
 .grid-note { grid-template: "c g n" minmax(0,1fr) / minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.2fr) }
+.grid-news { grid-template: "n" minmax(0,1fr) / minmax(0,1fr) }
+.grid-news td a { color: inherit; text-decoration: none }
+.grid-news td a:hover { text-decoration: underline }
+.grid-news h2 .tbtn { margin-left: 10px; font-weight: 400 }
 .grid-audit { grid-template: "f e p" minmax(0,1fr) / minmax(0,1.5fr) minmax(0,1fr) minmax(0,.9fr) }
 .grid-quant { grid-template: "a b c" minmax(0,1fr) / minmax(0,1fr) minmax(0,1.15fr) minmax(0,1fr) }
 .grid-research { grid-template: "a b" minmax(0,1fr) / minmax(0,1.45fr) minmax(0,1fr) }

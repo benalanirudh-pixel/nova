@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { fetchJSON } from "../lib/api";
 import { isNum } from "../lib/format";
 import { sd } from "./analytics";
 import Ask from "./Ask";
@@ -146,6 +147,49 @@ export function Note() {
       </Pane>
       <Pane area="n" title="Headlines" sub={`${brief.news?.length ?? 0} items`}>
         {brief.news ? <Table cols={[{ h: "Headline", v: (r) => r.title, text: true }, { h: "Source", v: (r) => r.source ?? "", text: true }]} rows={brief.news} /> : <Empty>News unavailable. {brief.errors.news}</Empty>}
+      </Pane>
+    </div>
+  );
+}
+
+interface NewsItem { title: string; link: string; source: string; published: string | null; seen_at: string; tags: string[]; high: boolean }
+interface NewsFeed { items: NewsItem[]; errors: Record<string, string>; polled_at: string | null; sources: number; note: string }
+const NEWS_POLL_MS = 30_000; // the server polls every source each 60 s
+const istTime = (iso: string | null) => {
+  if (!iso) return "n/a";
+  const d = new Date(iso), o = { timeZone: "Asia/Kolkata" } as const;
+  const hm = d.toLocaleTimeString("en-GB", { ...o, hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleDateString("en-GB", o) === new Date().toLocaleDateString("en-GB", o) ? hm : `${d.toLocaleDateString("en-GB", { ...o, day: "numeric", month: "short" })} ${hm}`;
+};
+
+export function News() {
+  const [feed, setFeed] = useState<NewsFeed | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [highOnly, setHighOnly] = useState(false);
+  useEffect(() => {
+    let live = true;
+    const load = () => fetchJSON<NewsFeed>("/news/live").then((f) => { if (live) { setFeed(f); setErr(null); } }).catch((e) => live && setErr(String(e.message ?? e)));
+    load();
+    const t = setInterval(load, NEWS_POLL_MS);
+    return () => { live = false; clearInterval(t); };
+  }, []);
+  if (!feed) return <div className="pane full"><Empty>{err ? `News unavailable. ${err}` : "Loading live news."}</Empty></div>;
+  const rows = highOnly ? feed.items.filter((i) => i.high) : feed.items;
+  const down = Object.keys(feed.errors);
+  const sub = `${rows.length} items, last 24 h. ${feed.sources - down.length} of ${feed.sources} sources ok. Polled ${istTime(feed.polled_at)} IST`;
+  return (
+    <div className="grid-news">
+      <Pane area="n" title={<>Live news <button type="button" className="tbtn" onClick={() => setHighOnly((v) => !v)}>{highOnly ? "Show all" : "High impact only"}</button></>}
+        sub={sub} flag={down.length ? `down: ${down.join(", ")}` : err ? `stale: ${err}` : undefined}>
+        {feed.polled_at ? (
+          <Table cols={[
+            { h: "Time IST", v: (r: NewsItem) => istTime(r.published) },
+            { h: "Tag", v: (r) => <>{r.high && <Flag>HIGH</Flag>}{r.tags.join(" ")}</>, text: true },
+            { h: "Headline", v: (r) => <a href={r.link} target="_blank" rel="noopener noreferrer">{r.title}</a>, text: true },
+            { h: "Source", v: (r) => r.source, text: true },
+          ]} rows={rows} isOn={(r) => r.high} />
+        ) : <Empty>First poll still running. News appears within a minute of server start.</Empty>}
+        <p className="pad"><i>{feed.note}</i></p>
       </Pane>
     </div>
   );

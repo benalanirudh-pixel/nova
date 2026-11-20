@@ -1775,3 +1775,19 @@ sprint (screenshot caught the brief loading).
   Not yet watched streaming during a session; next session will show it.
 - Browser: all nine pages render; ICICIPRULI opens ICICI Life (ICICILIFE)
   with scorecard, risk, delivery and corporate actions.
+
+## 2026-11-20 - Live Market News
+
+- `tests/test_news_feed.py` (13 offline tests) covers:
+  - RSS and Atom parsing, junk and http-link drops, the Google trusted-source filter
+  - NSE filing ranking, dedupe across outlets, restart without resend, 24 h pruning
+  - failed sources reported, the Telegram freshness and HIGH filter, HTML escaping
+  - the push window, and `news_tick` sending one message and surviving a poll failure
+- `tests/test_web_api.py` job counts updated (9 jobs; the news job is interval-based).
+- Full offline suite: 621 tests OK.
+- Live: one poll of all 9 sources took 1.6 s with 0 errors and returned about 500 items,
+  41 of them HIGH. A second poll found 0 new.
+- Running Desk on 8501: `/api/news/live` served items, and the `/news` page rendered.
+  The High-only toggle showed the 3 HIGH items.
+- Not verified: a real Telegram news push arriving on the phone.
+
