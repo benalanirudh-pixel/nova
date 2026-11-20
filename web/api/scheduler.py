@@ -208,8 +208,28 @@ def catch_up_prices() -> None:
     task.add_done_callback(_tasks.discard)
 
 
+EVENT_FEED_SLOT = (8, 30)  # before the 09:10 pre-market brief; daily, since the feed is trusted for 24 h
+
+
+async def refresh_event_feed() -> None:
+    """NSE holidays and F&O expiries for the event calendar. A failure keeps the old cache (then flagged stale)."""
+    from analysis.data import event_calendar_nse
+    try:
+        print(f"[EVENTS] NSE feed refreshed: {await asyncio.to_thread(event_calendar_nse.refresh)} events")
+    except Exception as exc:
+        print(f"[EVENTS] NSE feed refresh failed: {exc}")
+
+
 def start_scheduler(app) -> None:
     sched = AsyncIOScheduler(timezone=IST)
+    sched.add_job(refresh_event_feed, CronTrigger(hour=EVENT_FEED_SLOT[0], minute=EVENT_FEED_SLOT[1], timezone=IST),
+                  misfire_grace_time=None, coalesce=True)
+    try:  # startup: never serve a day-old feed
+        task = asyncio.get_running_loop().create_task(refresh_event_feed())
+        _tasks.add(task)
+        task.add_done_callback(_tasks.discard)
+    except RuntimeError:
+        pass  # no running loop (sync callers, tests): the daily job still covers it
     sched.add_job(update_prices, CronTrigger(day_of_week="mon-fri", hour=PRICE_SLOT[0], minute=PRICE_SLOT[1], timezone=IST),
                   misfire_grace_time=None, coalesce=True)
     for hour, minute in SLOTS:

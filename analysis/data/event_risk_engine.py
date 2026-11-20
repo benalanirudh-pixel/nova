@@ -36,7 +36,7 @@ from __future__ import annotations
 
 
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from typing import Any
 
@@ -53,6 +53,11 @@ ENGINE_VERSION = "1.0.0"
 DEFAULT_LOOKAHEAD_DAYS = 7
 
 MAX_SOURCE_AGE_HOURS = 24
+
+# With a separate machine-checked market feed (NSE holidays/expiries, re-checked
+# daily), the hand-verified schedule of official releases (RBI, Fed, CPI, GDP)
+# stays trusted this long after its source check.
+MAX_SCHEDULE_AGE_DAYS = 7
 
 
 
@@ -252,6 +257,10 @@ def build_event_risk_context(
 
     lookahead_days: int = DEFAULT_LOOKAHEAD_DAYS,
 
+    market_checked_at: str | datetime | None = None,
+
+    covers_until: str | None = None,
+
 ) -> dict[str, Any]:
 
     """
@@ -295,6 +304,14 @@ def build_event_risk_context(
     )
 
     source_time = _parse_timestamp(source_checked_at)
+
+    market_time = _parse_timestamp(market_checked_at)
+
+    split_feeds = market_checked_at is not None
+
+    # one stamp: everything must be re-checked within 24 h; two feeds: the
+    # schedule gets MAX_SCHEDULE_AGE_DAYS, the NSE feed keeps the 24 h rule
+    source_limit_hours = MAX_SCHEDULE_AGE_DAYS * 24 if split_feeds else MAX_SOURCE_AGE_HOURS
 
 
 
@@ -348,7 +365,7 @@ def build_event_risk_context(
 
         source_fresh = (
 
-            0 <= source_age_hours <= MAX_SOURCE_AGE_HOURS
+            0 <= source_age_hours <= source_limit_hours
 
         )
 
@@ -366,13 +383,43 @@ def build_event_risk_context(
 
             warnings.append(
 
+                f"Scheduled-release calendar is older than {MAX_SCHEDULE_AGE_DAYS} days; re-check its sources."
+
+                if split_feeds else
+
                 "Calendar source is stale or older than 24 hours."
 
             )
 
+    if split_feeds:
+
+        market_age = (current_time - market_time).total_seconds() / 3600 if market_time else None
+
+        if market_age is None or not 0 <= market_age <= MAX_SOURCE_AGE_HOURS:
+
+            source_fresh = False
+
+            warnings.append("NSE holiday/expiry feed is missing or older than 24 hours.")
+
 
 
     horizon_end = current_time.timestamp() + lookahead_days * 86400
+
+    if covers_until:
+
+        try:
+
+            covered = datetime.fromisoformat(str(covers_until)).date()
+
+        except ValueError:
+
+            covered = None
+
+        if covered is None or covered < datetime.fromtimestamp(horizon_end, timezone.utc).date():
+
+            calendar_complete = False
+
+            warnings.append(f"Scheduled-release calendar only covers until {covers_until}; extend it.")
 
 
 
@@ -625,6 +672,16 @@ def build_event_risk_context(
         ),
 
         "source_fresh": source_fresh,
+
+        "market_checked_at_utc": market_time.isoformat() if market_time else None,
+
+        "schedule_expires_at_utc": (
+
+            (source_time + timedelta(hours=source_limit_hours)).isoformat() if source_time else None
+
+        ),
+
+        "covers_until": covers_until,
 
         "calendar_complete": bool(calendar_complete),
 

@@ -3,6 +3,30 @@
 This file tracks context, workflow, and behavior changes important for future
 coding agents.
 
+## 2026-11-20 - Event calendar: re-verified, NSE feed automated, 7-day schedule rule
+
+- Event risk had been NOT_AVAILABLE in every report since 2026-10-11: the
+  hand-kept `analysis/data/event_calendar.json` was last checked 2026-10-10
+  and the engine trusts one stamp for 24 h only. Nothing refreshed it.
+- Calendar re-verified 2026-11-20 against RBI (MPC 2-4 Dec), the Fed FOMC
+  calendar (8-9 Dec), BLS (jobs 4 Dec, CPI 10 Dec, JOLTS 1 Dec, PPI 15 Dec),
+  BEA (GDP/PCE 25 Nov), MoSPI ARC (IIP 28 Nov, GDP 30 Nov, CPI 12 Dec) and
+  NSE. It now carries `covers_until` (2026-12-29); the engine marks the
+  calendar incomplete when that ends inside the lookahead window.
+- New `analysis/data/event_calendar_nse.py`: NSE trading holidays and NIFTY
+  expiries from NSE's own APIs (monthly = also a BANKNIFTY expiry), written
+  to the git-ignored `cache/event_calendar_nse.json`. The scheduler refreshes
+  it daily at 08:30 IST (weekends too) and once at startup.
+- Freshness rule (user choice 2026-11-20): with the NSE feed present, the
+  hand-verified release schedule is trusted for 7 days
+  (`MAX_SCHEDULE_AGE_DAYS`) and the NSE feed for 24 h. Without the feed the
+  old single 24 h stamp applies. `check_event_calendar.py` uses 7 days.
+- Telegram: pre-market lists the next 3 events, post-market a "Next 7 days"
+  section, both in IST; "Event risk UNKNOWN" when stale and a re-check
+  reminder in the last 2 days before the schedule lapses.
+- Found by the NSE feed: 23-Nov is the November monthly expiry (24-Nov is a
+  holiday), not a weekly one.
+
 ## 2026-11-19 - Sector refresh was failing on every scan
 
 - Every full scan since 2026-11-17 10:35 refreshed stocks but kept the old

@@ -218,9 +218,13 @@ class TestRefreshEndpoint(unittest.TestCase):
         app = create_app()
         with mock.patch("web.api.scheduler.get_market_lab_data"),              mock.patch("analysis.data.nse_live.get", side_effect=RuntimeError("offline test")),              mock.patch("web.api.scheduler.price_store.update", return_value={}) as prices,              mock.patch("web.api.scheduler.universe.build", return_value=None),              mock.patch("web.api.scheduler.universe.refresh_master", return_value=False),              TestClient(app):
             jobs = app.state.scheduler.get_jobs()
-            self.assertEqual(len(jobs), 7)  # four report refreshes, the price-store update, hourly pulse, pre-market brief
+            self.assertEqual(len(jobs), 8)  # four report refreshes, price store, hourly pulse, pre-market brief, NSE event feed
+            from web.api import scheduler as scheduler_module
             for j in jobs:
-                self.assertIn("day_of_week='mon-fri'", str(j.trigger))
+                if j.func is scheduler_module.refresh_event_feed:  # daily: the NSE feed is trusted for 24 h only
+                    self.assertNotIn("day_of_week", str(j.trigger))
+                else:
+                    self.assertIn("day_of_week='mon-fri'", str(j.trigger))
         prices.assert_called_once()  # startup catches the store up on missed sessions
 
 
@@ -461,7 +465,7 @@ class TestSchedulerMisfire(unittest.TestCase):
         jobs = app.state.scheduler.get_jobs()
         updates = {scheduler.hourly_pulse, scheduler.premarket_brief}
         scans = [j for j in jobs if j.func not in updates]
-        self.assertEqual(len(scans), len(scheduler.SLOTS) + 1)  # plus the evening price-store update
+        self.assertEqual(len(scans), len(scheduler.SLOTS) + 2)  # plus the price-store update and the NSE event feed
         self.assertTrue(all(j.misfire_grace_time is None and j.coalesce for j in scans))
         # Telegram updates are the opposite: a late wake must not send stale prices
         self.assertTrue(all(j.misfire_grace_time and j.misfire_grace_time <= 900 for j in jobs if j.func in updates))

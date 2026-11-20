@@ -176,7 +176,7 @@ def _net_flows(fii: list | None) -> str:
     return " · ".join(f"{r['category'].split('/')[0]} {r['net_cr']:+,.0f} cr" for r in rows) + f" ({rows[0].get('date') or '?'})"
 
 
-def premarket_text(brief: dict, now=None) -> str:
+def premarket_text(brief: dict, now=None, events: dict | None = None) -> str:
     """Short by design: what moves the open, nothing else."""
     g = brief.get("global") or {}
     rows = [["CUE", "LAST", "CHG%"]]
@@ -199,8 +199,45 @@ def premarket_text(brief: dict, now=None) -> str:
         out.append(f"NIFTY range: <b>{r['low']:,.0f} – {r['high']:,.0f}</b> (±{_pct(r.get('pct'), False)}%)")
     for n in market_headlines(brief.get("news") or [], now=now, n=2):
         out.append(f"• {esc(n['title'])} <i>({esc(n.get('source') or '?')})</i>")
+    out += event_lines(events if events is not None else load_events(), now, n=3)
     out.append(footer("NSE, Yahoo, MCP, news wires"))
     return "\n".join(out)
+
+
+# ---------------------------------------------------------------- event calendar
+
+RECHECK_WARN_DAYS = 2
+
+
+def load_events() -> dict:
+    """Event risk built now from the calendar files (offline), so the freshness verdict is current."""
+    try:
+        from market_lab.market_lab_data import load_event_risk_context
+        return load_event_risk_context()
+    except Exception as exc:
+        print(f"[UPDATES] event calendar failed: {exc}")
+        return {"status": "NOT_AVAILABLE", "warnings": [str(exc)], "upcoming_events": []}
+
+
+def event_lines(ctx: dict, now=None, n: int = 5) -> list[str]:
+    """Upcoming events in IST plus any freshness warning. Never says 'all clear' on a stale calendar."""
+    out = []
+    for e in (ctx.get("upcoming_events") or [])[:n]:
+        try:
+            t = datetime.fromisoformat(e["datetime_utc"]).astimezone(IST)
+        except (KeyError, ValueError):
+            continue
+        sev = {"HIGH": " <b>[HIGH]</b>", "CRITICAL": " <b>[CRITICAL]</b>", "MODERATE": " [MOD]"}.get(e.get("severity"), "")
+        out.append(f"• {t:%a %d-%b %H:%M} {esc(e.get('name', '?'))}{sev}")
+    if ctx.get("status") != "AVAILABLE":
+        reason = next((w for w in ctx.get("warnings") or [] if "stale" in w.lower() or "older" in w.lower()
+                       or "covers" in w.lower()), (ctx.get("warnings") or ["calendar not verified"])[0])
+        out.append(f"⚠ Event risk UNKNOWN: {esc(reason)}")
+    elif expires := ctx.get("schedule_expires_at_utc"):
+        left = datetime.fromisoformat(expires) - _now(now)
+        if left.total_seconds() < RECHECK_WARN_DAYS * 86400:
+            out.append(f"⚠ Release calendar re-check due by {datetime.fromisoformat(expires).astimezone(IST):%a %d-%b %H:%M}")
+    return out
 
 
 # ---------------------------------------------------------------- news quality
@@ -316,7 +353,8 @@ def _movers_table(rows: list[dict]) -> str:
 
 
 def postmarket_text(report: dict, quotes: dict, movers: dict | None, sectors: dict | None,
-                    headlines: dict, market_news: list, fii: list | None, ai: str | None = None, now=None) -> str:
+                    headlines: dict, market_news: list, fii: list | None, ai: str | None = None, now=None,
+                    events: dict | None = None) -> str:
     b = report.get("breadth") or {}
     out = [header("POST-MARKET WRAP", now), section("Indices"), index_table(quotes, label_last="CLOSE")]
 
@@ -359,6 +397,8 @@ def postmarket_text(report: dict, quotes: dict, movers: dict | None, sectors: di
     if news:
         out.append(section("Market headlines"))
         out += [f"• {esc(n['title'])} <i>({esc(n.get('source') or '?')})</i>" for n in news]
+    out += [section("Next 7 days")] + (event_lines(events if events is not None else load_events(), now, n=5)
+                                        or ["No scheduled events"])
     if ai:
         out += [section("AI read"), f"<i>Unverified, {esc(MODEL)}:</i> {esc(ai)}"]
     out.append(footer(_sources(quotes, "Nova scan", "NSE filings", "news wires")))

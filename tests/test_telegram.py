@@ -88,14 +88,14 @@ class TestMessages(unittest.TestCase):
                  "morning_call": [{"topic": "GIFT Nifty", "tone": "positive", "text": "dup of table"},
                                   {"topic": "Trend", "tone": "negative", "text": "Regime <BEAR> & weak"}],
                  "range": {"low": 25100, "high": 25600, "points": 250, "pct": 1.0}, "news": []}
-        text = mu.premarket_text(brief)
+        text = mu.premarket_text(brief, events={"status": "AVAILABLE", "upcoming_events": []})
         self.assertRegex(text, r"GIFT NIFTY\s+25,450\s+\+0.25")
         self.assertIn("S&amp;P 500", text)                       # escaped for Telegram HTML
         self.assertIn("FII +4,195 cr (17-Nov-2026)", text)
         self.assertIn("<b>25,100 – 25,600</b>", text)
         self.assertNotIn("dup of table", text)                   # short: no desk-view essay
         self.assertLess(len(text), 700)
-        self.assertIn("not yet posted", mu.premarket_text({}))
+        self.assertIn("not yet posted", mu.premarket_text({}, events={"status": "AVAILABLE", "upcoming_events": []}))
 
     def test_postmarket_sections(self):
         movers = day_movers.top_movers(scan(), n=5)
@@ -166,6 +166,51 @@ class TestNewsQuality(unittest.TestCase):
     def test_nse_failure_gives_empty_context(self):
         with mock.patch.object(mu.nse_live, "get", side_effect=RuntimeError("NSE down")), mock.patch("builtins.print"):
             self.assertEqual(mu.nse_context("ABC", now=self.NOW), [])
+
+
+class TestEventCalendar(unittest.TestCase):
+    NOW = datetime(2026, 11, 20, 9, 15, tzinfo=IST)
+
+    def test_nse_feed_marks_monthly_expiry_and_skips_weekend_holidays(self):
+        from analysis.data import event_calendar_nse as ecn
+        holidays = {"CM": [{"tradingDate": "24-Nov-2026", "description": "Prakash Gurpurb Sri Guru Nanak Dev"},
+                           {"tradingDate": "15-Aug-2026", "description": "Independence Day"},
+                           {"tradingDate": "26-Dec-2026", "description": "Weekend thing"},
+                           {"tradingDate": "25-Dec-2026", "description": "Christmas"}]}
+        ev = ecn.build_events(holidays, ["23-Nov-2026", "01-Dec-2026"], ["23-Nov-2026", "29-Dec-2026"], self.NOW)
+        names = [e["name"] for e in ev]
+        self.assertEqual(names, ["NIFTY monthly expiry (also BANKNIFTY monthly)",
+                                 "NSE/BSE trading holiday - Prakash Gurpurb Sri Guru Nanak Dev",
+                                 "NIFTY weekly expiry", "NSE/BSE trading holiday - Christmas"])
+        self.assertEqual(ev[0]["severity"], "MODERATE")
+
+    def test_split_feeds_schedule_7_days_market_24_hours(self):
+        from analysis.data.event_risk_engine import build_event_risk_context as b
+        ok = b([], source_checked_at="2026-11-15T09:00:00+05:30", calendar_complete=True, now=self.NOW,
+               market_checked_at="2026-11-20T08:30:00+05:30", covers_until="2026-12-29")
+        self.assertEqual(ok["status"], "AVAILABLE")
+        old_schedule = b([], source_checked_at="2026-11-12T09:00:00+05:30", calendar_complete=True, now=self.NOW,
+                         market_checked_at="2026-11-20T08:30:00+05:30", covers_until="2026-12-29")
+        self.assertEqual(old_schedule["status"], "NOT_AVAILABLE")
+        old_feed = b([], source_checked_at="2026-11-19T09:00:00+05:30", calendar_complete=True, now=self.NOW,
+                     market_checked_at="2026-11-19T08:00:00+05:30", covers_until="2026-12-29")
+        self.assertEqual(old_feed["status"], "NOT_AVAILABLE")
+        short = b([], source_checked_at="2026-11-19T09:00:00+05:30", calendar_complete=True, now=self.NOW,
+                  market_checked_at="2026-11-20T08:30:00+05:30", covers_until="2026-11-22")
+        self.assertEqual(short["status"], "NOT_AVAILABLE")
+        legacy = b([], source_checked_at="2026-11-19T08:00:00+05:30", calendar_complete=True, now=self.NOW)
+        self.assertEqual(legacy["status"], "NOT_AVAILABLE")  # one stamp keeps the strict 24 h rule
+
+    def test_event_lines_show_ist_times_and_warnings(self):
+        ctx = {"status": "AVAILABLE", "schedule_expires_at_utc": "2026-11-21T03:00:00+00:00",
+               "upcoming_events": [{"name": "RBI MPC decision", "datetime_utc": "2026-12-04T04:30:00+00:00",
+                                    "severity": "HIGH"}]}
+        lines = mu.event_lines(ctx, now=self.NOW)
+        self.assertEqual(lines[0], "• Fri 04-Dec 10:00 RBI MPC decision <b>[HIGH]</b>")
+        self.assertIn("re-check due by Sat 21-Nov 08:30", lines[1])
+        stale = mu.event_lines({"status": "NOT_AVAILABLE", "warnings": ["Calendar source is stale or older than 24 hours."],
+                                "upcoming_events": []}, now=self.NOW)
+        self.assertEqual(stale, ["⚠ Event risk UNKNOWN: Calendar source is stale or older than 24 hours."])
 
 
 class TestTelegramSend(unittest.TestCase):

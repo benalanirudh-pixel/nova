@@ -28,7 +28,9 @@ CALENDAR_FILE = (
 
 SEVERITIES = {"LOW", "MODERATE", "HIGH", "CRITICAL"}
 INSTRUMENTS = {"NIFTY", "BANK_NIFTY", "INDIAN_MARKET", "GLOBAL_MARKET"}
-MAX_SOURCE_AGE_HOURS = 24
+# the engine trusts the hand-verified release schedule for 7 days when the daily NSE feed
+# (analysis/data/event_calendar_nse.py) supplies holidays and expiries; see event_risk_engine.MAX_SCHEDULE_AGE_DAYS
+MAX_SOURCE_AGE_HOURS = 7 * 24
 LOOKAHEAD_DAYS = 7
 
 

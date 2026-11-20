@@ -444,11 +444,21 @@ def load_event_risk_context() -> dict[str, Any]:
     if not isinstance(events, list):
         events = None
 
+    # NSE holidays/expiries come from the daily-refreshed NSE feed when it exists;
+    # without it the whole file falls back to the strict single-stamp rule.
+    from analysis.data import event_calendar_nse
+    market_checked_at, nse_events = event_calendar_nse.load()
+    if market_checked_at and events is not None:
+        events = [e for e in events if not (isinstance(e, dict)
+                                            and e.get("category") in event_calendar_nse.NSE_CATEGORIES)] + nse_events
+
     context = build_event_risk_context(
         events=events,
         source_checked_at=calendar.get("source_checked_at"),
         # Never infer completeness from an empty event list.
         calendar_complete=calendar.get("calendar_complete") is True,
+        market_checked_at=market_checked_at,
+        covers_until=calendar.get("covers_until"),
     )
     context["calendar_file"] = str(EVENT_CALENDAR_FILE)
     context["calendar_source_name"] = calendar.get("source_name")
